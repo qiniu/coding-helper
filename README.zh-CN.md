@@ -1,0 +1,223 @@
+<div align="center">
+
+# 🚀 qiniu-coding-helper
+
+[![npm version](https://badge.fury.io/js/qiniu-coding-helper.svg)](https://www.npmjs.com/package/qiniu-coding-helper)
+[![License: AGPL-3.0](https://img.shields.io/badge/License-AGPL--3.0-blue.svg)](https://www.gnu.org/licenses/agpl-3.0)
+[![Node.js Version](https://img.shields.io/node/v/qiniu-coding-helper.svg)](https://nodejs.org)
+
+**一站式配置 Claude Code 使用七牛 AI API 端点的 CLI 工具**
+
+[English](README.md) · [功能特性](#-功能特性) · [快速开始](#-快速开始) · [命令一览](#-命令一览) · [配置说明](#-配置说明) · [常见问题](#-常见问题)
+
+</div>
+
+---
+
+## ✨ 功能特性
+
+- **🎯 交互式向导** — 首次运行引导配置语言、线路、API Key 和模型，步步引导
+- **🌐 多线路支持** — 国内线路 (api.qnaigc.com) / 海外线路 (openai.sufy.com)
+- **🔐 API Key 管理** — 输入、验证、保存、删除，一条龙管理
+- **📦 模型配置** — 从 API 获取可用模型列表，也支持手动输入模型 ID
+- **⚡ Claude Code 集成** — 自动将环境变量写入 `~/.claude/settings.json`
+- **🔍 健康检查** — 内置 `doctor` 命令，检测配置文件、API Key、网络、工具安装状态
+- **🌍 国际化** — 支持中文 (zh_CN) 和英文 (en_US)
+
+## 📋 前置要求
+
+开始之前，请确保已安装：
+
+- **Node.js** 18 或更高版本 ([下载](https://nodejs.org/))
+- **Claude Code CLI** ([安装地址](https://claude.ai/download))
+- **七牛 API Key** ([获取地址](https://portal.qiniu.com/))
+
+## 🚀 快速开始
+
+### 1️⃣ 运行配置向导
+
+无需安装，直接运行：
+
+```bash
+npx qiniu-coding-helper
+```
+
+### 2️⃣ 按提示完成配置
+
+- 选择语言（中文 / 英文）
+- 选择线路（国内 / 海外）
+- 输入并验证 API Key
+- 选择模型
+
+### 3️⃣ 重启 Claude Code
+
+如果 Claude Code 正在运行，请重启以应用配置。
+
+### 4️⃣ 开始编程! 🎉
+
+```bash
+claude
+```
+
+配置完成！现在 Claude Code 已通过七牛 AI 端点运行。
+
+---
+
+## 📚 命令一览
+
+### 🎬 `coding-helper init`
+
+运行交互式配置向导（强制重新初始化）。
+
+```bash
+npx qiniu-coding-helper init
+```
+
+---
+
+### 🔐 `coding-helper auth`
+
+管理 API Key 认证。
+
+```bash
+# 交互式输入 API Key
+npx qiniu-coding-helper auth
+
+# 直接设置 API Key
+npx qiniu-coding-helper auth <token>
+
+# 删除 API Key
+npx qiniu-coding-helper auth revoke
+
+# 重新加载配置到 Claude Code
+npx qiniu-coding-helper auth reload claude
+```
+
+---
+
+### 🌍 `coding-helper lang`
+
+管理界面语言。
+
+```bash
+# 显示当前语言
+npx qiniu-coding-helper lang show
+
+# 设置为中文
+npx qiniu-coding-helper lang set zh_CN
+
+# 设置为英文
+npx qiniu-coding-helper lang set en_US
+```
+
+---
+
+### 🏥 `coding-helper doctor`
+
+运行健康检查，诊断配置问题。
+
+```bash
+npx qiniu-coding-helper doctor
+```
+
+**检查项:** 配置文件 · API Key 有效性 · 网络连通性 · Claude Code 安装 · Git · Node.js
+
+---
+
+### ⚙️ `coding-helper enter`
+
+进入交互式配置菜单。
+
+```bash
+# 进入主菜单
+npx qiniu-coding-helper enter
+
+# 进入 Claude Code 配置菜单
+npx qiniu-coding-helper enter claude-code
+```
+
+---
+
+## 🔧 配置说明
+
+### 📁 配置文件位置
+
+| 位置 | 路径 | 用途 |
+|------|------|------|
+| **Coding Helper 配置** | `~/.coding-helper/config.yaml` | 语言、线路、API Key、模型设置 |
+| **Claude Code 设置** | `~/.claude/settings.json` | API 端点环境变量 |
+| **Claude Code Onboarding** | `~/.claude.json` | 初始化完成标记 |
+
+### 🌍 线路端点
+
+| 线路 | 地址 | 适用场景 |
+|------|------|----------|
+| 🇨🇳 **国内线路** | `https://api.qnaigc.com` | 中国大陆用户 |
+| 🌍 **海外线路** | `https://openai.sufy.com` | 海外用户 |
+
+### 🔧 Claude Code 环境变量
+
+配置应用后，以下环境变量会写入 `~/.claude/settings.json`：
+
+```json
+{
+  "env": {
+    "ANTHROPIC_BASE_URL": "https://api.qnaigc.com",
+    "ANTHROPIC_AUTH_TOKEN": "<your-api-key>",
+    "API_TIMEOUT_MS": "3000000",
+    "CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC": "1"
+  }
+}
+```
+
+> **说明:** 工具还会设置 `API_TIMEOUT_MS`（50 分钟，适配长时间推理请求）、禁用非必要流量（第三方端点不需要 Anthropic 遥测）、禁用 commit/PR 归属标注（通过代理端点运行时标注不准确）。
+
+---
+
+## ❓ 常见问题
+
+### Claude Code 没有使用配置的端点
+
+1. 运行 `npx qiniu-coding-helper doctor` 检查配置
+2. 运行 `npx qiniu-coding-helper auth reload claude` 重新应用设置
+3. **完全重启 Claude Code**
+4. 确认 shell 环境中没有设置 `ANTHROPIC_BASE_URL`（运行 `unset ANTHROPIC_BASE_URL`）
+
+### API 报错或认证失败
+
+1. 检查 API Key：查看 `~/.coding-helper/config.yaml`
+2. 确认选择了正确的线路（国内 / 海外）
+3. 确认 API Key 在[七牛控制台](https://portal.qiniu.com/)仍有余额
+
+### 权限被拒绝
+
+```bash
+chmod 600 ~/.claude/settings.json
+chmod 600 ~/.coding-helper/config.yaml
+```
+
+---
+
+## 🛠️ 开发
+
+```bash
+pnpm install        # 安装依赖
+pnpm build          # 编译 (tsc + 复制 locales 到 dist/)
+pnpm dev            # 监听模式
+pnpm start          # 运行 CLI (node dist/cli.js)
+pnpm clean          # 清理 dist/
+```
+
+构建后验证：
+
+```bash
+node dist/cli.js --version
+node dist/cli.js --help
+node dist/cli.js doctor
+```
+
+---
+
+## 📄 License
+
+本项目基于 [AGPL-3.0](LICENSE) 协议开源。
