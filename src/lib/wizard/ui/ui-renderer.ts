@@ -1,5 +1,5 @@
 import chalk from 'chalk';
-import { stringWidth, padEnd } from '../../../utils/string-width.js';
+import { stringWidth, padEnd, truncate } from '../../../utils/string-width.js';
 import { logger } from '../../../utils/logger.js';
 import { renderLogo as renderLogoArt } from './logo.js';
 import { theme } from './theme.js';
@@ -74,11 +74,24 @@ export const uiRenderer = {
     logger.newLine();
   },
 
-  // 渲染带边框的配置面板卡片
+  // 渲染带边框的配置面板卡片（动态宽度，自适应内容）
   renderConfigPanel(items: ConfigPanelItem[]): void {
-    const labelWidth = 16;  // 标签列宽度
-    const valueWidth = 32;  // 值列宽度
-    const innerWidth = labelWidth + valueWidth + 5; // 状态圆点 + 间距
+    if (items.length === 0) return;
+
+    const MIN_INNER_WIDTH = 40;  // 最小内宽，保持美观
+    const MAX_INNER_WIDTH = 70;  // 最大内宽，防止面板过宽
+    const OVERHEAD = 4;          // 每行固定开销：空格(1) + 圆点(1) + 空格(1) + 标签后空格(1)
+
+    // 动态计算标签列宽度：取所有标签中最大可见宽度
+    const labelWidth = Math.max(...items.map(item => stringWidth(item.label)));
+    // 动态计算值列宽度：取所有值中最大可见宽度
+    const maxValueWidth = Math.max(...items.map(item => stringWidth(item.value)));
+    // 计算所需内宽并约束在 [MIN, MAX] 范围内
+    const neededWidth = OVERHEAD + labelWidth + maxValueWidth;
+    const innerWidth = Math.max(MIN_INNER_WIDTH, Math.min(MAX_INNER_WIDTH, neededWidth));
+    // 可用的值列最大宽度（超出时截断）
+    const maxAllowedValueWidth = innerWidth - OVERHEAD - labelWidth;
+
     const topBorder    = `  ${theme.border('┌' + '─'.repeat(innerWidth) + '┐')}`;
     const bottomBorder = `  ${theme.border('└' + '─'.repeat(innerWidth) + '┘')}`;
     const midBorder    = `  ${theme.border('├' + '─'.repeat(innerWidth) + '┤')}`;
@@ -92,13 +105,17 @@ export const uiRenderer = {
         ? theme.accent('●')
         : theme.subtle('○');
       const label = theme.label(padEnd(item.label, labelWidth));
+
+      // 值超出可用宽度时截断
+      const displayValue = stringWidth(item.value) > maxAllowedValueWidth
+        ? truncate(item.value, maxAllowedValueWidth)
+        : item.value;
       const val = item.configured
-        ? theme.value(item.value)
-        : theme.muted(item.value);
+        ? theme.value(displayValue)
+        : theme.muted(displayValue);
 
       // 计算可见宽度来精确对齐右边框
-      // 边框内内容：空格 + 圆点(1) + 空格 + 标签(labelWidth) + 空格 + 值(变长)
-      const valueVisibleWidth = stringWidth(item.value);
+      const valueVisibleWidth = stringWidth(displayValue);
       const contentVisibleWidth = 1 + 1 + 1 + labelWidth + 1 + valueVisibleWidth;
       const padding = Math.max(0, innerWidth - contentVisibleWidth);
 
