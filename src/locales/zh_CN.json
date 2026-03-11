@@ -83,6 +83,7 @@
   "tool_update_confirm": "是否更新 {{tool}} 从 {{current}} 到 {{latest}}？",
   "tool_update_skipped": "已是最新版本，无需更新",
   "tool_update_success": "{{tool}} 已更新到 {{version}}",
+  "tool_setup_ready": "{{tool}} 配置完成，可以开始使用了！",
 
   "doctor_title": "健康检查",
   "doctor_checking": "正在进行健康检查...",

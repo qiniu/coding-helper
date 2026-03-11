@@ -5,6 +5,7 @@ import { runLanguageFlow } from './flows/language-flow.js';
 import { runEndpointSelectionFlow } from './flows/endpoint-selection-flow.js';
 import { runApiKeyFlow } from './flows/api-key-flow.js';
 import { showMainMenu } from './menus/main-menu.js';
+import { runToolSetupFlow } from './flows/tool-setup-flow.js';
 
 // Wizard 协调器 - 管理首次运行向导和主菜单
 export class Wizard {
@@ -26,6 +27,9 @@ export class Wizard {
 
     // 3. 输入 API Key
     await runApiKeyFlow();
+
+    // 4. 选择工具并引导配置（配置模型 → 装载配置 → 提示就绪）
+    await runToolSetupFlow();
 
     // 初始化完成
     uiRenderer.renderSuccess(t('init_complete'));
