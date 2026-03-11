@@ -49,7 +49,7 @@
   "menu_configure_apikey": "配置 API Key",
   "menu_configure_tools": "配置编码工具",
   "menu_update_helper": "更新 Coding Helper",
-  "menu_clear_config": "清除配置",
+  "menu_clear_config": "清除 Coding Helper 配置",
   "clear_config_confirm": "确定要清除所有配置吗？（API Key、线路、语言、模型配置将被移除）",
   "clear_config_success": "配置已清除",
   "menu_exit": "退出",

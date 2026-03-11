@@ -44,7 +44,7 @@
   "menu_configure_apikey": "Configure API Key",
   "menu_configure_tools": "Configure Coding Tools",
   "menu_update_helper": "Update Coding Helper",
-  "menu_clear_config": "Clear Configuration",
+  "menu_clear_config": "Clear Coding Helper Configuration",
   "clear_config_confirm": "Are you sure you want to clear all configuration? (API Key, endpoint, language and model settings will be removed.)",
   "clear_config_success": "Configuration cleared",
   "menu_exit": "Exit",
