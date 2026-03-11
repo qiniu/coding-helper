@@ -20,6 +20,8 @@ export async function runApiKeyFlow(): Promise<boolean> {
       uiRenderer.renderError(t('apikey_empty'));
       const retry = await promptHelper.confirm(t('apikey_retry'));
       if (!retry) return false;
+      uiRenderer.renderHeader();
+      uiRenderer.renderHint(t('apikey_hint'));
       continue;
     }
 
@@ -41,5 +43,8 @@ export async function runApiKeyFlow(): Promise<boolean> {
 
     const retry = await promptHelper.confirm(t('apikey_retry'));
     if (!retry) return false;
+    // 重试前清屏并重新渲染
+    uiRenderer.renderHeader();
+    uiRenderer.renderHint(t('apikey_hint'));
   }
 }
