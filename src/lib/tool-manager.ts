@@ -1,5 +1,6 @@
 import type { ITool } from './tools/base-tool.js';
 import { ClaudeCodeTool } from './tools/claude-code-tool.js';
+import { CodexTool } from './tools/codex-tool.js';
 
 // 工具注册中心
 class ToolManager {
@@ -8,6 +9,7 @@ class ToolManager {
   constructor() {
     // 注册默认工具
     this.register(new ClaudeCodeTool());
+    this.register(new CodexTool());
   }
 
   // 注册工具

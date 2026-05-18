@@ -84,6 +84,10 @@
   "tool_update_skipped": "已是最新版本，无需更新",
   "tool_update_success": "{{tool}} 已更新到 {{version}}",
   "tool_setup_ready": "{{tool}} 配置完成，可以开始使用了！",
+  "codex_env_overwrite_confirm": "检测到已存在 QINIU_API_KEY，是否用当前 API Key 覆盖？",
+  "codex_env_unload_confirm": "是否同时移除 Coding Helper 写入的 QINIU_API_KEY 环境变量？",
+  "codex_env_conflict_non_interactive": "检测到已存在不同的 QINIU_API_KEY，非交互模式下无法确认是否覆盖",
+  "codex_env_overwrite_rejected": "已取消覆盖 QINIU_API_KEY，Codex 配置未写入",
 
   "doctor_title": "健康检查",
   "doctor_checking": "正在进行健康检查...",

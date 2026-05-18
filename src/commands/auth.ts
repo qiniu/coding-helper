@@ -8,6 +8,12 @@ import { runApiKeyFlow } from '../lib/wizard/flows/api-key-flow.js';
 import { logger } from '../utils/logger.js';
 import ora from 'ora';
 
+function resolveToolName(tool: string): string {
+  if (tool === 'claude' || tool === 'claude-code') return 'claude-code';
+  if (tool === 'codex' || tool === 'openai-codex') return 'codex';
+  return tool;
+}
+
 // auth 命令 - API Key 管理
 export async function authCommand(tokenOrAction?: string): Promise<void> {
   i18n.init();
@@ -28,7 +34,7 @@ export async function authCommand(tokenOrAction?: string): Promise<void> {
       uiRenderer.renderError('Usage: coding-helper auth reload <tool>');
       return;
     }
-    const tool = toolManager.get(toolName === 'claude' ? 'claude-code' : toolName);
+    const tool = toolManager.get(resolveToolName(toolName));
     if (!tool) {
       uiRenderer.renderError(`Unknown tool: ${toolName}`);
       return;
