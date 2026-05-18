@@ -7,6 +7,12 @@ import { showToolMenu } from './wizard/menus/tool-menu.js';
 import { showMainMenu } from './wizard/menus/main-menu.js';
 import { VERSION } from './version.js';
 
+function resolveToolName(tool: string): string {
+  if (tool === 'claude' || tool === 'claude-code') return 'claude-code';
+  if (tool === 'codex' || tool === 'openai-codex') return 'codex';
+  return tool;
+}
+
 // 创建并配置 Commander 程序
 export function createProgram(): Command {
   const program = new Command();
@@ -78,7 +84,7 @@ export function createProgram(): Command {
 
       if (tool) {
         // 处理工具名称别名
-        const toolName = tool === 'claude' || tool === 'claude-code' ? 'claude-code' : tool;
+        const toolName = resolveToolName(tool);
         const toolInstance = toolManager.get(toolName);
         if (toolInstance) {
           await showToolMenu(toolInstance);
