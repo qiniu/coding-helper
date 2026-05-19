@@ -1,0 +1,210 @@
+name: Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      bump:
+        description: "版本更新类型：major=大版本，minor=小版本，patch=小小版本"
+        required: true
+        default: patch
+        type: choice
+        options:
+          - patch
+          - minor
+          - major
+      prerelease:
+        description: "是否标记为预发布版本"
+        required: true
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+  id-token: write
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  release:
+    name: Tag, package, and publish
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Fetch tags
+        run: git fetch --force --tags origin
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v6
+        with:
+          version: 9
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: 'pnpm'
+          registry-url: 'https://registry.npmjs.org'
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Validate release branch
+        run: |
+          set -euo pipefail
+
+          if [ "${GITHUB_REF_NAME}" != "main" ]; then
+            echo "Release workflow must be run from the main branch." >&2
+            exit 1
+          fi
+
+      - name: Calculate version
+        id: release
+        env:
+          BUMP: ${{ inputs.bump }}
+        run: |
+          set -euo pipefail
+
+          if ! [[ "${BUMP}" =~ ^(patch|minor|major)$ ]]; then
+            echo "Invalid bump: ${BUMP}" >&2
+            exit 1
+          fi
+
+          PREVIOUS_TAG="$(git describe --tags --abbrev=0 --match 'v[0-9]*' 2>/dev/null || true)"
+
+          npm version "${BUMP}" --no-git-tag-version
+
+          VERSION="$(node -p "require('./package.json').version")"
+          TAG="v${VERSION}"
+          export VERSION
+
+          node -e "const fs = require('fs'); const version = process.env.VERSION; const path = 'src/lib/version.ts'; const source = fs.readFileSync(path, 'utf8'); const next = source.replace(/export const VERSION = '[^']+';/, \`export const VERSION = '\${version}';\`); if (source === next) { throw new Error('VERSION constant was not found'); } fs.writeFileSync(path, next);"
+
+          if git rev-parse "${TAG}" >/dev/null 2>&1; then
+            echo "Git tag already exists: ${TAG}" >&2
+            exit 1
+          fi
+
+          if npm view "qiniu-coding-helper@${VERSION}" version >/dev/null 2>&1; then
+            echo "npm version already exists: qiniu-coding-helper@${VERSION}" >&2
+            exit 1
+          fi
+
+          echo "previous_tag=${PREVIOUS_TAG}" >> "${GITHUB_OUTPUT}"
+          echo "version=${VERSION}" >> "${GITHUB_OUTPUT}"
+          echo "tag=${TAG}" >> "${GITHUB_OUTPUT}"
+
+          echo "Previous tag: ${PREVIOUS_TAG:-<none>}"
+          echo "Next tag: ${TAG}"
+
+      - name: Test
+        run: pnpm run --if-present test
+
+      - name: Build
+        run: pnpm build
+
+      - name: Verify CLI
+        run: |
+          VERSION_OUTPUT="$(node dist/cli.js --version)"
+          if [ "${VERSION_OUTPUT}" != "${{ steps.release.outputs.version }}" ]; then
+            echo "Unexpected CLI version: ${VERSION_OUTPUT}" >&2
+            exit 1
+          fi
+          node dist/cli.js --help
+
+      - name: Verify npm package contents
+        run: npm pack --dry-run
+
+      - name: Commit version bump
+        id: commit
+        run: |
+          set -euo pipefail
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          git add package.json src/lib/version.ts
+          if git diff --cached --quiet; then
+            echo "package.json already has version ${{ steps.release.outputs.version }}."
+          else
+            git commit -m "chore: release ${{ steps.release.outputs.tag }}"
+            git push origin "HEAD:${GITHUB_REF_NAME}"
+          fi
+
+          echo "commit_sha=$(git rev-parse HEAD)" >> "${GITHUB_OUTPUT}"
+          echo "Target commit: $(git rev-parse HEAD)"
+
+      - name: Create and push tag
+        run: |
+          set -euo pipefail
+
+          git tag -a "${{ steps.release.outputs.tag }}" -m "Release ${{ steps.release.outputs.tag }}"
+          git push origin "${{ steps.release.outputs.tag }}"
+
+      - name: Create GitHub Release
+        uses: actions/github-script@v8
+        env:
+          VERSION: ${{ steps.release.outputs.tag }}
+          PREVIOUS_TAG: ${{ steps.release.outputs.previous_tag }}
+          COMMIT_SHA: ${{ steps.commit.outputs.commit_sha }}
+          PRERELEASE: ${{ inputs.prerelease }}
+        with:
+          script: |
+            const { owner, repo } = context.repo;
+            const version = process.env.VERSION;
+            const previousTag = process.env.PREVIOUS_TAG || undefined;
+            const commitSha = process.env.COMMIT_SHA;
+            const prerelease = process.env.PRERELEASE === "true";
+
+            const params = {
+              owner,
+              repo,
+              tag_name: version,
+              target_commitish: commitSha,
+            };
+            if (previousTag) {
+              params.previous_tag_name = previousTag;
+            }
+
+            const generated = await github.rest.repos.generateReleaseNotes(params);
+
+            function localizeReleaseNotes(body) {
+              return body
+                .replace(/^## What's Changed$/gm, "## 更新内容")
+                .replace(/^## New Contributors$/gm, "## 新贡献者")
+                .replace(/^\*Full Changelog\*: (.+)$/gm, "**完整变更记录**：$1");
+            }
+
+            const npmIntro = [
+              "## npm 包",
+              "",
+              `- 包名：\`qiniu-coding-helper@${version.replace(/^v/, "")}\``,
+              "",
+            ].join("\n");
+
+            const release = await github.rest.repos.createRelease({
+              owner,
+              repo,
+              tag_name: version,
+              target_commitish: commitSha,
+              name: version,
+              body: `${npmIntro}${localizeReleaseNotes(generated.data.body)}`,
+              prerelease,
+              make_latest: prerelease ? "false" : "true",
+            });
+
+            core.summary
+              .addHeading(`已发布 ${version}`)
+              .addLink("GitHub Release", release.data.html_url)
+              .addBreak()
+              .addRaw(`npm 包：qiniu-coding-helper@${version.replace(/^v/, "")}`)
+              .write();
+
+      - name: Publish to npm
+        run: npm publish --access public --provenance

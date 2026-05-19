@@ -10,6 +10,7 @@
   },
   "scripts": {
     "build": "tsc && rm -rf dist/locales && cp -r src/locales dist/locales",
+    "test": "tsc --noEmit",
     "dev": "tsc --watch",
     "start": "node dist/cli.js",
     "clean": "rm -rf dist",
