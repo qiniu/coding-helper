@@ -88,7 +88,7 @@ export async function showToolMenu(tool: ITool): Promise<void> {
         );
         if (confirmed) {
           try {
-            tool.unloadConfig();
+            await tool.unloadConfig();
             uiRenderer.renderHeader();
             uiRenderer.renderSuccess(t('tool_config_unloaded', { tool: tool.displayName }));
           } catch {

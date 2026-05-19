@@ -35,5 +35,5 @@ export interface ITool {
   loadConfig(apiKey: string, baseUrl: string, models: ModelConfig): Promise<void>;
 
   // 从工具移除配置
-  unloadConfig(): void;
+  unloadConfig(): void | Promise<void>;
 }

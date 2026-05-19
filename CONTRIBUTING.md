@@ -6,8 +6,8 @@ Thank you for your interest in contributing! Here's how to get started.
 
 ```bash
 # Clone the repository
-git clone https://github.com/krisxia0506/qiniu-coding-helper.git
-cd qiniu-coding-helper
+git clone https://github.com/qiniu/coding-helper.git
+cd coding-helper
 
 # Install dependencies (requires pnpm)
 pnpm install
@@ -80,4 +80,4 @@ Translation files are in `src/locales/`. To add or modify translations:
 
 ## Reporting Issues
 
-Please use [GitHub Issues](https://github.com/krisxia0506/qiniu-coding-helper/issues) to report bugs or request features.
+Please use [GitHub Issues](https://github.com/qiniu/coding-helper/issues) to report bugs or request features.
