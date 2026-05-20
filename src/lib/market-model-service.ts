@@ -1,3 +1,5 @@
+import { createHash } from 'node:crypto';
+
 // 市场模型信息接口（详细版本，包含能力信息）
 export interface MarketModelInfo {
   id: string;
@@ -80,13 +82,11 @@ class MarketModelService {
   private cache: MarketModelInfo[] | null = null;
   private cacheKey: string | null = null;
 
-  // 缓存键使用 baseUrl + apiKey 哈希，避免 apiKey 明文驻留
+  // 缓存键使用 baseUrl + apiKey 的 SHA-256，避免 apiKey 明文长期驻留在缓存键中，
+  // 同时回避自定义弱哈希在不同 key 上的碰撞风险
   private buildCacheKey(baseUrl: string, apiKey: string): string {
-    let hash = 0;
-    for (let i = 0; i < apiKey.length; i++) {
-      hash = ((hash << 5) - hash + apiKey.charCodeAt(i)) | 0;
-    }
-    return `${baseUrl}:${hash}`;
+    const digest = createHash('sha256').update(apiKey).digest('hex');
+    return `${baseUrl}:${digest}`;
   }
 
   async fetchModels(baseUrl: string, apiKey: string): Promise<MarketModelInfo[]> {
