@@ -127,7 +127,7 @@ export class CodeBuddyWorkBuddyTool implements ITool {
 
   // 多选要配置的市场模型，结果存入 configManager.codeBuddyModels
   async runModelConfigFlow(): Promise<void> {
-    const selected = await runCodeBuddyWorkBuddyModelSelectionFlow(true);
+    const selected = await runCodeBuddyWorkBuddyModelSelectionFlow();
     if (!selected || selected.length === 0) {
       return;
     }

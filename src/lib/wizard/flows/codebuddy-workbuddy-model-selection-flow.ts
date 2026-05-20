@@ -10,26 +10,23 @@ import { promptHelper } from '../ui/prompt-helper.js';
 import { uiRenderer } from '../ui/ui-renderer.js';
 
 // 让用户多选 CodeBuddy/WorkBuddy 要配置的模型，返回选中的模型 ID 列表
-export async function runCodeBuddyWorkBuddyModelSelectionFlow(
-  reuseExisting = false,
-): Promise<string[] | null> {
+// 若已有历史配置，先询问是否复用；否则进入完整选择流程
+export async function runCodeBuddyWorkBuddyModelSelectionFlow(): Promise<string[] | null> {
   const apiKey = configManager.getApiKey();
   if (!apiKey) {
     uiRenderer.renderError(t('apikey_not_set'));
     return null;
   }
 
-  if (reuseExisting) {
-    const previous = configManager.getModels().codeBuddyModels;
-    if (previous && previous.length > 0) {
-      uiRenderer.renderHeader();
-      uiRenderer.renderHint(
-        t('codebuddy_current_models', { models: previous.join(', ') }),
-      );
-      const reuse = await promptHelper.confirm(t('codebuddy_reuse_previous_selection'), true);
-      if (reuse) {
-        return previous;
-      }
+  const previous = configManager.getModels().codeBuddyModels;
+  if (previous && previous.length > 0) {
+    uiRenderer.renderHeader();
+    uiRenderer.renderHint(
+      t('codebuddy_current_models', { models: previous.join(', ') }),
+    );
+    const reuse = await promptHelper.confirm(t('codebuddy_reuse_previous_selection'), true);
+    if (reuse) {
+      return previous;
     }
   }
 
