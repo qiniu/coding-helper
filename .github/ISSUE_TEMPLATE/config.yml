@@ -1,0 +1,8 @@
+blank_issues_enabled: true
+contact_links:
+  - name: 使用文档
+    url: https://github.com/qiniu/coding-helper#readme
+    about: 先查看 README 中的安装、命令和常见问题说明。
+  - name: 七牛控制台
+    url: https://portal.qiniu.com/
+    about: API Key、账号和额度相关问题请先查看七牛控制台。
