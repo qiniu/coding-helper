@@ -3,11 +3,8 @@ import test from 'node:test';
 
 import {
   buildCodexConfig,
+  buildCodexAuthJson,
   removeManagedCodexConfig,
-  buildPosixEnvBlock,
-  buildFishEnvBlock,
-  shouldPersistApiKey,
-  secureEnvFileMode,
 } from '../dist/lib/tools/codex-tool.js';
 
 test('buildCodexConfig preserves unrelated TOML and replaces managed qnaigc blocks', () => {
@@ -38,7 +35,8 @@ test('buildCodexConfig preserves unrelated TOML and replaces managed qnaigc bloc
   assert.match(next, /model_provider = "qnaigc"/);
   assert.match(next, /\[model_providers\.other\]\nname = "Other"/);
   assert.match(next, /\[model_providers\.qnaigc\]\nname = "Qiniu"\nbase_url = "https:\/\/api\.qnaigc\.com\/bypass\/openai\/v1"/);
-  assert.match(next, /env_key = "QINIU_API_KEY"/);
+  assert.match(next, /requires_openai_auth = true/);
+  assert.doesNotMatch(next, /env_key = "QINIU_API_KEY"/);
   assert.match(next, /\[profiles\.qn-gpt\]\nmodel_provider = "qnaigc"\nmodel = "openai\/gpt-5\.2"/);
   assert.match(next, /\[profiles\.keep\]\nmodel_provider = "other"\nmodel = "keep-model"/);
   assert.doesNotMatch(next, /https:\/\/old\.example/);
@@ -85,36 +83,21 @@ test('buildCodexConfig removes stale qnaigc dotted subtables before writing prov
   assert.doesNotMatch(next, /old-token-command/);
 });
 
-test('environment blocks quote API keys safely', () => {
-  assert.equal(
-    buildPosixEnvBlock("abc'def"),
-    [
-      '# >>> coding-helper QINIU_API_KEY >>>',
-      "export QINIU_API_KEY='abc'\\''def'",
-      '# <<< coding-helper QINIU_API_KEY <<<',
-      '',
-    ].join('\n'),
+test('buildCodexAuthJson stores the API key in Codex API key auth mode and preserves unrelated fields', () => {
+  const next = buildCodexAuthJson(
+    JSON.stringify({
+      auth_mode: 'chatgpt',
+      OPENAI_API_KEY: null,
+      tokens: { refresh_token: 'keep-refresh-token' },
+      last_refresh: '2026-05-20T00:00:00Z',
+    }),
+    'qiniu-key',
   );
 
-  assert.equal(
-    buildFishEnvBlock("abc'def"),
-    [
-      '# >>> coding-helper QINIU_API_KEY >>>',
-      "set -gx QINIU_API_KEY 'abc\\'def'",
-      '# <<< coding-helper QINIU_API_KEY <<<',
-      '',
-    ].join('\n'),
-  );
-});
-
-test('shouldPersistApiKey fails when interactive user rejects overwrite', () => {
-  assert.throws(
-    () => shouldPersistApiKey('new-key', 'old-key', { interactive: true, overwriteConfirmed: false }),
-    /QINIU_API_KEY/,
-  );
-});
-
-test('secureEnvFileMode tightens env files to owner read-write', () => {
-  assert.equal(secureEnvFileMode(0o644), 0o600);
-  assert.equal(secureEnvFileMode(0o600), 0o600);
+  assert.deepEqual(JSON.parse(next), {
+    auth_mode: 'apikey',
+    OPENAI_API_KEY: 'qiniu-key',
+    tokens: { refresh_token: 'keep-refresh-token' },
+    last_refresh: '2026-05-20T00:00:00Z',
+  });
 });
