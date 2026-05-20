@@ -147,6 +147,8 @@ npx qiniu-coding-helper enter claude-code
 | **Coding Helper Config** | `~/.coding-helper/config.yaml` | Language, endpoint, API Key, model settings |
 | **Claude Code Settings** | `~/.claude/settings.json` | API endpoint environment variables |
 | **Claude Code Onboarding** | `~/.claude.json` | Onboarding completion flag |
+| **Codex Config** | `~/.codex/config.toml` | Qiniu model provider and profile settings |
+| **Codex Auth** | `~/.codex/auth.json` | Codex API key auth cache |
 
 ### 🌍 Region Endpoints
 
@@ -171,6 +173,12 @@ When configuration is applied, these environment variables are set in `~/.claude
 ```
 
 > **Note:** The tool also sets `API_TIMEOUT_MS` (50 min, for long inference requests), disables non-essential traffic (telemetry not needed for third-party endpoints), and disables commit/PR attribution (inaccurate via proxy endpoints).
+
+### 🔧 Codex Configuration
+
+When Codex configuration is applied, Coding Helper writes the Qiniu model provider to `~/.codex/config.toml` and stores the API Key in Codex's own `~/.codex/auth.json` auth cache. It does not rely on a `QINIU_API_KEY` shell environment variable.
+
+Treat `~/.codex/auth.json` like a password because it contains API credentials.
 
 ---
 
