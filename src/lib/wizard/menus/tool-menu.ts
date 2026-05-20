@@ -5,7 +5,6 @@ import { configManager } from '../../config.js';
 import { promptHelper } from '../ui/prompt-helper.js';
 import { uiRenderer } from '../ui/ui-renderer.js';
 import { theme } from '../ui/theme.js';
-import { runModelSelectionFlow } from '../flows/model-selection-flow.js';
 import type { ITool } from '../../tools/base-tool.js';
 import { logger } from '../../../utils/logger.js';
 import { fetchLatestVersion, isNewerVersion } from '../../version-service.js';
@@ -73,7 +72,7 @@ export async function showToolMenu(tool: ITool): Promise<void> {
 
     switch (action) {
       case 'models':
-        await runModelSelectionFlow();
+        await tool.runModelConfigFlow();
         break;
 
       case 'load':
@@ -176,9 +175,11 @@ async function loadConfig(tool: ITool): Promise<void> {
     await tool.loadConfig(apiKey, configManager.baseUrl, models);
     uiRenderer.renderHeader();
     uiRenderer.renderSuccess(t('tool_config_loaded', { tool: tool.displayName }));
-  } catch {
+  } catch (err: unknown) {
     uiRenderer.renderHeader();
-    uiRenderer.renderError(t('tool_config_load_failed', { tool: tool.displayName }));
+    uiRenderer.renderError(
+      err instanceof Error ? err.message : t('tool_config_load_failed', { tool: tool.displayName }),
+    );
   }
   await promptHelper.pressEnter();
 }
@@ -249,19 +250,15 @@ async function viewConfig(tool: ITool): Promise<void> {
   uiRenderer.renderHeader();
   uiRenderer.renderTitle(t('config_view_title'));
 
-  const models = configManager.getModels();
   const apiKey = configManager.getApiKey();
   const notSet = t('config_view_not_set');
-  const modelNotSet = t('model_confirm_not_set');
   uiRenderer.renderConfigItem(t('config_view_endpoint'), configManager.baseUrl);
   uiRenderer.renderConfigItem(
     t('config_view_apikey'),
     apiKey ? uiRenderer.maskApiKey(apiKey) : chalk.dim(notSet),
   );
-  uiRenderer.renderConfigItem(t('config_view_haiku'), models.haikuModel || chalk.dim(modelNotSet));
-  uiRenderer.renderConfigItem(t('config_view_sonnet'), models.sonnetModel || chalk.dim(modelNotSet));
-  uiRenderer.renderConfigItem(t('config_view_opus'), models.opusModel || chalk.dim(modelNotSet));
-  uiRenderer.renderConfigItem(t('config_view_subagent'), models.subagentModel || chalk.dim(modelNotSet));
+
+  tool.renderModelConfigSummary();
 
   logger.newLine();
 

@@ -81,6 +81,20 @@ export const promptHelper = {
     ]);
   },
 
+  // 多选列表
+  async checkbox<T extends string>(message: string, choices: { name: string; value: T }[]): Promise<T[]> {
+    const { answer } = await inquirer.prompt([
+      {
+        type: 'checkbox',
+        name: 'answer',
+        message,
+        choices,
+        pageSize: 15,
+      },
+    ]);
+    return answer as T[];
+  },
+
   // 搜索+自动补全选择（同时展示输入框和可滚动列表，支持自定义输入和跳过）
   async searchSelect(
     message: string,

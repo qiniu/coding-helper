@@ -138,6 +138,11 @@ export const uiRenderer = {
     logger.log(`  ${chalk.bold(paddedLabel)} ${displayValue}`);
   },
 
+  // 渲染模型配置项，未配置时灰显"未设置"
+  renderModelConfigItem(label: string, value: string | undefined): void {
+    this.renderConfigItem(label, value || chalk.dim(t('model_confirm_not_set')));
+  },
+
   // 渲染分隔线
   renderDivider(): void {
     logger.log(chalk.dim('─'.repeat(50)));

@@ -3,8 +3,10 @@ import path from 'node:path';
 import os from 'node:os';
 import { execSync } from 'node:child_process';
 import type { ITool } from './base-tool.js';
-import type { ModelConfig } from '../config.js';
+import { configManager, type ModelConfig } from '../config.js';
 import { t } from '../i18n.js';
+import { runModelSelectionFlow } from '../wizard/flows/model-selection-flow.js';
+import { uiRenderer } from '../wizard/ui/ui-renderer.js';
 
 // API 超时时间：50 分钟，适配长时间推理请求
 const API_TIMEOUT = '3000000';
@@ -34,6 +36,7 @@ export class ClaudeCodeTool implements ITool {
   installCommand = 'npm install -g @anthropic-ai/claude-code';
   updateCommand = 'claude update';
   npmPackageName = '@anthropic-ai/claude-code';
+  aliases = ['claude'];
 
   // 获取已安装的 Claude Code 版本
   getVersion(): string | null {
@@ -50,7 +53,8 @@ export class ClaudeCodeTool implements ITool {
   // 检查 claude 命令是否可用
   isInstalled(): boolean {
     try {
-      execSync('which claude', { stdio: 'pipe' });
+      const command = process.platform === 'win32' ? 'where claude' : 'which claude';
+      execSync(command, { stdio: 'pipe' });
       return true;
     } catch {
       return false;
@@ -68,34 +72,6 @@ export class ClaudeCodeTool implements ITool {
       // 文件不存在或解析失败
     }
     return {};
-  }
-
-  // 保存模型配置到 Claude Code settings.json
-  async saveModelConfig(config: ModelConfig): Promise<void> {
-    const settings = this.getConfig();
-    const env = (settings.env as Record<string, string>) || {};
-
-    if (config.haikuModel) env.ANTHROPIC_DEFAULT_HAIKU_MODEL = config.haikuModel;
-    if (config.sonnetModel) env.ANTHROPIC_DEFAULT_SONNET_MODEL = config.sonnetModel;
-    if (config.opusModel) env.ANTHROPIC_DEFAULT_OPUS_MODEL = config.opusModel;
-    if (config.subagentModel) env.CLAUDE_CODE_SUBAGENT_MODEL = config.subagentModel;
-
-    settings.env = env;
-    this.writeSettings(settings);
-  }
-
-  // 获取当前模型配置
-  getModelConfig(): ModelConfig | null {
-    const settings = this.getConfig();
-    const env = settings.env as Record<string, string> | undefined;
-    if (!env) return null;
-
-    return {
-      haikuModel: env.ANTHROPIC_DEFAULT_HAIKU_MODEL,
-      sonnetModel: env.ANTHROPIC_DEFAULT_SONNET_MODEL,
-      opusModel: env.ANTHROPIC_DEFAULT_OPUS_MODEL,
-      subagentModel: env.CLAUDE_CODE_SUBAGENT_MODEL,
-    };
   }
 
   // 清除所有七牛相关环境变量
@@ -159,6 +135,18 @@ export class ClaudeCodeTool implements ITool {
   // 从 Claude Code 移除配置
   unloadConfig(): void {
     this.clearModelConfig();
+  }
+
+  async runModelConfigFlow(): Promise<void> {
+    await runModelSelectionFlow();
+  }
+
+  renderModelConfigSummary(): void {
+    const models = configManager.getModels();
+    uiRenderer.renderModelConfigItem(t('config_view_haiku'), models.haikuModel);
+    uiRenderer.renderModelConfigItem(t('config_view_sonnet'), models.sonnetModel);
+    uiRenderer.renderModelConfigItem(t('config_view_opus'), models.opusModel);
+    uiRenderer.renderModelConfigItem(t('config_view_subagent'), models.subagentModel);
   }
 
   // 写入 settings.json

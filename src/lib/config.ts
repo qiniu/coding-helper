@@ -14,6 +14,7 @@ export interface ModelConfig {
   sonnetModel?: string;
   opusModel?: string;
   subagentModel?: string;
+  codeBuddyModels?: string[];
 }
 
 // 配置文件结构
@@ -25,6 +26,7 @@ interface Config {
   sonnetModel?: string;
   opusModel?: string;
   subagentModel?: string;
+  codeBuddyModels?: string[];
 }
 
 // 配置管理器单例
@@ -130,6 +132,7 @@ class ConfigManager {
       sonnetModel: this.config.sonnetModel,
       opusModel: this.config.opusModel,
       subagentModel: this.config.subagentModel,
+      codeBuddyModels: this.config.codeBuddyModels,
     };
   }
 
@@ -140,6 +143,7 @@ class ConfigManager {
     if ('sonnetModel' in models) this.config.sonnetModel = models.sonnetModel;
     if ('opusModel' in models) this.config.opusModel = models.opusModel;
     if ('subagentModel' in models) this.config.subagentModel = models.subagentModel;
+    if ('codeBuddyModels' in models) this.config.codeBuddyModels = models.codeBuddyModels;
     this.save();
   }
 

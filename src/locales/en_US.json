@@ -113,5 +113,24 @@
   "config_view_subagent": "Subagent Model",
   "config_view_not_set": "Not set",
   "press_enter_to_continue": "Press Enter to continue",
-  "company_announcement": "You are using Qiniu Cloud AI model inference service 🚀"
+  "company_announcement": "You are using Qiniu Cloud AI model inference service 🚀",
+
+  "codebuddy_select_models": "Select models to configure (space to select, enter to confirm)",
+  "codebuddy_no_models_selected": "No models selected, configuration cancelled",
+  "codebuddy_config_success": "Configured {{count}} model(s) to CodeBuddy/WorkBuddy",
+  "codebuddy_model_tag_tool_call": "[Tool Call]",
+  "codebuddy_model_tag_images": "[Images]",
+  "codebuddy_model_tag_reasoning": "[Reasoning]",
+  "codebuddy_reuse_previous_selection": "Previous model configuration detected, reuse it?",
+  "codebuddy_fetching_models": "Fetching model list from Qiniu API...",
+  "codebuddy_fetch_models_failed": "Failed to fetch model list: {{error}}",
+  "codebuddy_current_models": "Current configured models: {{models}}",
+  "codebuddy_models_not_configured": "CodeBuddy/WorkBuddy models not configured. Please use \"Configure models\" to select models first.",
+  "config_view_codebuddy_models": "Configured models",
+  "config_view_codex_model": "Model",
+  "codex_fixed_model_hint": "Codex uses a fixed model \"{{model}}\" via Qiniu proxy. No selection needed.",
+
+  "auth_reload_usage": "Usage: coding-helper auth reload <tool>",
+  "auth_reload_tools": "Available tools: claude-code, codex, codebuddy (or workbuddy)",
+  "auth_unknown_tool": "Unknown tool: {{tool}}"
 }
