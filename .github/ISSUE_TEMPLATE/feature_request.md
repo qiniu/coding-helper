@@ -1,19 +1,39 @@
 ---
-name: Feature Request
-about: Suggest a new feature or improvement
+name: 功能建议
+about: 建议新功能、工具支持或体验改进
 title: "[Feature] "
 labels: enhancement
 assignees: ''
 ---
 
-**Is your feature request related to a problem?**
-A clear and concise description of what the problem is. E.g., "I'm always frustrated when..."
+## 需求背景
 
-**Describe the solution you'd like**
-A clear and concise description of what you want to happen.
+请说明你现在遇到的问题、使用场景，或希望改进的工作流。
 
-**Describe alternatives you've considered**
-A clear and concise description of any alternative solutions or features you've considered.
+## 期望方案
 
-**Additional context**
-Add any other context or screenshots about the feature request.
+请描述你希望 qiniu-coding-helper 怎么支持这个需求。
+
+## 目标工具
+
+这个需求主要影响哪些工具或能力？
+
+- [ ] Claude Code
+- [ ] Codex
+- [ ] 其他：
+
+## 兼容性影响
+
+请说明这个需求是否会影响现有配置、命令或默认行为。
+
+- [ ] 不影响现有行为
+- [ ] 可能改变现有行为
+- [ ] 不确定
+
+## 备选方案
+
+如果你已经尝试过其他做法，请在这里说明。
+
+## 其他信息
+
+补充截图、命令示例、相关文档链接或其他上下文。
