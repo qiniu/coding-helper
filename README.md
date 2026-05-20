@@ -6,7 +6,7 @@
 [![License: AGPL-3.0](https://img.shields.io/badge/License-AGPL--3.0-blue.svg)](https://www.gnu.org/licenses/agpl-3.0)
 [![Node.js Version](https://img.shields.io/node/v/qiniu-coding-helper.svg)](https://nodejs.org)
 
-**The CLI helper for configuring Claude Code with Qiniu AI API endpoints**
+**The CLI helper for configuring AI coding assistants with Qiniu AI API endpoints**
 
 [简体中文](README.zh-CN.md) · [Features](#-features) · [Quick Start](#-quick-start) · [Commands](#-commands) · [Configuration](#-configuration) · [FAQ](#-faq)
 
@@ -21,6 +21,8 @@
 - **🔐 API Key Management** — Input, validate, save, and revoke API keys
 - **📦 Model Configuration** — Fetch available models from the API, with manual model ID input support
 - **⚡ Claude Code Integration** — Automatically writes environment variables to `~/.claude/settings.json`
+- **🧩 Codex Integration** — Writes Qiniu provider settings to `~/.codex/config.toml` and stores credentials in Codex auth
+- **🦀 OpenClaw Integration** — Uses OpenClaw's config CLI to register a Qiniu OpenAI-compatible provider and default model
 - **🔍 Health Check** — Built-in `doctor` command to verify config, API Key, network, tools, Git, and Node.js
 - **🌍 Internationalization** — Supports Chinese (zh_CN) and English (en_US)
 
@@ -29,7 +31,7 @@
 Before you begin, ensure you have:
 
 - **Node.js** 18 or later ([Download](https://nodejs.org/))
-- **Claude Code CLI** installed ([Get it here](https://claude.ai/download))
+- **Claude Code CLI** installed ([Get it here](https://claude.ai/download)), **Codex CLI** installed (`npm install -g @openai/codex`), and/or **OpenClaw CLI** installed
 - **Qiniu API Key** ([Get one here](https://portal.qiniu.com/))
 
 ## 🚀 Quick Start
@@ -47,19 +49,27 @@ npx qiniu-coding-helper
 - Select your language (Chinese / English)
 - Choose your endpoint (Domestic / International)
 - Enter and validate your API Key
+- Select the coding assistant you want to configure
 - Pick a model
 
-### 3️⃣ Restart Claude Code
+### 3️⃣ Restart Your Coding Assistant
 
-If Claude Code is running, restart it to apply changes.
+If Claude Code, Codex, or OpenClaw is running, restart it to apply changes when needed.
 
 ### 4️⃣ Start Coding! 🎉
 
 ```bash
+# Claude Code
 claude
+
+# Codex
+codex
+
+# OpenClaw
+openclaw
 ```
 
-That's it! You're now using Qiniu AI endpoints in Claude Code.
+That's it! You're now using Qiniu AI endpoints in your coding assistant.
 
 ---
 
@@ -91,6 +101,12 @@ npx qiniu-coding-helper auth revoke
 
 # Reload configuration to Claude Code
 npx qiniu-coding-helper auth reload claude
+
+# Reload configuration to Codex
+npx qiniu-coding-helper auth reload codex
+
+# Reload configuration to OpenClaw
+npx qiniu-coding-helper auth reload openclaw
 ```
 
 ---
@@ -120,7 +136,7 @@ Run system health check to diagnose configuration issues.
 npx qiniu-coding-helper doctor
 ```
 
-**Checks:** Config files · API Key validity · Network connectivity · Claude Code installation · Git · Node.js
+**Checks:** Config files · API Key validity · Network connectivity · configured tool installations · Git · Node.js
 
 ---
 
@@ -134,6 +150,12 @@ npx qiniu-coding-helper enter
 
 # Claude Code configuration menu
 npx qiniu-coding-helper enter claude-code
+
+# Codex configuration menu
+npx qiniu-coding-helper enter codex
+
+# OpenClaw configuration menu
+npx qiniu-coding-helper enter openclaw
 ```
 
 ---
@@ -149,6 +171,7 @@ npx qiniu-coding-helper enter claude-code
 | **Claude Code Onboarding** | `~/.claude.json` | Onboarding completion flag |
 | **Codex Config** | `~/.codex/config.toml` | Qiniu model provider and profile settings |
 | **Codex Auth** | `~/.codex/auth.json` | Codex API key auth cache |
+| **OpenClaw Config** | `~/.openclaw/openclaw.json` | Qiniu custom provider, API key env, and default model |
 
 ### 🌍 Region Endpoints
 
@@ -180,6 +203,45 @@ When Codex configuration is applied, Coding Helper writes the Qiniu model provid
 
 Treat `~/.codex/auth.json` like a password because it contains API credentials.
 
+### 🔧 OpenClaw Configuration
+
+When OpenClaw configuration is applied, Coding Helper calls `openclaw config set` to register a Qiniu OpenAI-compatible provider under `models.providers.qnaigc`, stores the API Key as `env.QINIU_API_KEY`, and sets the default model to `qnaigc/<selected-model>`.
+
+The managed OpenClaw provider uses the Qiniu OpenAI-compatible endpoint:
+
+```json
+{
+  "env": {
+    "QINIU_API_KEY": "<your-api-key>"
+  },
+  "models": {
+    "mode": "merge",
+    "providers": {
+      "qnaigc": {
+        "baseUrl": "https://api.qnaigc.com/v1",
+        "apiKey": "${QINIU_API_KEY}",
+        "api": "openai-completions",
+        "models": [
+          {
+            "id": "<selected-model>",
+            "name": "<selected-model>"
+          }
+        ]
+      }
+    }
+  },
+  "agents": {
+    "defaults": {
+      "model": {
+        "primary": "qnaigc/<selected-model>"
+      }
+    }
+  }
+}
+```
+
+OpenClaw gateway, channels, daemon, workspace, and pairing setup remain managed by OpenClaw itself.
+
 ---
 
 ## ❓ FAQ
@@ -190,6 +252,13 @@ Treat `~/.codex/auth.json` like a password because it contains API credentials.
 2. Run `npx qiniu-coding-helper auth reload claude` to reapply settings
 3. **Restart Claude Code completely**
 4. Ensure `ANTHROPIC_BASE_URL` is not set in your shell environment (`unset ANTHROPIC_BASE_URL`)
+
+### OpenClaw doesn't use the configured endpoint
+
+1. Run `npx qiniu-coding-helper doctor` to check OpenClaw installation and configuration
+2. Run `npx qiniu-coding-helper auth reload openclaw` to reapply settings
+3. Confirm `~/.openclaw/openclaw.json` contains `models.providers.qnaigc`
+4. Run `openclaw doctor` if the OpenClaw gateway reports a config validation error
 
 ### API errors or authentication failures
 
@@ -202,6 +271,9 @@ Treat `~/.codex/auth.json` like a password because it contains API credentials.
 ```bash
 chmod 600 ~/.claude/settings.json
 chmod 600 ~/.coding-helper/config.yaml
+chmod 600 ~/.codex/config.toml
+chmod 600 ~/.codex/auth.json
+chmod 600 ~/.openclaw/openclaw.json
 ```
 
 ---
@@ -211,6 +283,7 @@ chmod 600 ~/.coding-helper/config.yaml
 ```bash
 pnpm install        # Install dependencies
 pnpm build          # Build (tsc + copy locales to dist/)
+pnpm test           # Build and run node:test tests
 pnpm dev            # Watch mode
 pnpm start          # Run CLI (node dist/cli.js)
 pnpm clean          # Clean dist/

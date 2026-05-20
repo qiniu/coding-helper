@@ -11,6 +11,7 @@ import ora from 'ora';
 function resolveToolName(tool: string): string {
   if (tool === 'claude' || tool === 'claude-code') return 'claude-code';
   if (tool === 'codex' || tool === 'openai-codex') return 'codex';
+  if (tool === 'openclaw' || tool === 'claw') return 'openclaw';
   return tool;
 }
 
