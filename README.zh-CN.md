@@ -6,7 +6,7 @@
 [![License: AGPL-3.0](https://img.shields.io/badge/License-AGPL--3.0-blue.svg)](https://www.gnu.org/licenses/agpl-3.0)
 [![Node.js Version](https://img.shields.io/node/v/qiniu-coding-helper.svg)](https://nodejs.org)
 
-**一站式配置 Claude Code 和 Codex 使用七牛 AI API 端点的 CLI 工具**
+**一站式配置 Claude Code、Codex 和 CodeBuddy/WorkBuddy 使用七牛 AI API 端点的 CLI 工具**
 
 [English](README.md) · [功能特性](#-功能特性) · [快速开始](#-快速开始) · [命令一览](#-命令一览) · [配置说明](#-配置说明) · [常见问题](#-常见问题)
 
@@ -22,6 +22,7 @@
 - **📦 模型配置** — 从 API 获取可用模型列表，也支持手动输入模型 ID
 - **⚡ Claude Code 集成** — 自动将环境变量写入 `~/.claude/settings.json`
 - **🧩 Codex 集成** — 自动将七牛 provider 写入 `~/.codex/config.toml`，并通过 Codex auth 保存凭证
+- **🤝 CodeBuddy/WorkBuddy 集成** — 多选七牛模型市场中的模型，写入 `~/.codebuddy/models.json`
 - **🔍 健康检查** — 内置 `doctor` 命令，检测配置文件、API Key、网络、工具安装状态
 - **🌍 国际化** — 支持中文 (zh_CN) 和英文 (en_US)
 
@@ -30,7 +31,7 @@
 开始之前，请确保已安装：
 
 - **Node.js** 18 或更高版本 ([下载](https://nodejs.org/))
-- **Claude Code CLI** ([安装地址](https://claude.ai/download)) 和/或 **Codex CLI** (`npm install -g @openai/codex`)
+- **Claude Code CLI** ([安装地址](https://claude.ai/download))、**Codex CLI** (`npm install -g @openai/codex`) 和/或 **CodeBuddy/WorkBuddy CLI** (`npm install -g @tencent-ai/codebuddy-code`)
 - **七牛 API Key** ([获取地址](https://portal.qiniu.com/))
 
 ## 🚀 快速开始
@@ -53,7 +54,7 @@ npx qiniu-coding-helper
 
 ### 3️⃣ 重启编程助手
 
-如果 Claude Code 或 Codex 正在运行，请重启以应用配置。
+如果 Claude Code、Codex 或 CodeBuddy/WorkBuddy 正在运行，请重启以应用配置。
 
 ### 4️⃣ 开始编程! 🎉
 
@@ -63,6 +64,9 @@ claude
 
 # Codex
 codex
+
+# CodeBuddy / WorkBuddy
+codebuddy
 ```
 
 配置完成！现在你的编程助手已通过七牛 AI 端点运行。
@@ -100,6 +104,9 @@ npx qiniu-coding-helper auth reload claude
 
 # 重新加载配置到 Codex
 npx qiniu-coding-helper auth reload codex
+
+# 重新加载配置到 CodeBuddy/WorkBuddy
+npx qiniu-coding-helper auth reload codebuddy   # 也支持 `workbuddy` 别名
 ```
 
 ---
@@ -146,6 +153,9 @@ npx qiniu-coding-helper enter claude-code
 
 # 进入 Codex 配置菜单
 npx qiniu-coding-helper enter codex
+
+# 进入 CodeBuddy/WorkBuddy 配置菜单
+npx qiniu-coding-helper enter codebuddy   # 也支持 `workbuddy` 别名
 ```
 
 ---
@@ -161,6 +171,7 @@ npx qiniu-coding-helper enter codex
 | **Claude Code Onboarding** | `~/.claude.json` | 初始化完成标记 |
 | **Codex 配置** | `~/.codex/config.toml` | 七牛模型 provider 和 profile 设置 |
 | **Codex Auth** | `~/.codex/auth.json` | Codex API Key 认证缓存 |
+| **CodeBuddy/WorkBuddy 模型** | `~/.codebuddy/models.json` | 七牛模型条目（URL、API Key、能力标签） |
 
 ### 🌍 线路端点
 
@@ -208,6 +219,40 @@ model = "<selected-model>"
 
 请将 `~/.codex/auth.json` 视为密码文件，因为其中包含 API 凭证。
 
+### 🔧 CodeBuddy/WorkBuddy 配置
+
+CodeBuddy 与 WorkBuddy 共享同一份 `~/.codebuddy/models.json`，因此一个工具入口（`codebuddy`，别名 `workbuddy`）即可同时驱动两者。
+
+模型配置流程会从七牛模型市场（`/v1/market/models`）拉取候选列表供你多选，能力标签（工具调用、图像、深度思考）以及上下文 / 输出 token 上限都从市场返回的元数据自动推断。每个被选中的模型都会以 `vendor: "Qiniu"` 写入，并把 API Key 嵌入条目：
+
+```json
+{
+  "models": [
+    {
+      "id": "anthropic/claude-sonnet-4-5",
+      "name": "Claude Sonnet 4.5",
+      "vendor": "Qiniu",
+      "url": "https://api.qnaigc.com/v1/chat/completions",
+      "apiKey": "<your-api-key>",
+      "maxInputTokens": 200000,
+      "maxOutputTokens": 8192,
+      "temperature": 0.7,
+      "supportsToolCall": true,
+      "supportsImages": true
+    }
+  ],
+  "availableModels": ["anthropic/claude-sonnet-4-5"]
+}
+```
+
+需要了解的行为：
+
+- **保留非七牛条目。** `vendor` 不是 `Qiniu` 的模型，以及你手动添加在 `models.json` 顶层的其他字段（如 UI 偏好），在每次装载/卸载时都会被原样保留。
+- **卸载只移除七牛模型。** `auth reload` 会覆盖七牛条目；卸载会清掉它们，但其他厂商条目不会动。
+- **失效模型 ID 会被显式提示。** 若先前选过的模型被市场下架，部分缺失会触发警告，仅写入仍然存在的模型；若全部下架则直接报错并保持文件不变 — 请重新选择模型后再试。
+
+请将 `~/.codebuddy/models.json` 视为密码文件，因为其中以明文形式保存了 API Key。
+
 ---
 
 ## ❓ 常见问题
@@ -226,6 +271,13 @@ model = "<selected-model>"
 3. 确认 `~/.codex/config.toml` 包含 `model_provider = "qnaigc"`
 4. 如果 Codex 已经在运行，请重启 Codex
 
+### CodeBuddy/WorkBuddy 看不到七牛模型
+
+1. 确认通过 `enter codebuddy`（或 `enter workbuddy`）完成了多选模型
+2. 运行 `npx qiniu-coding-helper auth reload codebuddy` 重写 `~/.codebuddy/models.json`
+3. 检查文件中存在 `vendor: "Qiniu"` 的条目且 `apiKey` 非空
+4. 如果 CodeBuddy/WorkBuddy 已经在运行，请重启
+
 ### API 报错或认证失败
 
 1. 检查 API Key：查看 `~/.coding-helper/config.yaml`
@@ -239,6 +291,7 @@ chmod 600 ~/.claude/settings.json
 chmod 600 ~/.coding-helper/config.yaml
 chmod 600 ~/.codex/config.toml
 chmod 600 ~/.codex/auth.json
+chmod 600 ~/.codebuddy/models.json
 ```
 
 ---
