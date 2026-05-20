@@ -70,10 +70,11 @@ export class CodexTool implements ITool {
     writeCodexConfig(removeManagedCodexConfig(content));
   }
 
-  async runModelConfigFlow(): Promise<void> {
+  async runModelConfigFlow(): Promise<boolean> {
     uiRenderer.renderHeader();
     uiRenderer.renderHint(t('codex_fixed_model_hint', { model: CODEX_MODEL }));
     await promptHelper.pressEnter();
+    return true;
   }
 
   renderModelConfigSummary(): void {

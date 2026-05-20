@@ -35,7 +35,8 @@ export interface ITool {
   unloadConfig(): void | Promise<void>;
 
   // 运行该工具特定的模型配置流程（角色选择、多选模型等由各工具自定义）
-  runModelConfigFlow(): Promise<void>;
+  // 返回 true 表示用户完成并保存了配置；false 表示用户取消、未选或前置条件不满足
+  runModelConfigFlow(): Promise<boolean>;
 
   // 渲染该工具的模型配置摘要（用于"查看当前配置"菜单）
   renderModelConfigSummary(): void;

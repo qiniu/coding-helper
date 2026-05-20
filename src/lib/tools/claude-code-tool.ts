@@ -137,8 +137,8 @@ export class ClaudeCodeTool implements ITool {
     this.clearModelConfig();
   }
 
-  async runModelConfigFlow(): Promise<void> {
-    await runModelSelectionFlow();
+  async runModelConfigFlow(): Promise<boolean> {
+    return runModelSelectionFlow();
   }
 
   renderModelConfigSummary(): void {

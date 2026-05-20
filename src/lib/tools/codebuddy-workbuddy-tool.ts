@@ -133,10 +133,11 @@ export class CodeBuddyWorkBuddyTool implements ITool {
   }
 
   // 多选要配置的市场模型，结果存入 configManager.codeBuddyModels
-  async runModelConfigFlow(): Promise<void> {
+  // 用户取消、未选或前置条件不满足时返回 false，让调用方跳过后续 loadConfig
+  async runModelConfigFlow(): Promise<boolean> {
     const selected = await runCodeBuddyWorkBuddyModelSelectionFlow();
     if (!selected || selected.length === 0) {
-      return;
+      return false;
     }
     configManager.setModels({ codeBuddyModels: selected });
     uiRenderer.renderHeader();
@@ -144,6 +145,7 @@ export class CodeBuddyWorkBuddyTool implements ITool {
       t('codebuddy_config_success', { count: selected.length.toString() }),
     );
     await promptHelper.pressEnter();
+    return true;
   }
 
   renderModelConfigSummary(): void {

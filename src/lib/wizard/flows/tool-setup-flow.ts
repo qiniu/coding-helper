@@ -6,7 +6,9 @@ import { uiRenderer } from '../ui/ui-renderer.js';
 import type { ITool } from '../../tools/base-tool.js';
 
 async function setupTool(tool: ITool): Promise<void> {
-  await tool.runModelConfigFlow();
+  // 用户取消模型配置时跳过后续装载与就绪提示，避免误报"配置成功"
+  const completed = await tool.runModelConfigFlow();
+  if (!completed) return;
 
   const apiKey = configManager.getApiKey();
   if (apiKey) {
@@ -20,6 +22,8 @@ async function setupTool(tool: ITool): Promise<void> {
       uiRenderer.renderError(
         err instanceof Error ? err.message : t('tool_config_load_failed', { tool: tool.displayName }),
       );
+      await promptHelper.pressEnter();
+      return;
     }
   }
 
