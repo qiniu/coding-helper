@@ -100,7 +100,14 @@ export class CodeBuddyWorkBuddyTool implements ITool {
     const allModels = await marketModelService.fetchModels(normalizedBaseUrl, apiKey);
     const selectedModels = allModels.filter(m => modelIds.includes(m.id));
 
-    // 提示市场上已不存在的模型 ID（可能下架），避免静默丢弃
+    // 全部已配置模型都从市场消失：fail fast，避免把"七牛模型清空"伪装成 reload 成功
+    if (selectedModels.length === 0) {
+      throw new Error(
+        t('codebuddy_all_models_unavailable', { models: modelIds.join(', ') }),
+      );
+    }
+
+    // 部分缺失：渲染警告但继续写入仍然存在的模型
     const foundIds = new Set(selectedModels.map(m => m.id));
     const missingIds = modelIds.filter(id => !foundIds.has(id));
     if (missingIds.length > 0) {

@@ -127,6 +127,7 @@
   "codebuddy_current_models": "Current configured models: {{models}}",
   "codebuddy_models_not_configured": "CodeBuddy/WorkBuddy models not configured. Please use \"Configure models\" to select models first.",
   "codebuddy_models_unavailable": "The following configured models are no longer available in the Qiniu model market (likely delisted) and will be skipped: {{models}}",
+  "codebuddy_all_models_unavailable": "None of the configured models are available in the Qiniu model market (likely delisted): {{models}}. Please reconfigure the models and try again.",
   "config_view_codebuddy_models": "Configured models",
   "config_view_codex_model": "Model",
   "codex_fixed_model_hint": "Codex uses a fixed model \"{{model}}\" via Qiniu proxy. No selection needed.",
