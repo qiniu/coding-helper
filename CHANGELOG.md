@@ -5,6 +5,25 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.1.3] - 2026-05-20
+
+### Fixed
+- Codex 工具配置改为把 API Key 写入 Codex 的 `auth.json`
+
+### Changed
+- 简化 Codex provider 配置，移除不再需要的 token command 配置
+- 更新 README 中 Codex 相关说明
+
+## [0.1.2] - 2026-05-19
+
+### Added
+- 增加 Codex 工具配置支持
+- 增加手动 npm 发版 workflow，支持版本更新、测试校验、GitHub Release 和 npm provenance 发布
+
+### Changed
+- 更新仓库链接为 `qiniu/coding-helper`
+- 增加 `AGENTS.md` 项目指引入口
+
 ## [0.1.1] - 2026-03-11
 
 ### Added
