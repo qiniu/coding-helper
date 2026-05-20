@@ -4,12 +4,16 @@ import os from 'node:os';
 import { execSync } from 'node:child_process';
 import type { ITool } from './base-tool.js';
 import type { ModelConfig } from '../config.js';
+import { t } from '../i18n.js';
+import { uiRenderer } from '../wizard/ui/ui-renderer.js';
+import { promptHelper } from '../wizard/ui/prompt-helper.js';
 
 const CODEX_DIR = path.join(os.homedir(), '.codex');
 const CODEX_CONFIG_FILE = path.join(CODEX_DIR, 'config.toml');
 const CODEX_AUTH_FILE = path.join(CODEX_DIR, 'auth.json');
 const PROVIDER_NAME = 'qnaigc';
 const PROFILE_NAME = 'qn-gpt';
+const CODEX_MODEL = 'openai/gpt-5.5';
 
 // Codex 工具实现
 export class CodexTool implements ITool {
@@ -19,6 +23,7 @@ export class CodexTool implements ITool {
   installCommand = 'npm install -g @openai/codex';
   updateCommand = 'npm install -g @openai/codex@latest';
   npmPackageName = '@openai/codex';
+  aliases = ['openai-codex'];
 
   getVersion(): string | null {
     try {
@@ -46,20 +51,7 @@ export class CodexTool implements ITool {
       configPath: CODEX_CONFIG_FILE,
       authPath: CODEX_AUTH_FILE,
       configured: hasManagedCodexConfig(content),
-      modelConfig: this.getModelConfig(),
     };
-  }
-
-  async saveModelConfig(config: ModelConfig): Promise<void> {
-    const content = readCodexConfig();
-    writeCodexConfig(buildCodexConfig(content, undefined, getCodexModel(config)));
-  }
-
-  getModelConfig(): ModelConfig | null {
-    const content = readCodexConfig();
-    const match = content.match(/\[profiles\.qn-gpt\][\s\S]*?\nmodel\s*=\s*"([^"]+)"/);
-    if (!match) return null;
-    return { sonnetModel: match[1] };
   }
 
   clearModelConfig(): void {
@@ -67,15 +59,26 @@ export class CodexTool implements ITool {
     writeCodexConfig(removeTomlTable(content, 'profiles.qn-gpt'));
   }
 
-  async loadConfig(apiKey: string, baseUrl: string, models: ModelConfig): Promise<void> {
+  async loadConfig(apiKey: string, baseUrl: string, _models: ModelConfig): Promise<void> {
     writeCodexAuth(buildCodexAuthJson(readCodexAuth(), apiKey));
     const content = readCodexConfig();
-    writeCodexConfig(buildCodexConfig(content, baseUrl, getCodexModel(models)));
+    writeCodexConfig(buildCodexConfig(content, baseUrl, CODEX_MODEL));
   }
 
   async unloadConfig(): Promise<void> {
     const content = readCodexConfig();
     writeCodexConfig(removeManagedCodexConfig(content));
+  }
+
+  async runModelConfigFlow(): Promise<boolean> {
+    uiRenderer.renderHeader();
+    uiRenderer.renderHint(t('codex_fixed_model_hint', { model: CODEX_MODEL }));
+    await promptHelper.pressEnter();
+    return true;
+  }
+
+  renderModelConfigSummary(): void {
+    uiRenderer.renderConfigItem(t('config_view_codex_model'), CODEX_MODEL);
   }
 }
 
@@ -154,10 +157,6 @@ function writeCodexAuth(content: string): void {
     fs.mkdirSync(CODEX_DIR, { recursive: true, mode: 0o700 });
   }
   fs.writeFileSync(CODEX_AUTH_FILE, content, { encoding: 'utf-8', mode: 0o600 });
-}
-
-function getCodexModel(models: ModelConfig): string | undefined {
-  return models.sonnetModel || models.opusModel || models.haikuModel || models.subagentModel;
 }
 
 function parseJsonObject(content: string): Record<string, unknown> {
