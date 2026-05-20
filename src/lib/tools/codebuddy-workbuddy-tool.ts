@@ -20,6 +20,9 @@ const CODEBUDDY_MODELS_FILE = path.join(CODEBUDDY_DIR, 'models.json');
 const QINIU_VENDOR = 'Qiniu';
 const DEFAULT_TEMPERATURE = 0.7;
 
+// 由本工具管理的顶层字段，写回时这些字段会被覆盖；其他字段保留原值
+const MANAGED_TOP_LEVEL_KEYS = new Set(['models', 'availableModels']);
+
 export interface CodeBuddyWorkBuddyModel {
   id: string;
   name: string;
@@ -31,11 +34,6 @@ export interface CodeBuddyWorkBuddyModel {
   temperature: number;
   supportsToolCall: boolean;
   supportsImages: boolean;
-}
-
-export interface CodeBuddyWorkBuddyConfig {
-  models: CodeBuddyWorkBuddyModel[];
-  availableModels: string[];
 }
 
 export class CodeBuddyWorkBuddyTool implements ITool {
@@ -78,17 +76,17 @@ export class CodeBuddyWorkBuddyTool implements ITool {
     return {};
   }
 
-  // 移除七牛模型，保留其他供应商配置
+  // 移除七牛模型，保留其他供应商配置及用户其他自定义字段
   clearModelConfig(): void {
-    const config = this.getConfig() as Partial<CodeBuddyWorkBuddyConfig>;
-    if (!config.models || !Array.isArray(config.models)) {
+    const existing = this.getConfig();
+    const models = existing.models;
+    if (!Array.isArray(models)) {
       return;
     }
-    const nonQiniuModels = config.models.filter(m => m.vendor !== QINIU_VENDOR);
-    this.writeConfig({
-      models: nonQiniuModels,
-      availableModels: nonQiniuModels.map(m => m.id),
-    });
+    const nonQiniuModels = (models as CodeBuddyWorkBuddyModel[]).filter(
+      m => m.vendor !== QINIU_VENDOR,
+    );
+    this.writeConfig(existing, nonQiniuModels);
   }
 
   // 根据 models.codeBuddyModels 中的 ID 列表，从市场获取详情后写入
@@ -98,19 +96,29 @@ export class CodeBuddyWorkBuddyTool implements ITool {
       throw new Error(t('codebuddy_models_not_configured'));
     }
 
-    const allModels = await marketModelService.fetchModels(baseUrl, apiKey);
+    const normalizedBaseUrl = baseUrl.replace(/\/+$/, '');
+    const allModels = await marketModelService.fetchModels(normalizedBaseUrl, apiKey);
     const selectedModels = allModels.filter(m => modelIds.includes(m.id));
 
-    const existingConfig = this.getConfig() as Partial<CodeBuddyWorkBuddyConfig>;
-    const nonQiniuModels = existingConfig.models?.filter(m => m.vendor !== QINIU_VENDOR) || [];
+    // 提示市场上已不存在的模型 ID（可能下架），避免静默丢弃
+    const foundIds = new Set(selectedModels.map(m => m.id));
+    const missingIds = modelIds.filter(id => !foundIds.has(id));
+    if (missingIds.length > 0) {
+      uiRenderer.renderWarning(
+        t('codebuddy_models_unavailable', { models: missingIds.join(', ') }),
+      );
+    }
 
-    const qiniuModels = selectedModels.map(m => this.toCodeBuddyModel(m, apiKey, baseUrl));
+    const existing = this.getConfig();
+    const existingModels = Array.isArray(existing.models)
+      ? (existing.models as CodeBuddyWorkBuddyModel[])
+      : [];
+    const nonQiniuModels = existingModels.filter(m => m.vendor !== QINIU_VENDOR);
+
+    const qiniuModels = selectedModels.map(m => this.toCodeBuddyModel(m, apiKey, normalizedBaseUrl));
     const allCombined = this.deduplicateModels([...nonQiniuModels, ...qiniuModels]);
 
-    this.writeConfig({
-      models: allCombined,
-      availableModels: allCombined.map(m => m.id),
-    });
+    this.writeConfig(existing, allCombined);
   }
 
   async unloadConfig(): Promise<void> {
@@ -157,12 +165,22 @@ export class CodeBuddyWorkBuddyTool implements ITool {
     };
   }
 
-  private writeConfig(config: CodeBuddyWorkBuddyConfig): void {
+  // 合并写入：保留用户在 models.json 里手动添加的其他顶层字段，仅覆盖 models / availableModels
+  private writeConfig(existing: Record<string, unknown>, models: CodeBuddyWorkBuddyModel[]): void {
+    const merged: Record<string, unknown> = {};
+    for (const [key, value] of Object.entries(existing)) {
+      if (!MANAGED_TOP_LEVEL_KEYS.has(key)) {
+        merged[key] = value;
+      }
+    }
+    merged.models = models;
+    merged.availableModels = models.map(m => m.id);
+
     // mkdirSync 配合 recursive: true 是幂等的，不需要预检查
     fs.mkdirSync(CODEBUDDY_DIR, { recursive: true, mode: 0o700 });
     fs.writeFileSync(
       CODEBUDDY_MODELS_FILE,
-      JSON.stringify(config, null, 2) + '\n',
+      JSON.stringify(merged, null, 2) + '\n',
       { encoding: 'utf-8', mode: 0o600 },
     );
   }
