@@ -103,6 +103,59 @@ jobs:
           echo "Previous tag: ${PREVIOUS_TAG:-<none>}"
           echo "Next tag: ${TAG}"
 
+      - name: Update CHANGELOG
+        uses: actions/github-script@v8
+        env:
+          VERSION: ${{ steps.release.outputs.tag }}
+          PREVIOUS_TAG: ${{ steps.release.outputs.previous_tag }}
+        with:
+          script: |
+            const fs = require("fs");
+            const { owner, repo } = context.repo;
+            const version = process.env.VERSION;
+            const previousTag = process.env.PREVIOUS_TAG || undefined;
+
+            const params = {
+              owner,
+              repo,
+              tag_name: version,
+              target_commitish: context.sha,
+            };
+            if (previousTag) {
+              params.previous_tag_name = previousTag;
+            }
+
+            const generated = await github.rest.repos.generateReleaseNotes(params);
+
+            function formatChangelogBody(body) {
+              return body
+                .replace(/^## What's Changed$/gm, "### 更新内容")
+                .replace(/^## New Contributors$/gm, "### 新贡献者")
+                .replace(/^\*Full Changelog\*: (.+)$/gm, "**完整变更记录**：$1")
+                .trim();
+            }
+
+            const changelogPath = "CHANGELOG.md";
+            const changelog = fs.readFileSync(changelogPath, "utf8");
+            const today = new Date().toISOString().slice(0, 10);
+            const versionNumber = version.replace(/^v/, "");
+            const entry = [
+              `## [${versionNumber}] - ${today}`,
+              "",
+              formatChangelogBody(generated.data.body),
+              "",
+            ].join("\n");
+            const next = changelog.replace(
+              /(and this project adheres to \[Semantic Versioning\]\(https:\/\/semver\.org\/\)\.\n)/,
+              `$1\n${entry}`,
+            );
+
+            if (next === changelog) {
+              throw new Error("CHANGELOG insertion point was not found");
+            }
+
+            fs.writeFileSync(changelogPath, next);
+
       - name: Test
         run: pnpm run --if-present test
 
@@ -121,31 +174,97 @@ jobs:
       - name: Verify npm package contents
         run: npm pack --dry-run
 
-      - name: Commit version bump
+      - name: Commit release changes
         id: commit
-        run: |
-          set -euo pipefail
+        uses: actions/github-script@v8
+        env:
+          VERSION: ${{ steps.release.outputs.tag }}
+        with:
+          script: |
+            const fs = require("fs");
+            const { owner, repo } = context.repo;
+            const branch = process.env.GITHUB_REF_NAME;
+            const baseSha = context.sha;
+            const files = ["package.json", "src/lib/version.ts", "CHANGELOG.md"];
 
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            const currentRef = await github.rest.git.getRef({
+              owner,
+              repo,
+              ref: `heads/${branch}`,
+            });
+            if (currentRef.data.object.sha !== baseSha) {
+              throw new Error(
+                `Branch ${branch} moved from ${baseSha} to ${currentRef.data.object.sha}; rerun the release workflow.`,
+              );
+            }
 
-          git add package.json src/lib/version.ts
-          if git diff --cached --quiet; then
-            echo "package.json already has version ${{ steps.release.outputs.version }}."
-          else
-            git commit -m "chore: release ${{ steps.release.outputs.tag }}"
-            git push origin "HEAD:${GITHUB_REF_NAME}"
-          fi
+            const baseCommit = await github.rest.git.getCommit({
+              owner,
+              repo,
+              commit_sha: baseSha,
+            });
 
-          echo "commit_sha=$(git rev-parse HEAD)" >> "${GITHUB_OUTPUT}"
-          echo "Target commit: $(git rev-parse HEAD)"
+            const treeItems = [];
+            for (const path of files) {
+              const blob = await github.rest.git.createBlob({
+                owner,
+                repo,
+                content: fs.readFileSync(path, "utf8"),
+                encoding: "utf-8",
+              });
+              treeItems.push({
+                path,
+                mode: "100644",
+                type: "blob",
+                sha: blob.data.sha,
+              });
+            }
+
+            const tree = await github.rest.git.createTree({
+              owner,
+              repo,
+              base_tree: baseCommit.data.tree.sha,
+              tree: treeItems,
+            });
+
+            if (tree.data.sha === baseCommit.data.tree.sha) {
+              core.info(`Release files already match ${process.env.VERSION}.`);
+              core.setOutput("commit_sha", baseSha);
+              return;
+            }
+
+            const commit = await github.rest.git.createCommit({
+              owner,
+              repo,
+              message: `chore: release ${process.env.VERSION}`,
+              tree: tree.data.sha,
+              parents: [baseSha],
+            });
+
+            await github.rest.git.updateRef({
+              owner,
+              repo,
+              ref: `heads/${branch}`,
+              sha: commit.data.sha,
+            });
+
+            core.setOutput("commit_sha", commit.data.sha);
+            core.info(`Target commit: ${commit.data.sha}`);
 
       - name: Create and push tag
-        run: |
-          set -euo pipefail
-
-          git tag -a "${{ steps.release.outputs.tag }}" -m "Release ${{ steps.release.outputs.tag }}"
-          git push origin "${{ steps.release.outputs.tag }}"
+        uses: actions/github-script@v8
+        env:
+          VERSION: ${{ steps.release.outputs.tag }}
+          COMMIT_SHA: ${{ steps.commit.outputs.commit_sha }}
+        with:
+          script: |
+            const { owner, repo } = context.repo;
+            await github.rest.git.createRef({
+              owner,
+              repo,
+              ref: `refs/tags/${process.env.VERSION}`,
+              sha: process.env.COMMIT_SHA,
+            });
 
       - name: Create GitHub Release
         uses: actions/github-script@v8
