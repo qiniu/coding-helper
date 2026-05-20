@@ -5,6 +5,14 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.2.1] - 2026-05-20
+
+### 更新内容
+* docs(readme): 增加 CodeBuddy/WorkBuddy 集成说明 by @krisxia0506 in https://github.com/qiniu/coding-helper/pull/14
+
+
+**Full Changelog**: https://github.com/qiniu/coding-helper/compare/v0.2.0...v0.2.1
+
 ## [0.2.0] - 2026-05-20
 
 ### 更新内容
