@@ -5,6 +5,14 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.1.4] - 2026-05-20
+
+### 更新内容
+* chore: update release changelog automation by @krisxia0506 in https://github.com/qiniu/coding-helper/pull/7
+
+
+**Full Changelog**: https://github.com/qiniu/coding-helper/compare/v0.1.3...v0.1.4
+
 ## [0.1.3] - 2026-05-20
 
 ### Fixed
