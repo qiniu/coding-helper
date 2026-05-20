@@ -8,6 +8,17 @@ import { uiRenderer } from '../lib/wizard/ui/ui-renderer.js';
 import { runApiKeyFlow } from '../lib/wizard/flows/api-key-flow.js';
 import ora from 'ora';
 
+// 拼接已注册工具名称及别名，用于 auth reload 的提示文案
+function formatAvailableTools(): string {
+  return toolManager
+    .getAll()
+    .map(tool => {
+      const aliases = tool.aliases ?? [];
+      return aliases.length > 0 ? `${tool.name} (${aliases.join(', ')})` : tool.name;
+    })
+    .join(', ');
+}
+
 // auth 命令 - API Key 管理
 export async function authCommand(tokenOrAction?: string): Promise<void> {
   i18n.init();
@@ -22,15 +33,16 @@ export async function authCommand(tokenOrAction?: string): Promise<void> {
 
   if (tokenOrAction === 'reload') {
     const toolName = process.argv[4];
+    const availableTools = formatAvailableTools();
     if (!toolName) {
       uiRenderer.renderError(t('auth_reload_usage'));
-      uiRenderer.renderHint(t('auth_reload_tools'));
+      uiRenderer.renderHint(t('auth_reload_tools', { tools: availableTools }));
       return;
     }
     const tool = toolManager.get(toolName);
     if (!tool) {
       uiRenderer.renderError(t('auth_unknown_tool', { tool: toolName }));
-      uiRenderer.renderHint(t('auth_reload_tools'));
+      uiRenderer.renderHint(t('auth_reload_tools', { tools: availableTools }));
       return;
     }
     const apiKey = configManager.getApiKey();

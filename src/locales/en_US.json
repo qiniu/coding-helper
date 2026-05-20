@@ -132,6 +132,6 @@
   "codex_fixed_model_hint": "Codex uses a fixed model \"{{model}}\" via Qiniu proxy. No selection needed.",
 
   "auth_reload_usage": "Usage: coding-helper auth reload <tool>",
-  "auth_reload_tools": "Available tools: claude-code, codex, codebuddy (or workbuddy)",
+  "auth_reload_tools": "Available tools: {{tools}}",
   "auth_unknown_tool": "Unknown tool: {{tool}}"
 }
