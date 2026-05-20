@@ -6,7 +6,7 @@
 [![License: AGPL-3.0](https://img.shields.io/badge/License-AGPL--3.0-blue.svg)](https://www.gnu.org/licenses/agpl-3.0)
 [![Node.js Version](https://img.shields.io/node/v/qiniu-coding-helper.svg)](https://nodejs.org)
 
-**一站式配置 Claude Code 使用七牛 AI API 端点的 CLI 工具**
+**一站式配置 Claude Code 和 Codex 使用七牛 AI API 端点的 CLI 工具**
 
 [English](README.md) · [功能特性](#-功能特性) · [快速开始](#-快速开始) · [命令一览](#-命令一览) · [配置说明](#-配置说明) · [常见问题](#-常见问题)
 
@@ -21,6 +21,7 @@
 - **🔐 API Key 管理** — 输入、验证、保存、删除，一条龙管理
 - **📦 模型配置** — 从 API 获取可用模型列表，也支持手动输入模型 ID
 - **⚡ Claude Code 集成** — 自动将环境变量写入 `~/.claude/settings.json`
+- **🧩 Codex 集成** — 自动将七牛 provider 写入 `~/.codex/config.toml`，并通过 Codex auth 保存凭证
 - **🔍 健康检查** — 内置 `doctor` 命令，检测配置文件、API Key、网络、工具安装状态
 - **🌍 国际化** — 支持中文 (zh_CN) 和英文 (en_US)
 
@@ -29,7 +30,7 @@
 开始之前，请确保已安装：
 
 - **Node.js** 18 或更高版本 ([下载](https://nodejs.org/))
-- **Claude Code CLI** ([安装地址](https://claude.ai/download))
+- **Claude Code CLI** ([安装地址](https://claude.ai/download)) 和/或 **Codex CLI** (`npm install -g @openai/codex`)
 - **七牛 API Key** ([获取地址](https://portal.qiniu.com/))
 
 ## 🚀 快速开始
@@ -47,19 +48,24 @@ npx qiniu-coding-helper
 - 选择语言（中文 / 英文）
 - 选择线路（国内 / 海外）
 - 输入并验证 API Key
+- 选择要配置的编程助手
 - 选择模型
 
-### 3️⃣ 重启 Claude Code
+### 3️⃣ 重启编程助手
 
-如果 Claude Code 正在运行，请重启以应用配置。
+如果 Claude Code 或 Codex 正在运行，请重启以应用配置。
 
 ### 4️⃣ 开始编程! 🎉
 
 ```bash
+# Claude Code
 claude
+
+# Codex
+codex
 ```
 
-配置完成！现在 Claude Code 已通过七牛 AI 端点运行。
+配置完成！现在你的编程助手已通过七牛 AI 端点运行。
 
 ---
 
@@ -91,6 +97,9 @@ npx qiniu-coding-helper auth revoke
 
 # 重新加载配置到 Claude Code
 npx qiniu-coding-helper auth reload claude
+
+# 重新加载配置到 Codex
+npx qiniu-coding-helper auth reload codex
 ```
 
 ---
@@ -120,7 +129,7 @@ npx qiniu-coding-helper lang set en_US
 npx qiniu-coding-helper doctor
 ```
 
-**检查项:** 配置文件 · API Key 有效性 · 网络连通性 · Claude Code 安装 · Git · Node.js
+**检查项:** 配置文件 · API Key 有效性 · 网络连通性 · 已配置工具安装状态 · Git · Node.js
 
 ---
 
@@ -134,6 +143,9 @@ npx qiniu-coding-helper enter
 
 # 进入 Claude Code 配置菜单
 npx qiniu-coding-helper enter claude-code
+
+# 进入 Codex 配置菜单
+npx qiniu-coding-helper enter codex
 ```
 
 ---
@@ -147,6 +159,8 @@ npx qiniu-coding-helper enter claude-code
 | **Coding Helper 配置** | `~/.coding-helper/config.yaml` | 语言、线路、API Key、模型设置 |
 | **Claude Code 设置** | `~/.claude/settings.json` | API 端点环境变量 |
 | **Claude Code Onboarding** | `~/.claude.json` | 初始化完成标记 |
+| **Codex 配置** | `~/.codex/config.toml` | 七牛模型 provider 和 profile 设置 |
+| **Codex Auth** | `~/.codex/auth.json` | Codex API Key 认证缓存 |
 
 ### 🌍 线路端点
 
@@ -172,6 +186,28 @@ npx qiniu-coding-helper enter claude-code
 
 > **说明:** 工具还会设置 `API_TIMEOUT_MS`（50 分钟，适配长时间推理请求）、禁用非必要流量（第三方端点不需要 Anthropic 遥测）、禁用 commit/PR 归属标注（通过代理端点运行时标注不准确）。
 
+### 🔧 Codex 配置
+
+配置应用后，Coding Helper 会将七牛模型 provider 写入 `~/.codex/config.toml`，并将 API Key 写入 Codex 自己的 `~/.codex/auth.json` 认证缓存。它不依赖 `QINIU_API_KEY` shell 环境变量。
+
+托管的 Codex profile 使用七牛 OpenAI 兼容 bypass 端点：
+
+```toml
+model_provider = "qnaigc"
+
+[model_providers.qnaigc]
+name = "Qiniu"
+base_url = "https://api.qnaigc.com/bypass/openai/v1"
+requires_openai_auth = true
+wire_api = "responses"
+
+[profiles.qn-gpt]
+model_provider = "qnaigc"
+model = "<selected-model>"
+```
+
+请将 `~/.codex/auth.json` 视为密码文件，因为其中包含 API 凭证。
+
 ---
 
 ## ❓ 常见问题
@@ -182,6 +218,13 @@ npx qiniu-coding-helper enter claude-code
 2. 运行 `npx qiniu-coding-helper auth reload claude` 重新应用设置
 3. **完全重启 Claude Code**
 4. 确认 shell 环境中没有设置 `ANTHROPIC_BASE_URL`（运行 `unset ANTHROPIC_BASE_URL`）
+
+### Codex 没有使用配置的端点
+
+1. 运行 `npx qiniu-coding-helper doctor` 检查 Codex 安装和配置
+2. 运行 `npx qiniu-coding-helper auth reload codex` 重新应用设置
+3. 确认 `~/.codex/config.toml` 包含 `model_provider = "qnaigc"`
+4. 如果 Codex 已经在运行，请重启 Codex
 
 ### API 报错或认证失败
 
@@ -194,6 +237,8 @@ npx qiniu-coding-helper enter claude-code
 ```bash
 chmod 600 ~/.claude/settings.json
 chmod 600 ~/.coding-helper/config.yaml
+chmod 600 ~/.codex/config.toml
+chmod 600 ~/.codex/auth.json
 ```
 
 ---
@@ -203,6 +248,7 @@ chmod 600 ~/.coding-helper/config.yaml
 ```bash
 pnpm install        # 安装依赖
 pnpm build          # 编译 (tsc + 复制 locales 到 dist/)
+pnpm test           # 编译并运行 node:test 测试
 pnpm dev            # 监听模式
 pnpm start          # 运行 CLI (node dist/cli.js)
 pnpm clean          # 清理 dist/
@@ -214,6 +260,7 @@ pnpm clean          # 清理 dist/
 node dist/cli.js --version
 node dist/cli.js --help
 node dist/cli.js doctor
+pnpm test
 ```
 
 ---
