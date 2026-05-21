@@ -5,6 +5,14 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.3.0] - 2026-05-21
+
+### 更新内容
+* fix(codebuddy): 将 CodeBuddy/WorkBuddy 拆分为独立工具 by @krisxia0506 in https://github.com/qiniu/coding-helper/pull/15
+
+
+**Full Changelog**: https://github.com/qiniu/coding-helper/compare/v0.2.1...v0.3.0
+
 ## [0.2.1] - 2026-05-20
 
 ### 更新内容
