@@ -15,6 +15,7 @@ export interface ModelConfig {
   opusModel?: string;
   subagentModel?: string;
   codeBuddyModels?: string[];
+  workbuddyModels?: string[];
 }
 
 // 配置文件结构
@@ -27,6 +28,7 @@ interface Config {
   opusModel?: string;
   subagentModel?: string;
   codeBuddyModels?: string[];
+  workbuddyModels?: string[];
 }
 
 // 配置管理器单例
@@ -133,6 +135,7 @@ class ConfigManager {
       opusModel: this.config.opusModel,
       subagentModel: this.config.subagentModel,
       codeBuddyModels: this.config.codeBuddyModels,
+      workbuddyModels: this.config.workbuddyModels,
     };
   }
 
@@ -144,6 +147,7 @@ class ConfigManager {
     if ('opusModel' in models) this.config.opusModel = models.opusModel;
     if ('subagentModel' in models) this.config.subagentModel = models.subagentModel;
     if ('codeBuddyModels' in models) this.config.codeBuddyModels = models.codeBuddyModels;
+    if ('workbuddyModels' in models) this.config.workbuddyModels = models.workbuddyModels;
     this.save();
   }
 

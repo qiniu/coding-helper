@@ -6,7 +6,7 @@
 [![License: AGPL-3.0](https://img.shields.io/badge/License-AGPL--3.0-blue.svg)](https://www.gnu.org/licenses/agpl-3.0)
 [![Node.js Version](https://img.shields.io/node/v/qiniu-coding-helper.svg)](https://nodejs.org)
 
-**The CLI helper for configuring Claude Code, Codex, and CodeBuddy/WorkBuddy with Qiniu AI API endpoints**
+**The CLI helper for configuring Claude Code, Codex, CodeBuddy, and WorkBuddy with Qiniu AI API endpoints**
 
 [简体中文](README.zh-CN.md) · [Features](#-features) · [Quick Start](#-quick-start) · [Commands](#-commands) · [Configuration](#-configuration) · [FAQ](#-faq)
 
@@ -22,7 +22,8 @@
 - **📦 Model Configuration** — Fetch available models from the API, with manual model ID input support
 - **⚡ Claude Code Integration** — Automatically writes environment variables to `~/.claude/settings.json`
 - **🧩 Codex Integration** — Writes Qiniu provider settings to `~/.codex/config.toml` and stores credentials in Codex auth
-- **🤝 CodeBuddy/WorkBuddy Integration** — Multi-select Qiniu market models and write them into `~/.codebuddy/models.json`
+- **🤝 CodeBuddy Integration** — Multi-select Qiniu market models and write them into `~/.codebuddy/models.json`
+- **🤝 WorkBuddy Integration** — Multi-select Qiniu market models and write them into `~/.workbuddy/models.json`
 - **🔍 Health Check** — Built-in `doctor` command to verify config, API Key, network, tools, Git, and Node.js
 - **🌍 Internationalization** — Supports Chinese (zh_CN) and English (en_US)
 
@@ -31,7 +32,7 @@
 Before you begin, ensure you have:
 
 - **Node.js** 18 or later ([Download](https://nodejs.org/))
-- **Claude Code CLI** installed ([Get it here](https://claude.ai/download)), **Codex CLI** installed (`npm install -g @openai/codex`), and/or **CodeBuddy/WorkBuddy CLI** installed (`npm install -g @tencent-ai/codebuddy-code`)
+- **Claude Code CLI** installed ([Get it here](https://claude.ai/download)), **Codex CLI** installed (`npm install -g @openai/codex`), **CodeBuddy CLI** installed (`npm install -g @tencent-ai/codebuddy-code`), and/or **WorkBuddy** installed
 - **Qiniu API Key** ([Get one here](https://portal.qiniu.com/))
 
 ## 🚀 Quick Start
@@ -54,7 +55,7 @@ npx qiniu-coding-helper
 
 ### 3️⃣ Restart Your Coding Assistant
 
-If Claude Code, Codex, or CodeBuddy/WorkBuddy is running, restart it to apply changes.
+If Claude Code, Codex, CodeBuddy, or WorkBuddy is running, restart it to apply changes.
 
 ### 4️⃣ Start Coding! 🎉
 
@@ -65,8 +66,10 @@ claude
 # Codex
 codex
 
-# CodeBuddy / WorkBuddy
+# CodeBuddy
 codebuddy
+
+# WorkBuddy (desktop app - launch manually)
 ```
 
 That's it! You're now using Qiniu AI endpoints in your coding assistant.
@@ -105,8 +108,11 @@ npx qiniu-coding-helper auth reload claude
 # Reload configuration to Codex
 npx qiniu-coding-helper auth reload codex
 
-# Reload configuration to CodeBuddy/WorkBuddy
-npx qiniu-coding-helper auth reload codebuddy   # `workbuddy` alias also works
+# Reload configuration to CodeBuddy
+npx qiniu-coding-helper auth reload codebuddy
+
+# Reload configuration to WorkBuddy
+npx qiniu-coding-helper auth reload workbuddy
 ```
 
 ---
@@ -154,8 +160,11 @@ npx qiniu-coding-helper enter claude-code
 # Codex configuration menu
 npx qiniu-coding-helper enter codex
 
-# CodeBuddy/WorkBuddy configuration menu
-npx qiniu-coding-helper enter codebuddy   # `workbuddy` alias also works
+# CodeBuddy configuration menu
+npx qiniu-coding-helper enter codebuddy
+
+# WorkBuddy configuration menu
+npx qiniu-coding-helper enter workbuddy
 ```
 
 ---
@@ -171,7 +180,8 @@ npx qiniu-coding-helper enter codebuddy   # `workbuddy` alias also works
 | **Claude Code Onboarding** | `~/.claude.json` | Onboarding completion flag |
 | **Codex Config** | `~/.codex/config.toml` | Qiniu model provider and profile settings |
 | **Codex Auth** | `~/.codex/auth.json` | Codex API key auth cache |
-| **CodeBuddy/WorkBuddy Models** | `~/.codebuddy/models.json` | Qiniu model entries (URL, API Key, capabilities) |
+| **CodeBuddy Models** | `~/.codebuddy/models.json` | Qiniu model entries (URL, API Key, capabilities) |
+| **WorkBuddy Models** | `~/.workbuddy/models.json` | Qiniu model entries (URL, API Key, capabilities) |
 
 ### 🌍 Region Endpoints
 
@@ -219,9 +229,9 @@ model = "<selected-model>"
 
 Treat `~/.codex/auth.json` like a password because it contains API credentials.
 
-### 🔧 CodeBuddy/WorkBuddy Configuration
+### 🔧 CodeBuddy Configuration
 
-CodeBuddy and WorkBuddy share the same `~/.codebuddy/models.json` file, so a single tool entry (`codebuddy`, with `workbuddy` as alias) drives both.
+CodeBuddy is a CLI tool that stores its configuration in `~/.codebuddy/models.json`.
 
 The configuration flow lets you multi-select models from the Qiniu model market (`/v1/market/models`); capability tags (tool call, images, reasoning) and context / output token limits are inferred from the market metadata. Each selected model is written as a `vendor: "Qiniu"` entry with the API Key embedded:
 
@@ -253,6 +263,14 @@ Behavior worth knowing:
 
 Treat `~/.codebuddy/models.json` like a password because the API Key is stored in plaintext.
 
+### 🔧 WorkBuddy Configuration
+
+WorkBuddy stores its configuration in `~/.workbuddy/models.json`. It is completely independent from CodeBuddy.
+
+The configuration flow is identical to CodeBuddy — you multi-select models from the Qiniu model market and they are written to the WorkBuddy-specific config file with the same JSON structure. All the same behavior rules apply (non-Qiniu entries preserved, unload only removes Qiniu models, stale model IDs surfaced).
+
+Treat `~/.workbuddy/models.json` like a password because the API Key is stored in plaintext.
+
 ---
 
 ## ❓ FAQ
@@ -271,12 +289,19 @@ Treat `~/.codebuddy/models.json` like a password because the API Key is stored i
 3. Confirm `~/.codex/config.toml` contains `model_provider = "qnaigc"`
 4. Restart Codex if it was already running
 
-### CodeBuddy/WorkBuddy doesn't see the Qiniu models
+### CodeBuddy doesn't see the Qiniu models
 
-1. Make sure you ran `enter codebuddy` (or `enter workbuddy`) and finished the multi-select picker
+1. Make sure you ran `enter codebuddy` and finished the multi-select picker
 2. Run `npx qiniu-coding-helper auth reload codebuddy` to rewrite `~/.codebuddy/models.json`
 3. Confirm the Qiniu entries exist in the file with `vendor: "Qiniu"` and a non-empty `apiKey`
-4. Restart CodeBuddy/WorkBuddy if it was already running
+4. Restart CodeBuddy if it was already running
+
+### WorkBuddy doesn't see the Qiniu models
+
+1. Make sure you ran `enter workbuddy` and finished the multi-select picker
+2. Run `npx qiniu-coding-helper auth reload workbuddy` to rewrite `~/.workbuddy/models.json`
+3. Confirm the Qiniu entries exist in the file with `vendor: "Qiniu"` and a non-empty `apiKey`
+4. Restart WorkBuddy if it was already running
 
 ### API errors or authentication failures
 
@@ -292,6 +317,7 @@ chmod 600 ~/.coding-helper/config.yaml
 chmod 600 ~/.codex/config.toml
 chmod 600 ~/.codex/auth.json
 chmod 600 ~/.codebuddy/models.json
+chmod 600 ~/.workbuddy/models.json
 ```
 
 ---

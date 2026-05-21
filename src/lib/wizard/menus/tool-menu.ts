@@ -36,7 +36,7 @@ export async function showToolMenu(tool: ITool): Promise<void> {
 
     // 显示版本信息
     const installedVersion = tool.getVersion();
-    renderVersionInfo(installedVersion, latestVersion);
+    renderVersionInfo(installedVersion, latestVersion, tool.npmPackageName);
 
     // 如果最新版本还未获取到，设置 AbortController 以便版本到达后自动刷新
     const controller = new AbortController();
@@ -126,7 +126,13 @@ export async function showToolMenu(tool: ITool): Promise<void> {
 function renderVersionInfo(
   installed: string | null,
   latest: string | null,
+  npmPackageName?: string,
 ): void {
+  // 桌面应用（无 npmPackageName）不显示版本信息
+  if (!npmPackageName) {
+    return;
+  }
+
   // 当前版本
   const installedDisplay = installed
     ? chalk.white(installed)
@@ -186,11 +192,22 @@ async function loadConfig(tool: ITool): Promise<void> {
 
 // 启动工具
 async function launchTool(tool: ITool): Promise<void> {
-  if (!tool.isInstalled()) {
+  const installed = tool.isInstalled();
+  // null 表示无法检测（桌面应用），视为已安装
+  if (installed === false) {
     uiRenderer.renderError(t('tool_not_installed', {
       tool: tool.displayName,
       command: tool.installCommand,
     }));
+    return;
+  }
+
+  // 桌面应用特殊处理：提示手动启动
+  if (!tool.npmPackageName) {
+    uiRenderer.renderHint(t('tool_desktop_launch_hint', {
+      tool: tool.displayName,
+    }));
+    await promptHelper.pressEnter();
     return;
   }
 
@@ -205,6 +222,15 @@ async function launchTool(tool: ITool): Promise<void> {
 
 // 更新工具
 async function updateTool(tool: ITool): Promise<void> {
+  // 桌面应用特殊处理：提示手动更新
+  if (!tool.npmPackageName) {
+    uiRenderer.renderHint(t('tool_desktop_update_hint', {
+      tool: tool.displayName,
+    }));
+    await promptHelper.pressEnter();
+    return;
+  }
+
   const currentVersion = tool.getVersion();
 
   // 获取最新版本
@@ -265,11 +291,21 @@ async function viewConfig(tool: ITool): Promise<void> {
   // 显示工具安装状态和版本
   const installed = tool.isInstalled();
   const version = tool.getVersion();
-  const statusDisplay = installed
-    ? version
-      ? `${chalk.green(t('doctor_found'))} (v${version})`
-      : chalk.green(t('doctor_found'))
-    : chalk.red(t('doctor_not_found'));
+
+  let statusDisplay: string;
+  if (installed === null) {
+    // 无法检测（桌面应用），不显示安装状态
+    statusDisplay = chalk.dim(t('tool_status_unknown'));
+  } else if (installed === false) {
+    statusDisplay = chalk.red(t('doctor_not_found'));
+  } else if (!version || !tool.npmPackageName) {
+    // 桌面应用（无 npmPackageName）只显示"已找到"，不显示版本
+    statusDisplay = chalk.green(t('doctor_found'));
+  } else {
+    // CLI 工具显示版本号
+    statusDisplay = `${chalk.green(t('doctor_found'))} (v${version})`;
+  }
+
   uiRenderer.renderConfigItem(tool.displayName, statusDisplay);
 
   logger.newLine();

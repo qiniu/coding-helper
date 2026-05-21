@@ -1,7 +1,8 @@
 import type { ITool } from './tools/base-tool.js';
 import { ClaudeCodeTool } from './tools/claude-code-tool.js';
 import { CodexTool } from './tools/codex-tool.js';
-import { CodeBuddyWorkBuddyTool } from './tools/codebuddy-workbuddy-tool.js';
+import { CodeBuddyTool } from './tools/codebuddy-tool.js';
+import { WorkBuddyTool } from './tools/workbuddy-tool.js';
 
 // 工具注册中心
 class ToolManager {
@@ -11,7 +12,8 @@ class ToolManager {
     // 注册默认工具
     this.register(new ClaudeCodeTool());
     this.register(new CodexTool());
-    this.register(new CodeBuddyWorkBuddyTool());
+    this.register(new CodeBuddyTool());
+    this.register(new WorkBuddyTool());
   }
 
   // 注册工具

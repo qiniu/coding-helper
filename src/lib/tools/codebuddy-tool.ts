@@ -10,7 +10,7 @@ import {
   type MarketModelInfo,
 } from '../market-model-service.js';
 import { t } from '../i18n.js';
-import { runCodeBuddyWorkBuddyModelSelectionFlow } from '../wizard/flows/codebuddy-workbuddy-model-selection-flow.js';
+import { runCodeBuddyModelSelectionFlow } from '../wizard/flows/codebuddy-model-selection-flow.js';
 import { uiRenderer } from '../wizard/ui/ui-renderer.js';
 import { promptHelper } from '../wizard/ui/prompt-helper.js';
 
@@ -23,7 +23,7 @@ const DEFAULT_TEMPERATURE = 0.7;
 // 由本工具管理的顶层字段，写回时这些字段会被覆盖；其他字段保留原值
 const MANAGED_TOP_LEVEL_KEYS = new Set(['models', 'availableModels']);
 
-export interface CodeBuddyWorkBuddyModel {
+export interface CodeBuddyModel {
   id: string;
   name: string;
   vendor: string;
@@ -36,13 +36,12 @@ export interface CodeBuddyWorkBuddyModel {
   supportsImages: boolean;
 }
 
-export class CodeBuddyWorkBuddyTool implements ITool {
+export class CodeBuddyTool implements ITool {
   name = 'codebuddy';
-  displayName = 'CodeBuddy/WorkBuddy';
+  displayName = 'CodeBuddy';
   command = 'codebuddy';
   installCommand = 'npm install -g @tencent-ai/codebuddy-code';
   npmPackageName = '@tencent-ai/codebuddy-code';
-  aliases = ['workbuddy'];
 
   getVersion(): string | null {
     try {
@@ -83,7 +82,7 @@ export class CodeBuddyWorkBuddyTool implements ITool {
     if (!Array.isArray(models)) {
       return;
     }
-    const nonQiniuModels = (models as CodeBuddyWorkBuddyModel[]).filter(
+    const nonQiniuModels = (models as CodeBuddyModel[]).filter(
       m => m.vendor !== QINIU_VENDOR,
     );
     this.writeConfig(existing, nonQiniuModels);
@@ -118,7 +117,7 @@ export class CodeBuddyWorkBuddyTool implements ITool {
 
     const existing = this.getConfig();
     const existingModels = Array.isArray(existing.models)
-      ? (existing.models as CodeBuddyWorkBuddyModel[])
+      ? (existing.models as CodeBuddyModel[])
       : [];
     const nonQiniuModels = existingModels.filter(m => m.vendor !== QINIU_VENDOR);
 
@@ -135,7 +134,7 @@ export class CodeBuddyWorkBuddyTool implements ITool {
   // 多选要配置的市场模型，结果存入 configManager.codeBuddyModels
   // 用户取消、未选或前置条件不满足时返回 false，让调用方跳过后续 loadConfig
   async runModelConfigFlow(): Promise<boolean> {
-    const selected = await runCodeBuddyWorkBuddyModelSelectionFlow();
+    const selected = await runCodeBuddyModelSelectionFlow();
     if (!selected || selected.length === 0) {
       return false;
     }
@@ -158,7 +157,7 @@ export class CodeBuddyWorkBuddyTool implements ITool {
     market: MarketModelInfo,
     apiKey: string,
     baseUrl: string,
-  ): CodeBuddyWorkBuddyModel {
+  ): CodeBuddyModel {
     const caps = getModelCapabilities(market);
     return {
       id: market.id,
@@ -175,7 +174,7 @@ export class CodeBuddyWorkBuddyTool implements ITool {
   }
 
   // 合并写入：保留用户在 models.json 里手动添加的其他顶层字段，仅覆盖 models / availableModels
-  private writeConfig(existing: Record<string, unknown>, models: CodeBuddyWorkBuddyModel[]): void {
+  private writeConfig(existing: Record<string, unknown>, models: CodeBuddyModel[]): void {
     const merged: Record<string, unknown> = {};
     for (const [key, value] of Object.entries(existing)) {
       if (!MANAGED_TOP_LEVEL_KEYS.has(key)) {
@@ -194,7 +193,7 @@ export class CodeBuddyWorkBuddyTool implements ITool {
     );
   }
 
-  private deduplicateModels(models: CodeBuddyWorkBuddyModel[]): CodeBuddyWorkBuddyModel[] {
+  private deduplicateModels(models: CodeBuddyModel[]): CodeBuddyModel[] {
     const seen = new Set<string>();
     return models.filter(m => {
       if (seen.has(m.id)) return false;
