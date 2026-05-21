@@ -143,7 +143,13 @@
   "config_view_codebuddy_models": "CodeBuddy Models",
   "config_view_workbuddy_models": "WorkBuddy Models",
   "config_view_codex_model": "Model",
+  "config_view_opencode_model": "OpenCode Model",
   "codex_fixed_model_hint": "Codex uses a fixed model \"{{model}}\" via Qiniu proxy. No selection needed.",
+
+  "opencode_select_model": "Select model for OpenCode (type to search or enter custom model ID): ",
+  "opencode_no_model_selected": "No model selected, configuration cancelled",
+  "opencode_config_success": "OpenCode model set to: {{model}}",
+  "opencode_models_not_configured": "OpenCode model not configured. Please use \"Configure models\" first.",
 
   "tool_desktop_launch_hint": "{{tool}} is a desktop application. Please launch it manually.",
   "tool_desktop_update_hint": "{{tool}} is a desktop application. Please visit the official website to download the latest version.",

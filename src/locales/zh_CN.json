@@ -156,7 +156,13 @@
   "config_view_codebuddy_models": "CodeBuddy 模型",
   "config_view_workbuddy_models": "WorkBuddy 模型",
   "config_view_codex_model": "模型",
+  "config_view_opencode_model": "OpenCode 模型",
   "codex_fixed_model_hint": "Codex 通过七牛代理固定使用模型「{{model}}」，无需选择",
+
+  "opencode_select_model": "请选择 OpenCode 使用的模型（可输入搜索或自定义模型 ID）：",
+  "opencode_no_model_selected": "未选择模型，配置已取消",
+  "opencode_config_success": "OpenCode 已选择模型: {{model}}",
+  "opencode_models_not_configured": "尚未配置 OpenCode 模型，请先选择「配置模型」",
 
   "tool_desktop_launch_hint": "{{tool}} 是桌面应用，请手动启动应用程序。",
   "tool_desktop_update_hint": "{{tool}} 是桌面应用，请访问官方网站下载最新版本。",

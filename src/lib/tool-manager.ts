@@ -3,6 +3,7 @@ import { ClaudeCodeTool } from './tools/claude-code-tool.js';
 import { CodexTool } from './tools/codex-tool.js';
 import { CodeBuddyTool } from './tools/codebuddy-tool.js';
 import { WorkBuddyTool } from './tools/workbuddy-tool.js';
+import { OpenCodeTool } from './tools/opencode-tool.js';
 
 // 工具注册中心
 class ToolManager {
@@ -14,6 +15,7 @@ class ToolManager {
     this.register(new CodexTool());
     this.register(new CodeBuddyTool());
     this.register(new WorkBuddyTool());
+    this.register(new OpenCodeTool());
   }
 
   // 注册工具
