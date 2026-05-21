@@ -17,7 +17,8 @@ export interface ITool {
   npmPackageName?: string;
 
   // 检查工具是否已安装
-  isInstalled(): boolean;
+  // 返回 null 表示无法检测（如桌面应用）
+  isInstalled(): boolean | null;
 
   // 获取当前安装的工具版本，未安装返回 null
   getVersion(): string | null;
