@@ -1,5 +1,7 @@
 #!/usr/bin/env node
 
+// 必须放最前：Node 版本守卫，先于任何会用到全局 fetch 的模块求值
+import './lib/preflight.js';
 import { createProgram } from './lib/command.js';
 import { logger } from './utils/logger.js';
 
