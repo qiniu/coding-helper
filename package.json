@@ -1,6 +1,6 @@
 {
   "name": "qiniu-coding-helper",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "description": "CLI tool for configuring AI coding assistants with Qiniu API endpoints",
   "type": "module",
   "main": "dist/index.js",
