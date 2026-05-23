@@ -21,6 +21,7 @@ const CLAUDE_ENV_KEYS = [
   'CLAUDE_CODE_SUBAGENT_MODEL',
   'API_TIMEOUT_MS',
   'CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC',
+  'CLAUDE_CODE_ATTRIBUTION_HEADER',
 ];
 
 // Claude Code 配置文件路径
@@ -106,6 +107,8 @@ export class ClaudeCodeTool implements ITool {
     env.API_TIMEOUT_MS = API_TIMEOUT;
     // 禁用非必要流量，第三方端点不需要 Anthropic 遥测
     env.CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC = '1';
+    // 禁用属性块，提升网关下 prompt cache 命中率
+    env.CLAUDE_CODE_ATTRIBUTION_HEADER = '0';
 
     // 写入模型配置
     if (models.haikuModel) env.ANTHROPIC_DEFAULT_HAIKU_MODEL = models.haikuModel;
