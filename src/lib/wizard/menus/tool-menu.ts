@@ -24,10 +24,24 @@ export async function showToolMenu(tool: ITool): Promise<void> {
   // 异步获取最新版本（不阻塞菜单渲染）
   let latestVersion: string | null = null;
   let fetchPromise: Promise<string | null> | null = null;
+  // 标识版本查询是否已结束（成功或失败）。必须独立于 latestVersion：
+  // 网络失败时 latestVersion 仍为 null，若以 null 判断会每轮循环重挂 abort 钩子，
+  // 已 resolved 的 promise 立刻触发 abort，造成 select 死循环（issue #17）。
+  let versionFetched = false;
 
   if (tool.npmPackageName) {
     fetchPromise = fetchLatestVersion(tool.npmPackageName);
-    fetchPromise.then(v => { latestVersion = v; }).catch(() => {});
+    // 必须在同一回调里同时更新两个变量，保证下面的 abort 钩子触发时
+    // versionFetched 已是 true（promise 链上同一 promise 的回调按挂载顺序执行）。
+    fetchPromise.then(
+      v => {
+        latestVersion = v;
+        versionFetched = true;
+      },
+      () => {
+        versionFetched = true;
+      },
+    );
   }
 
   while (true) {
@@ -36,12 +50,12 @@ export async function showToolMenu(tool: ITool): Promise<void> {
 
     // 显示版本信息
     const installedVersion = tool.getVersion();
-    renderVersionInfo(installedVersion, latestVersion, tool.npmPackageName, tool.isInstalled() === null);
+    renderVersionInfo(installedVersion, latestVersion, versionFetched, tool.npmPackageName, tool.isInstalled() === null);
 
-    // 如果最新版本还未获取到，设置 AbortController 以便版本到达后自动刷新
+    // 仅当版本查询仍在进行中时，挂 AbortController 以便完成后自动刷新
     const controller = new AbortController();
-    if (latestVersion === null && fetchPromise) {
-      fetchPromise.then(() => {
+    if (!versionFetched && fetchPromise) {
+      fetchPromise.finally(() => {
         if (!controller.signal.aborted) {
           controller.abort();
         }
@@ -107,8 +121,13 @@ export async function showToolMenu(tool: ITool): Promise<void> {
         await updateTool(tool);
         // 更新后重新获取最新版本信息
         if (tool.npmPackageName) {
+          versionFetched = false;
           fetchPromise = fetchLatestVersion(tool.npmPackageName);
-          latestVersion = await fetchPromise;
+          try {
+            latestVersion = await fetchPromise;
+          } finally {
+            versionFetched = true;
+          }
         }
         break;
 
@@ -126,6 +145,7 @@ export async function showToolMenu(tool: ITool): Promise<void> {
 function renderVersionInfo(
   installed: string | null,
   latest: string | null,
+  fetched: boolean,
   npmPackageName?: string,
   isDesktop = false,
 ): void {
@@ -159,6 +179,9 @@ function renderVersionInfo(
         `${chalk.white(latest)}  ${chalk.green(t('tool_version_up_to_date'))}`,
       );
     }
+  } else if (fetched) {
+    // 查询已结束但未拿到版本（如 npm registry 不可达）
+    uiRenderer.renderConfigItem(t('tool_version_latest'), chalk.dim(t('tool_version_unavailable')));
   } else {
     uiRenderer.renderConfigItem(t('tool_version_latest'), chalk.dim(t('tool_version_checking')));
   }
