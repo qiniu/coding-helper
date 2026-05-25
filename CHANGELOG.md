@@ -5,6 +5,30 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.3.3] - 2026-05-25
+
+### 更新内容
+* feat: add Hermes Agent support by @krisxia0506 in https://github.com/qiniu/coding-helper/pull/22
+
+
+**Full Changelog**: https://github.com/qiniu/coding-helper/compare/v0.3.2...v0.3.3
+
+## [0.3.2] - 2026-05-23
+
+### 更新内容
+* feat(claude-code): 禁用属性块以提升网关 prompt cache 命中率 by @krisxia0506 in https://github.com/qiniu/coding-helper/pull/20
+
+
+**Full Changelog**: https://github.com/qiniu/coding-helper/compare/v0.3.1...v0.3.2
+
+## [0.3.1] - 2026-05-22
+
+### 更新内容
+* fix(cli): 启动期校验 Node 版本，提前提示升级 by @krisxia0506 in https://github.com/qiniu/coding-helper/pull/19
+
+
+**Full Changelog**: https://github.com/qiniu/coding-helper/compare/v0.3.0...v0.3.1
+
 ## [0.3.0] - 2026-05-21
 
 ### 更新内容

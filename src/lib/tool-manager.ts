@@ -4,6 +4,7 @@ import { CodexTool } from './tools/codex-tool.js';
 import { CodeBuddyTool } from './tools/codebuddy-tool.js';
 import { WorkBuddyTool } from './tools/workbuddy-tool.js';
 import { OpenCodeTool } from './tools/opencode-tool.js';
+import { HermesTool } from './tools/hermes-tool.js';
 
 // 工具注册中心
 class ToolManager {
@@ -16,6 +17,7 @@ class ToolManager {
     this.register(new CodeBuddyTool());
     this.register(new WorkBuddyTool());
     this.register(new OpenCodeTool());
+    this.register(new HermesTool());
   }
 
   // 注册工具

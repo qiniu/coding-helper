@@ -140,8 +140,18 @@
   "workbuddy_models_unavailable": "The following configured models are no longer available in the Qiniu model market (likely delisted) and will be skipped: {{models}}",
   "workbuddy_all_models_unavailable": "None of the configured models are available in the Qiniu model market (likely delisted): {{models}}. Please reconfigure the models and try again.",
 
+  "hermes_select_model": "Select the default model for Hermes Agent (type to search or enter a custom model ID): ",
+  "hermes_no_model_selected": "No model selected, configuration cancelled",
+  "hermes_config_success": "Configured Hermes Agent default model: {{model}}",
+  "hermes_reuse_previous_selection": "Previous model configuration detected, reuse it?",
+  "hermes_fetching_models": "Fetching model list from Qiniu API...",
+  "hermes_fetch_models_failed": "Failed to fetch model list: {{error}}",
+  "hermes_current_model": "Current configured model: {{model}}",
+  "hermes_model_not_configured": "Hermes Agent model is not configured. Please use \"Configure models\" to select a model first.",
+
   "config_view_codebuddy_models": "CodeBuddy Models",
   "config_view_workbuddy_models": "WorkBuddy Models",
+  "config_view_hermes_model": "Hermes Agent Model",
   "config_view_codex_model": "Model",
   "config_view_opencode_model": "OpenCode Model",
   "config_view_opencode_models": "OpenCode Models",

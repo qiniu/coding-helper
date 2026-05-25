@@ -18,6 +18,7 @@ export interface ModelConfig {
   workbuddyModels?: string[];
   opencodeModels?: string[];
   opencodeModel?: string;
+  hermesModel?: string;
 }
 
 // 配置文件结构
@@ -33,6 +34,7 @@ interface Config {
   workbuddyModels?: string[];
   opencodeModels?: string[];
   opencodeModel?: string;
+  hermesModel?: string;
 }
 
 // 配置管理器单例
@@ -142,6 +144,7 @@ class ConfigManager {
       workbuddyModels: this.config.workbuddyModels,
       opencodeModels: this.config.opencodeModels,
       opencodeModel: this.config.opencodeModel,
+      hermesModel: this.config.hermesModel,
     };
   }
 
@@ -156,6 +159,7 @@ class ConfigManager {
     if ('workbuddyModels' in models) this.config.workbuddyModels = models.workbuddyModels;
     if ('opencodeModels' in models) this.config.opencodeModels = models.opencodeModels;
     if ('opencodeModel' in models) this.config.opencodeModel = models.opencodeModel;
+    if ('hermesModel' in models) this.config.hermesModel = models.hermesModel;
     this.save();
   }
 
