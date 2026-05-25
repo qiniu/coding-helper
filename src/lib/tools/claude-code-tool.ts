@@ -111,10 +111,11 @@ export class ClaudeCodeTool implements ITool {
     env.CLAUDE_CODE_ATTRIBUTION_HEADER = '0';
 
     // 写入模型配置
-    if (models.haikuModel) env.ANTHROPIC_DEFAULT_HAIKU_MODEL = models.haikuModel;
-    if (models.sonnetModel) env.ANTHROPIC_DEFAULT_SONNET_MODEL = models.sonnetModel;
-    if (models.opusModel) env.ANTHROPIC_DEFAULT_OPUS_MODEL = models.opusModel;
-    if (models.subagentModel) env.CLAUDE_CODE_SUBAGENT_MODEL = models.subagentModel;
+    const claudeCode = models.claudeCode || {};
+    if (claudeCode.haikuModel) env.ANTHROPIC_DEFAULT_HAIKU_MODEL = claudeCode.haikuModel;
+    if (claudeCode.sonnetModel) env.ANTHROPIC_DEFAULT_SONNET_MODEL = claudeCode.sonnetModel;
+    if (claudeCode.opusModel) env.ANTHROPIC_DEFAULT_OPUS_MODEL = claudeCode.opusModel;
+    if (claudeCode.subagentModel) env.CLAUDE_CODE_SUBAGENT_MODEL = claudeCode.subagentModel;
 
     settings.env = env;
 
@@ -145,11 +146,11 @@ export class ClaudeCodeTool implements ITool {
   }
 
   renderModelConfigSummary(): void {
-    const models = configManager.getModels();
-    uiRenderer.renderModelConfigItem(t('config_view_haiku'), models.haikuModel);
-    uiRenderer.renderModelConfigItem(t('config_view_sonnet'), models.sonnetModel);
-    uiRenderer.renderModelConfigItem(t('config_view_opus'), models.opusModel);
-    uiRenderer.renderModelConfigItem(t('config_view_subagent'), models.subagentModel);
+    const claudeCode = configManager.getModels().claudeCode || {};
+    uiRenderer.renderModelConfigItem(t('config_view_haiku'), claudeCode.haikuModel);
+    uiRenderer.renderModelConfigItem(t('config_view_sonnet'), claudeCode.sonnetModel);
+    uiRenderer.renderModelConfigItem(t('config_view_opus'), claudeCode.opusModel);
+    uiRenderer.renderModelConfigItem(t('config_view_subagent'), claudeCode.subagentModel);
   }
 
   // 写入 settings.json

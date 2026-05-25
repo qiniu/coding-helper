@@ -10,15 +10,19 @@ const CONFIG_FILE = path.join(CONFIG_DIR, 'config.yaml');
 
 // 模型配置接口
 export interface ModelConfig {
-  haikuModel?: string;
-  sonnetModel?: string;
-  opusModel?: string;
-  subagentModel?: string;
+  claudeCode?: ClaudeCodeConfig;
   codeBuddyModels?: string[];
   workbuddyModels?: string[];
   hermesModel?: string;
   codexModel?: string;
-  claudeCodeUseDefaultModels?: boolean;
+}
+
+export interface ClaudeCodeConfig {
+  haikuModel?: string;
+  sonnetModel?: string;
+  opusModel?: string;
+  subagentModel?: string;
+  useDefaultModels?: boolean;
 }
 
 // 配置文件结构
@@ -26,15 +30,11 @@ interface Config {
   lang?: string;
   endpoint?: string;
   api_key?: string;
-  haikuModel?: string;
-  sonnetModel?: string;
-  opusModel?: string;
-  subagentModel?: string;
+  claudeCode?: ClaudeCodeConfig;
   codeBuddyModels?: string[];
   workbuddyModels?: string[];
   hermesModel?: string;
   codexModel?: string;
-  claudeCodeUseDefaultModels?: boolean;
 }
 
 // 配置管理器单例
@@ -136,30 +136,26 @@ class ConfigManager {
   getModels(): ModelConfig {
     this.load();
     return {
-      haikuModel: this.config.haikuModel,
-      sonnetModel: this.config.sonnetModel,
-      opusModel: this.config.opusModel,
-      subagentModel: this.config.subagentModel,
+      claudeCode: this.config.claudeCode ? { ...this.config.claudeCode } : undefined,
       codeBuddyModels: this.config.codeBuddyModels,
       workbuddyModels: this.config.workbuddyModels,
       hermesModel: this.config.hermesModel,
       codexModel: this.config.codexModel,
-      claudeCodeUseDefaultModels: this.config.claudeCodeUseDefaultModels,
     };
   }
 
   setModels(models: ModelConfig): void {
     this.load();
     // 使用 'in' 检查来区分「未传递」和「显式传递 undefined」
-    if ('haikuModel' in models) this.config.haikuModel = models.haikuModel;
-    if ('sonnetModel' in models) this.config.sonnetModel = models.sonnetModel;
-    if ('opusModel' in models) this.config.opusModel = models.opusModel;
-    if ('subagentModel' in models) this.config.subagentModel = models.subagentModel;
+    if ('claudeCode' in models) {
+      this.config.claudeCode = models.claudeCode
+        ? { ...this.config.claudeCode, ...models.claudeCode }
+        : undefined;
+    }
     if ('codeBuddyModels' in models) this.config.codeBuddyModels = models.codeBuddyModels;
     if ('workbuddyModels' in models) this.config.workbuddyModels = models.workbuddyModels;
     if ('hermesModel' in models) this.config.hermesModel = models.hermesModel;
     if ('codexModel' in models) this.config.codexModel = models.codexModel;
-    if ('claudeCodeUseDefaultModels' in models) this.config.claudeCodeUseDefaultModels = models.claudeCodeUseDefaultModels;
     this.save();
   }
 

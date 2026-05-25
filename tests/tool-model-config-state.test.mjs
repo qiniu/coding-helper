@@ -31,15 +31,11 @@ test('Codex model setup saves the fixed model in coding-helper config', async ()
   }
 });
 
-test('hasSavedToolModelConfig recognizes existing model fields for backward compatibility', () => {
+test('hasSavedToolModelConfig recognizes saved tool model fields', () => {
   configManager.clearConfig();
 
   assert.equal(
-    hasSavedToolModelConfig({ name: 'claude-code' }, { claudeCodeUseDefaultModels: true }),
-    true,
-  );
-  assert.equal(
-    hasSavedToolModelConfig({ name: 'claude-code' }, { sonnetModel: 'claude-sonnet' }),
+    hasSavedToolModelConfig({ name: 'claude-code' }, { claudeCode: { useDefaultModels: true } }),
     true,
   );
   assert.equal(
