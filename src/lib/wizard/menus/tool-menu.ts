@@ -158,11 +158,11 @@ export function hasSavedToolModelConfig(
   switch (tool.name) {
     case 'claude-code':
       return !!(
-        models.claudeCodeUseDefaultModels ||
-        models.haikuModel ||
-        models.sonnetModel ||
-        models.opusModel ||
-        models.subagentModel
+        models.claudeCode?.useDefaultModels ||
+        models.claudeCode?.haikuModel ||
+        models.claudeCode?.sonnetModel ||
+        models.claudeCode?.opusModel ||
+        models.claudeCode?.subagentModel
       );
     case 'codex':
       return !!models.codexModel;

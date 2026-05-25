@@ -30,11 +30,13 @@ export async function runModelSelectionFlow(): Promise<boolean> {
   if (!needsCustomModels) {
     // 用户选择不配置，清除已有的自定义模型配置
     configManager.setModels({
-      haikuModel: undefined,
-      sonnetModel: undefined,
-      opusModel: undefined,
-      subagentModel: undefined,
-      claudeCodeUseDefaultModels: true,
+      claudeCode: {
+        haikuModel: undefined,
+        sonnetModel: undefined,
+        opusModel: undefined,
+        subagentModel: undefined,
+        useDefaultModels: true,
+      },
     });
     uiRenderer.renderSuccess(t('model_saved'));
     return true;
@@ -71,12 +73,13 @@ export async function runModelSelectionFlow(): Promise<boolean> {
   uiRenderer.renderHeader();
 
   const currentModels = configManager.getModels();
+  const currentClaudeCode = currentModels.claudeCode || {};
 
   // 四步选择: Haiku → Sonnet → Opus → Subagent
-  const haikuModel = await selectModel(models, 'model_select_haiku', currentModels.haikuModel);
-  const sonnetModel = await selectModel(models, 'model_select_sonnet', currentModels.sonnetModel);
-  const opusModel = await selectModel(models, 'model_select_opus', currentModels.opusModel);
-  const subagentModel = await selectModel(models, 'model_select_subagent', currentModels.subagentModel);
+  const haikuModel = await selectModel(models, 'model_select_haiku', currentClaudeCode.haikuModel);
+  const sonnetModel = await selectModel(models, 'model_select_sonnet', currentClaudeCode.sonnetModel);
+  const opusModel = await selectModel(models, 'model_select_opus', currentClaudeCode.opusModel);
+  const subagentModel = await selectModel(models, 'model_select_subagent', currentClaudeCode.subagentModel);
 
   // 展示配置摘要面板，等待用户确认
   uiRenderer.renderHeader();
@@ -98,11 +101,13 @@ export async function runModelSelectionFlow(): Promise<boolean> {
 
   // 保存配置
   configManager.setModels({
-    haikuModel,
-    sonnetModel,
-    opusModel,
-    subagentModel,
-    claudeCodeUseDefaultModels: false,
+    claudeCode: {
+      haikuModel,
+      sonnetModel,
+      opusModel,
+      subagentModel,
+      useDefaultModels: false,
+    },
   });
 
   uiRenderer.renderSuccess(t('model_saved'));
