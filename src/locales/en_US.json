@@ -69,6 +69,7 @@
   "tool_version_installed": "Installed",
   "tool_version_latest": "Latest",
   "tool_version_checking": "Checking...",
+  "tool_version_unavailable": "Unavailable (check network)",
   "tool_version_unknown": "Unknown",
   "tool_version_not_installed": "Not installed",
   "tool_version_update_hint": "Update available!",

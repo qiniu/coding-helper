@@ -1,4 +1,7 @@
-import inquirer from 'inquirer';
+import select from '@inquirer/select';
+import input from '@inquirer/input';
+import password from '@inquirer/password';
+import checkbox from '@inquirer/checkbox';
 import search from '@inquirer/search';
 import { t } from '../../i18n.js';
 import { theme } from './theme.js';
@@ -7,44 +10,25 @@ import { theme } from './theme.js';
 const SKIP_VALUE = '__skip__';
 
 // inquirer 封装 - 统一交互式 prompt
+// 全部基于 @inquirer/* modular API，避免与老 inquirer 9.x 混用导致 stdin
+// readline 残留监听器（按上下键失效、需先按回车的根因）。
 export const promptHelper = {
   // 单选列表
   async select<T extends string>(message: string, choices: { name: string; value: T }[]): Promise<T> {
-    const { answer } = await inquirer.prompt([
-      {
-        type: 'list',
-        name: 'answer',
-        message,
-        choices,
-      },
-    ]);
-    return answer as T;
+    return await select<T>({
+      message,
+      choices: choices.map(c => ({ name: c.name, value: c.value })),
+    });
   },
 
   // 密码/隐藏输入
   async password(message: string): Promise<string> {
-    const { answer } = await inquirer.prompt([
-      {
-        type: 'password',
-        name: 'answer',
-        message,
-        mask: '*',
-      },
-    ]);
-    return answer as string;
+    return await password({ message, mask: '*' });
   },
 
   // 文本输入
   async input(message: string, defaultValue?: string): Promise<string> {
-    const { answer } = await inquirer.prompt([
-      {
-        type: 'input',
-        name: 'answer',
-        message,
-        default: defaultValue,
-      },
-    ]);
-    return answer as string;
+    return await input({ message, default: defaultValue });
   },
 
   // 确认 (上下选择)
@@ -59,40 +43,21 @@ export const promptHelper = {
           { name: `${theme.icon('✔')} ${t('confirm_yes')}`, value: true },
         ];
 
-    const { answer } = await inquirer.prompt([
-      {
-        type: 'list',
-        name: 'answer',
-        message,
-        choices,
-      },
-    ]);
-    return answer as boolean;
+    return await select<boolean>({ message, choices });
   },
 
   // 按回车继续（不显示 Yes/No，仅等待用户按回车）
   async pressEnter(message?: string): Promise<void> {
-    await inquirer.prompt([
-      {
-        type: 'input',
-        name: 'answer',
-        message: message || t('press_enter_to_continue'),
-      },
-    ]);
+    await input({ message: message || t('press_enter_to_continue') });
   },
 
   // 多选列表
   async checkbox<T extends string>(message: string, choices: { name: string; value: T }[]): Promise<T[]> {
-    const { answer } = await inquirer.prompt([
-      {
-        type: 'checkbox',
-        name: 'answer',
-        message,
-        choices,
-        pageSize: 15,
-      },
-    ]);
-    return answer as T[];
+    return await checkbox<T>({
+      message,
+      choices: choices.map(c => ({ name: c.name, value: c.value })),
+      pageSize: 15,
+    });
   },
 
   // 搜索+自动补全选择（同时展示输入框和可滚动列表，支持自定义输入和跳过）
