@@ -26,11 +26,11 @@ export async function runOpenCodeModelSelectionFlow(): Promise<boolean> {
     // 获取失败时仍允许手动输入
   }
 
+  uiRenderer.renderHeader();
+
   if (models.length === 0) {
     uiRenderer.renderWarning(t('model_no_models'));
   }
-
-  uiRenderer.renderHeader();
 
   const current = configManager.getModels().opencodeModel;
   const choices = models.map((m) => ({
