@@ -34,6 +34,7 @@ export async function runModelSelectionFlow(): Promise<boolean> {
       sonnetModel: undefined,
       opusModel: undefined,
       subagentModel: undefined,
+      claudeCodeUseDefaultModels: true,
     });
     uiRenderer.renderSuccess(t('model_saved'));
     return true;
@@ -101,6 +102,7 @@ export async function runModelSelectionFlow(): Promise<boolean> {
     sonnetModel,
     opusModel,
     subagentModel,
+    claudeCodeUseDefaultModels: false,
   });
 
   uiRenderer.renderSuccess(t('model_saved'));

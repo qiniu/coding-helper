@@ -3,7 +3,7 @@ import path from 'node:path';
 import os from 'node:os';
 import { execSync } from 'node:child_process';
 import type { ITool } from './base-tool.js';
-import type { ModelConfig } from '../config.js';
+import { configManager, type ModelConfig } from '../config.js';
 import { t } from '../i18n.js';
 import { uiRenderer } from '../wizard/ui/ui-renderer.js';
 import { promptHelper } from '../wizard/ui/prompt-helper.js';
@@ -19,6 +19,7 @@ const CODEX_MODEL = 'openai/gpt-5.5';
 export class CodexTool implements ITool {
   name = 'codex';
   displayName = 'Codex';
+  defaultModel = CODEX_MODEL;
   command = 'codex';
   installCommand = 'npm install -g @openai/codex';
   updateCommand = 'npm install -g @openai/codex@latest';
@@ -59,10 +60,10 @@ export class CodexTool implements ITool {
     writeCodexConfig(removeTomlTable(content, 'profiles.qn-gpt'));
   }
 
-  async loadConfig(apiKey: string, baseUrl: string, _models: ModelConfig): Promise<void> {
+  async loadConfig(apiKey: string, baseUrl: string, models: ModelConfig): Promise<void> {
     writeCodexAuth(buildCodexAuthJson(readCodexAuth(), apiKey));
     const content = readCodexConfig();
-    writeCodexConfig(buildCodexConfig(content, baseUrl, CODEX_MODEL));
+    writeCodexConfig(buildCodexConfig(content, baseUrl, models.codexModel || this.defaultModel));
   }
 
   async unloadConfig(): Promise<void> {
@@ -72,13 +73,14 @@ export class CodexTool implements ITool {
 
   async runModelConfigFlow(): Promise<boolean> {
     uiRenderer.renderHeader();
-    uiRenderer.renderHint(t('codex_fixed_model_hint', { model: CODEX_MODEL }));
+    uiRenderer.renderHint(t('codex_fixed_model_hint', { model: this.defaultModel }));
+    configManager.setModels({ codexModel: this.defaultModel });
     await promptHelper.pressEnter();
     return true;
   }
 
   renderModelConfigSummary(): void {
-    uiRenderer.renderConfigItem(t('config_view_codex_model'), CODEX_MODEL);
+    uiRenderer.renderConfigItem(t('config_view_codex_model'), configManager.getModels().codexModel || this.defaultModel);
   }
 }
 

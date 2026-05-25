@@ -17,6 +17,8 @@ export interface ModelConfig {
   codeBuddyModels?: string[];
   workbuddyModels?: string[];
   hermesModel?: string;
+  codexModel?: string;
+  claudeCodeUseDefaultModels?: boolean;
 }
 
 // 配置文件结构
@@ -31,6 +33,8 @@ interface Config {
   codeBuddyModels?: string[];
   workbuddyModels?: string[];
   hermesModel?: string;
+  codexModel?: string;
+  claudeCodeUseDefaultModels?: boolean;
 }
 
 // 配置管理器单例
@@ -139,6 +143,8 @@ class ConfigManager {
       codeBuddyModels: this.config.codeBuddyModels,
       workbuddyModels: this.config.workbuddyModels,
       hermesModel: this.config.hermesModel,
+      codexModel: this.config.codexModel,
+      claudeCodeUseDefaultModels: this.config.claudeCodeUseDefaultModels,
     };
   }
 
@@ -152,6 +158,8 @@ class ConfigManager {
     if ('codeBuddyModels' in models) this.config.codeBuddyModels = models.codeBuddyModels;
     if ('workbuddyModels' in models) this.config.workbuddyModels = models.workbuddyModels;
     if ('hermesModel' in models) this.config.hermesModel = models.hermesModel;
+    if ('codexModel' in models) this.config.codexModel = models.codexModel;
+    if ('claudeCodeUseDefaultModels' in models) this.config.claudeCodeUseDefaultModels = models.claudeCodeUseDefaultModels;
     this.save();
   }
 

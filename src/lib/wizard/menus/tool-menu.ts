@@ -8,6 +8,7 @@ import { theme } from '../ui/theme.js';
 import type { ITool } from '../../tools/base-tool.js';
 import { logger } from '../../../utils/logger.js';
 import { fetchLatestVersion, isNewerVersion } from '../../version-service.js';
+import type { ModelConfig } from '../../config.js';
 
 // 工具菜单操作
 type ToolMenuAction =
@@ -21,6 +22,10 @@ type ToolMenuAction =
 
 // 工具配置菜单
 export async function showToolMenu(tool: ITool): Promise<void> {
+  if (!hasSavedToolModelConfig(tool, configManager.getModels())) {
+    await runInitialToolSetup(tool);
+  }
+
   // 异步获取最新版本（不阻塞菜单渲染）
   let latestVersion: string | null = null;
   let fetchCompleted = false;
@@ -145,6 +150,40 @@ export function isLatestVersionFetchPending(state: {
   return Boolean(state.fetchPromise && !state.fetchCompleted);
 }
 
+// 判断 coding-helper 自身是否保存过该工具的模型配置状态
+export function hasSavedToolModelConfig(
+  tool: Pick<ITool, 'name'>,
+  models: ModelConfig,
+): boolean {
+  switch (tool.name) {
+    case 'claude-code':
+      return !!(
+        models.claudeCodeUseDefaultModels ||
+        models.haikuModel ||
+        models.sonnetModel ||
+        models.opusModel ||
+        models.subagentModel
+      );
+    case 'codex':
+      return !!models.codexModel;
+    case 'codebuddy':
+      return !!models.codeBuddyModels?.length;
+    case 'workbuddy':
+      return !!models.workbuddyModels?.length;
+    case 'hermes':
+      return !!models.hermesModel;
+    default:
+      return false;
+  }
+}
+
+async function runInitialToolSetup(tool: ITool): Promise<void> {
+  const completed = await tool.runModelConfigFlow();
+  if (!completed) return;
+
+  await applyConfig(tool);
+}
+
 // 渲染版本信息区域
 function renderVersionInfo(
   installed: string | null,
@@ -212,6 +251,17 @@ async function loadConfig(tool: ITool): Promise<void> {
     t('tool_config_load_confirm', { tool: tool.displayName }),
   );
   if (!confirmed) return;
+
+  await applyConfig(tool);
+}
+
+async function applyConfig(tool: ITool): Promise<void> {
+  const apiKey = configManager.getApiKey();
+  if (!apiKey) {
+    uiRenderer.renderError(t('apikey_not_set'));
+    await promptHelper.pressEnter();
+    return;
+  }
 
   const models = configManager.getModels();
   try {
