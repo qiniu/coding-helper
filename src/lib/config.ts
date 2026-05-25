@@ -16,6 +16,8 @@ export interface ModelConfig {
   subagentModel?: string;
   codeBuddyModels?: string[];
   workbuddyModels?: string[];
+  opencodeModels?: string[];
+  opencodeModel?: string;
   hermesModel?: string;
 }
 
@@ -30,6 +32,8 @@ interface Config {
   subagentModel?: string;
   codeBuddyModels?: string[];
   workbuddyModels?: string[];
+  opencodeModels?: string[];
+  opencodeModel?: string;
   hermesModel?: string;
 }
 
@@ -138,6 +142,8 @@ class ConfigManager {
       subagentModel: this.config.subagentModel,
       codeBuddyModels: this.config.codeBuddyModels,
       workbuddyModels: this.config.workbuddyModels,
+      opencodeModels: this.config.opencodeModels,
+      opencodeModel: this.config.opencodeModel,
       hermesModel: this.config.hermesModel,
     };
   }
@@ -151,6 +157,8 @@ class ConfigManager {
     if ('subagentModel' in models) this.config.subagentModel = models.subagentModel;
     if ('codeBuddyModels' in models) this.config.codeBuddyModels = models.codeBuddyModels;
     if ('workbuddyModels' in models) this.config.workbuddyModels = models.workbuddyModels;
+    if ('opencodeModels' in models) this.config.opencodeModels = models.opencodeModels;
+    if ('opencodeModel' in models) this.config.opencodeModel = models.opencodeModel;
     if ('hermesModel' in models) this.config.hermesModel = models.hermesModel;
     this.save();
   }
