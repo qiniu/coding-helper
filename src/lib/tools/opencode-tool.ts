@@ -4,6 +4,7 @@ import os from 'node:os';
 import { execSync } from 'node:child_process';
 import type { ITool } from './base-tool.js';
 import { configManager, type ModelConfig } from '../config.js';
+import { marketModelService } from '../market-model-service.js';
 import { t } from '../i18n.js';
 import { uiRenderer } from '../wizard/ui/ui-renderer.js';
 import { runOpenCodeModelSelectionFlow } from '../wizard/flows/opencode-model-selection-flow.js';
@@ -63,7 +64,24 @@ export class OpenCodeTool implements ITool {
 
   async loadConfig(apiKey: string, baseUrl: string, models: ModelConfig): Promise<void> {
     const content = readOpenCodeConfig();
-    writeOpenCodeConfig(buildOpenCodeConfig(content, baseUrl, apiKey, models.opencodeModel));
+    const modelIds = getConfiguredOpenCodeModels(models);
+    if (modelIds.length === 0) {
+      throw new Error(t('opencode_models_not_configured'));
+    }
+
+    const allModels = await marketModelService.fetchModels(baseUrl.replace(/\/+$/, ''), apiKey);
+    const selectedModels = allModels.filter(m => modelIds.includes(m.id));
+    if (selectedModels.length === 0) {
+      throw new Error(t('opencode_all_models_unavailable', { models: modelIds.join(', ') }));
+    }
+
+    const foundIds = new Set(selectedModels.map(m => m.id));
+    const missingIds = modelIds.filter(id => !foundIds.has(id));
+    if (missingIds.length > 0) {
+      uiRenderer.renderWarning(t('opencode_models_unavailable', { models: missingIds.join(', ') }));
+    }
+
+    writeOpenCodeConfig(buildOpenCodeConfig(content, baseUrl, apiKey, selectedModels.map(m => m.id)));
   }
 
   async unloadConfig(): Promise<void> {
@@ -76,15 +94,23 @@ export class OpenCodeTool implements ITool {
 
   renderModelConfigSummary(): void {
     const models = configManager.getModels();
-    uiRenderer.renderModelConfigItem(t('config_view_opencode_model'), models.opencodeModel);
+    const ids = getConfiguredOpenCodeModels(models);
+    const value = ids.length > 0 ? ids.join(', ') : undefined;
+    uiRenderer.renderModelConfigItem(t('config_view_opencode_models'), value);
   }
 }
 
 // ========== 纯函数（导出供测试） ==========
 
 // 在已有 JSON 上写入七牛托管的 model + provider.qiniu，保留所有其他字段
-export function buildOpenCodeConfig(existing: string, baseUrl: string, apiKey: string, model?: string): string {
+export function buildOpenCodeConfig(
+  existing: string,
+  baseUrl: string,
+  apiKey: string,
+  modelOrModels?: string | string[],
+): string {
   const config = parseJson(existing);
+  const selectedModels = normalizeModelIds(modelOrModels);
 
   if (!config.$schema) {
     config.$schema = 'https://opencode.ai/config.json';
@@ -92,8 +118,8 @@ export function buildOpenCodeConfig(existing: string, baseUrl: string, apiKey: s
 
   // OpenCode model 字段格式: <provider-id>/<raw-model-id>
   // 给用户选的 model 前置 qiniu/ 让 OpenCode 路由到我们托管的 provider
-  if (model) {
-    config.model = `${PROVIDER_KEY}/${model}`;
+  if (selectedModels.length > 0) {
+    config.model = `${PROVIDER_KEY}/${selectedModels[0]}`;
   }
 
   const provider = (isPlainObject(config.provider) ? config.provider : {}) as Record<string, unknown>;
@@ -107,7 +133,7 @@ export function buildOpenCodeConfig(existing: string, baseUrl: string, apiKey: s
   const models = isPlainObject(existingQiniu?.models)
     ? { ...(existingQiniu!.models as Record<string, unknown>) }
     : {};
-  if (model) {
+  for (const model of selectedModels) {
     models[model] = {};
   }
 
@@ -200,5 +226,28 @@ function hasManagedOpenCodeConfig(content: string): boolean {
   const config = parseJson(content);
   const provider = isPlainObject(config.provider) ? (config.provider as Record<string, unknown>) : undefined;
   return isManagedQiniuProvider(provider);
+}
+
+function getConfiguredOpenCodeModels(models: ModelConfig): string[] {
+  if (models.opencodeModels && models.opencodeModels.length > 0) {
+    return deduplicateModelIds(models.opencodeModels);
+  }
+  return models.opencodeModel ? [models.opencodeModel] : [];
+}
+
+function normalizeModelIds(modelOrModels?: string | string[]): string[] {
+  if (!modelOrModels) return [];
+  return deduplicateModelIds(Array.isArray(modelOrModels) ? modelOrModels : [modelOrModels]);
+}
+
+function deduplicateModelIds(models: string[]): string[] {
+  const seen = new Set<string>();
+  return models
+    .map(model => model.trim())
+    .filter(model => {
+      if (!model || seen.has(model)) return false;
+      seen.add(model);
+      return true;
+    });
 }
 

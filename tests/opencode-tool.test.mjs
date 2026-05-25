@@ -69,6 +69,21 @@ test('buildOpenCodeConfig strips trailing slash from baseURL and appends /v1', (
   assert.equal(next.provider.qiniu.options.baseURL, 'https://api.qnaigc.com/v1');
 });
 
+test('buildOpenCodeConfig writes multiple qiniu models for OpenCode /models selection', () => {
+  const next = JSON.parse(buildOpenCodeConfig(
+    '',
+    'https://api.qnaigc.com',
+    'sk',
+    ['deepseek/deepseek-v4-flash', 'anthropic/claude-sonnet-4-5'],
+  ));
+
+  assert.equal(next.model, 'qiniu/deepseek/deepseek-v4-flash');
+  assert.deepEqual(next.provider.qiniu.models, {
+    'deepseek/deepseek-v4-flash': {},
+    'anthropic/claude-sonnet-4-5': {},
+  });
+});
+
 test('buildOpenCodeConfig handles empty / malformed existing config', () => {
   assert.doesNotThrow(() => buildOpenCodeConfig('', 'https://api.qnaigc.com', 'sk', 'deepseek/v3'));
   assert.doesNotThrow(() => buildOpenCodeConfig('not valid json', 'https://api.qnaigc.com', 'sk', 'deepseek/v3'));

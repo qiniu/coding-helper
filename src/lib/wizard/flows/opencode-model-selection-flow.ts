@@ -1,7 +1,11 @@
 import ora from 'ora';
 import { t } from '../../i18n.js';
 import { configManager } from '../../config.js';
-import { modelService, type ModelInfo } from '../../model-service.js';
+import {
+  marketModelService,
+  getModelCapabilities,
+  type MarketModelInfo,
+} from '../../market-model-service.js';
 import { promptHelper } from '../ui/prompt-helper.js';
 import { uiRenderer } from '../ui/ui-renderer.js';
 
@@ -15,10 +19,22 @@ export async function runOpenCodeModelSelectionFlow(): Promise<boolean> {
     return false;
   }
 
+  const current = getCurrentOpenCodeModels();
+  if (current.length > 0) {
+    uiRenderer.renderHeader();
+    uiRenderer.renderHint(
+      t('opencode_current_models', { models: current.join(', ') }),
+    );
+    const reuse = await promptHelper.confirm(t('opencode_reuse_previous_selection'), true);
+    if (reuse) {
+      return true;
+    }
+  }
+
   const spinner = ora(t('model_fetching')).start();
-  let models: ModelInfo[] = [];
+  let models: MarketModelInfo[] = [];
   try {
-    models = await modelService.fetchModels(configManager.baseUrl, apiKey);
+    models = await marketModelService.fetchModels(configManager.baseUrl, apiKey);
     spinner.succeed();
   } catch (error: unknown) {
     const msg = error instanceof Error ? error.message : t('error_unknown');
@@ -32,19 +48,35 @@ export async function runOpenCodeModelSelectionFlow(): Promise<boolean> {
     uiRenderer.renderWarning(t('model_no_models'));
   }
 
-  const current = configManager.getModels().opencodeModel;
   const choices = models.map((m) => ({
-    name: m.id + (current === m.id ? ' (current)' : ''),
+    name: `${m.name}${buildCapabilityTags(m)}${current.includes(m.id) ? ' (current)' : ''}`,
     value: m.id,
   }));
 
-  const picked = await promptHelper.searchSelect(t('opencode_select_model'), choices, true);
-  if (!picked) {
+  const selected = await promptHelper.checkbox(t('opencode_select_models'), choices);
+  if (!selected || selected.length === 0) {
     uiRenderer.renderWarning(t('opencode_no_model_selected'));
     return false;
   }
 
-  configManager.setModels({ opencodeModel: picked });
-  uiRenderer.renderSuccess(t('opencode_config_success', { model: picked }));
+  configManager.setModels({ opencodeModels: selected, opencodeModel: selected[0] });
+  uiRenderer.renderSuccess(t('opencode_config_success', { count: selected.length.toString() }));
   return true;
+}
+
+function getCurrentOpenCodeModels(): string[] {
+  const models = configManager.getModels();
+  if (models.opencodeModels && models.opencodeModels.length > 0) {
+    return models.opencodeModels;
+  }
+  return models.opencodeModel ? [models.opencodeModel] : [];
+}
+
+function buildCapabilityTags(model: MarketModelInfo): string {
+  const caps = getModelCapabilities(model);
+  const tags: string[] = [];
+  if (caps.toolCall) tags.push(t('codebuddy_model_tag_tool_call'));
+  if (caps.images) tags.push(t('codebuddy_model_tag_images'));
+  if (caps.reasoning) tags.push(t('codebuddy_model_tag_reasoning'));
+  return tags.length > 0 ? ` ${tags.join(' ')}` : '';
 }
