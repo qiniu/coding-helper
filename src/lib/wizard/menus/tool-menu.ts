@@ -36,7 +36,7 @@ export async function showToolMenu(tool: ITool): Promise<void> {
 
     // 显示版本信息
     const installedVersion = tool.getVersion();
-    renderVersionInfo(installedVersion, latestVersion, tool.npmPackageName);
+    renderVersionInfo(installedVersion, latestVersion, tool.npmPackageName, tool.isInstalled() === null);
 
     // 如果最新版本还未获取到，设置 AbortController 以便版本到达后自动刷新
     const controller = new AbortController();
@@ -127,9 +127,10 @@ function renderVersionInfo(
   installed: string | null,
   latest: string | null,
   npmPackageName?: string,
+  isDesktop = false,
 ): void {
-  // 桌面应用（无 npmPackageName）不显示版本信息
-  if (!npmPackageName) {
+  // 桌面应用不显示版本信息
+  if (isDesktop) {
     return;
   }
 
@@ -138,6 +139,11 @@ function renderVersionInfo(
     ? chalk.white(installed)
     : chalk.yellow(t('tool_version_not_installed'));
   uiRenderer.renderConfigItem(t('tool_version_installed'), installedDisplay);
+
+  if (!npmPackageName) {
+    logger.newLine();
+    return;
+  }
 
   // 最新版本
   if (latest) {
@@ -203,7 +209,7 @@ async function launchTool(tool: ITool): Promise<void> {
   }
 
   // 桌面应用特殊处理：提示手动启动
-  if (!tool.npmPackageName) {
+  if (tool.isInstalled() === null) {
     uiRenderer.renderHint(t('tool_desktop_launch_hint', {
       tool: tool.displayName,
     }));
@@ -223,7 +229,7 @@ async function launchTool(tool: ITool): Promise<void> {
 // 更新工具
 async function updateTool(tool: ITool): Promise<void> {
   // 桌面应用特殊处理：提示手动更新
-  if (!tool.npmPackageName) {
+  if (tool.isInstalled() === null) {
     uiRenderer.renderHint(t('tool_desktop_update_hint', {
       tool: tool.displayName,
     }));
@@ -233,7 +239,7 @@ async function updateTool(tool: ITool): Promise<void> {
 
   const currentVersion = tool.getVersion();
 
-  // 获取最新版本
+  // 获取最新版本（仅 npm 包支持）
   let latest: string | null = null;
   if (tool.npmPackageName) {
     logger.info(t('update_checking'));
