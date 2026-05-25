@@ -6,7 +6,7 @@
 [![License: AGPL-3.0](https://img.shields.io/badge/License-AGPL--3.0-blue.svg)](https://www.gnu.org/licenses/agpl-3.0)
 [![Node.js Version](https://img.shields.io/node/v/qiniu-coding-helper.svg)](https://nodejs.org)
 
-**The CLI helper for configuring Claude Code, Codex, CodeBuddy, and WorkBuddy with Qiniu AI API endpoints**
+**The CLI helper for configuring Claude Code, Codex, CodeBuddy, WorkBuddy, and Hermes Agent with Qiniu AI API endpoints**
 
 [简体中文](README.md) · [Supported Tools](#-supported-tools) · [Features](#-features) · [Prerequisites](#-prerequisites) · [Quick Start](#-quick-start) · [Commands](#-commands) · [Configuration](#-configuration) · [FAQ](#-faq)
 
@@ -22,6 +22,7 @@
 | Codex | CLI | `~/.codex/config.toml`, `~/.codex/auth.json` |
 | CodeBuddy | CLI | `~/.codebuddy/models.json` |
 | WorkBuddy | Desktop app | `~/.workbuddy/models.json` |
+| Hermes Agent | CLI | `~/.hermes/config.yaml` |
 
 ## ✨ Features
 
@@ -33,6 +34,7 @@
 - **🧩 Codex Integration** — Writes Qiniu provider settings to `~/.codex/config.toml` and stores credentials in Codex auth
 - **🤝 CodeBuddy Integration** — Multi-select Qiniu market models and write them into `~/.codebuddy/models.json`
 - **🤝 WorkBuddy Integration** — Multi-select Qiniu market models and write them into `~/.workbuddy/models.json`
+- **☤ Hermes Agent Integration** — Select a default Qiniu market model and write it into `~/.hermes/config.yaml`
 - **🔍 Health Check** — Built-in `doctor` command to verify config, API Key, network, tools, Git, and Node.js
 - **🌍 Internationalization** — Supports Chinese (zh_CN) and English (en_US)
 
@@ -41,7 +43,7 @@
 Before you begin, ensure you have:
 
 - **Node.js** 18 or later ([Download](https://nodejs.org/))
-- **Claude Code CLI** installed ([Get it here](https://claude.ai/download)), **Codex CLI** installed (`npm install -g @openai/codex`), **CodeBuddy CLI** installed (`npm install -g @tencent-ai/codebuddy-code`), and/or **WorkBuddy** installed
+- **Claude Code CLI** installed ([Get it here](https://claude.ai/download)), **Codex CLI** installed (`npm install -g @openai/codex`), **CodeBuddy CLI** installed (`npm install -g @tencent-ai/codebuddy-code`), **WorkBuddy**, and/or **Hermes Agent** (`curl -fsSL https://hermes-agent.nousresearch.com/install.sh | bash`)
 - **Qiniu API Key** ([Get one here](https://portal.qiniu.com/))
 
 ## 🚀 Quick Start
@@ -64,7 +66,7 @@ npx qiniu-coding-helper
 
 ### 3️⃣ Restart Your Coding Assistant
 
-If Claude Code, Codex, CodeBuddy, or WorkBuddy is running, restart it to apply changes.
+If Claude Code, Codex, CodeBuddy, WorkBuddy, or Hermes Agent is running, restart it to apply changes.
 
 ### 4️⃣ Start Coding! 🎉
 
@@ -79,6 +81,9 @@ codex
 codebuddy
 
 # WorkBuddy (desktop app - launch manually)
+
+# Hermes Agent
+hermes
 ```
 
 That's it! You're now using Qiniu AI endpoints in your coding assistant.
@@ -122,6 +127,9 @@ npx qiniu-coding-helper auth reload codebuddy
 
 # Reload configuration to WorkBuddy
 npx qiniu-coding-helper auth reload workbuddy
+
+# Reload configuration to Hermes Agent
+npx qiniu-coding-helper auth reload hermes
 ```
 
 ---
@@ -174,6 +182,9 @@ npx qiniu-coding-helper enter codebuddy
 
 # WorkBuddy configuration menu
 npx qiniu-coding-helper enter workbuddy
+
+# Hermes Agent configuration menu
+npx qiniu-coding-helper enter hermes
 ```
 
 ---
@@ -191,6 +202,7 @@ npx qiniu-coding-helper enter workbuddy
 | **Codex Auth** | `~/.codex/auth.json` | Codex API key auth cache |
 | **CodeBuddy Models** | `~/.codebuddy/models.json` | Qiniu model entries (URL, API Key, capabilities) |
 | **WorkBuddy Models** | `~/.workbuddy/models.json` | Qiniu model entries (URL, API Key, capabilities) |
+| **Hermes Agent Config** | `~/.hermes/config.yaml` | Qiniu custom provider, default model, and API Key |
 
 ### 🌍 Region Endpoints
 
@@ -280,6 +292,22 @@ The configuration flow is identical to CodeBuddy — you multi-select models fro
 
 Treat `~/.workbuddy/models.json` like a password because the API Key is stored in plaintext.
 
+### 🔧 Hermes Agent Configuration
+
+Hermes Agent stores its configuration in `~/.hermes/config.yaml`. The configuration flow selects one default model from the Qiniu model market and writes Hermes' OpenAI-compatible custom provider settings:
+
+```yaml
+model:
+  provider: custom
+  default: anthropic/claude-sonnet-4-5
+  base_url: https://api.qnaigc.com/v1
+  api_key: <your-api-key>
+```
+
+Unloading the configuration removes the Coding Helper managed `model.provider`, `model.default`, `model.base_url`, and `model.api_key` fields while preserving other Hermes settings.
+
+Treat `~/.hermes/config.yaml` like a password because the API Key is stored in plaintext.
+
 ---
 
 ## ❓ FAQ
@@ -312,6 +340,13 @@ Treat `~/.workbuddy/models.json` like a password because the API Key is stored i
 3. Confirm the Qiniu entries exist in the file with `vendor: "Qiniu"` and a non-empty `apiKey`
 4. Restart WorkBuddy if it was already running
 
+### Hermes Agent doesn't use the Qiniu model
+
+1. Make sure you ran `enter hermes` and selected a default model
+2. Run `npx qiniu-coding-helper auth reload hermes` to rewrite `~/.hermes/config.yaml`
+3. Confirm `model.provider` is `custom` in `~/.hermes/config.yaml`
+4. Restart Hermes Agent if it was already running
+
 ### API errors or authentication failures
 
 1. Verify your API Key: check `~/.coding-helper/config.yaml`
@@ -327,6 +362,7 @@ chmod 600 ~/.codex/config.toml
 chmod 600 ~/.codex/auth.json
 chmod 600 ~/.codebuddy/models.json
 chmod 600 ~/.workbuddy/models.json
+chmod 600 ~/.hermes/config.yaml
 ```
 
 ---

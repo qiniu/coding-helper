@@ -16,6 +16,7 @@ export interface ModelConfig {
   subagentModel?: string;
   codeBuddyModels?: string[];
   workbuddyModels?: string[];
+  hermesModel?: string;
 }
 
 // 配置文件结构
@@ -29,6 +30,7 @@ interface Config {
   subagentModel?: string;
   codeBuddyModels?: string[];
   workbuddyModels?: string[];
+  hermesModel?: string;
 }
 
 // 配置管理器单例
@@ -136,6 +138,7 @@ class ConfigManager {
       subagentModel: this.config.subagentModel,
       codeBuddyModels: this.config.codeBuddyModels,
       workbuddyModels: this.config.workbuddyModels,
+      hermesModel: this.config.hermesModel,
     };
   }
 
@@ -148,6 +151,7 @@ class ConfigManager {
     if ('subagentModel' in models) this.config.subagentModel = models.subagentModel;
     if ('codeBuddyModels' in models) this.config.codeBuddyModels = models.codeBuddyModels;
     if ('workbuddyModels' in models) this.config.workbuddyModels = models.workbuddyModels;
+    if ('hermesModel' in models) this.config.hermesModel = models.hermesModel;
     this.save();
   }
 
