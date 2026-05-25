@@ -23,11 +23,19 @@ type ToolMenuAction =
 export async function showToolMenu(tool: ITool): Promise<void> {
   // 异步获取最新版本（不阻塞菜单渲染）
   let latestVersion: string | null = null;
+  let fetchCompleted = false;
   let fetchPromise: Promise<string | null> | null = null;
 
   if (tool.npmPackageName) {
     fetchPromise = fetchLatestVersion(tool.npmPackageName);
-    fetchPromise.then(v => { latestVersion = v; }).catch(() => {});
+    fetchPromise
+      .then(v => {
+        latestVersion = v;
+      })
+      .catch(() => {})
+      .finally(() => {
+        fetchCompleted = true;
+      });
   }
 
   while (true) {
@@ -36,11 +44,17 @@ export async function showToolMenu(tool: ITool): Promise<void> {
 
     // 显示版本信息
     const installedVersion = tool.getVersion();
-    renderVersionInfo(installedVersion, latestVersion, tool.npmPackageName, tool.isInstalled() === null);
+    renderVersionInfo(
+      installedVersion,
+      latestVersion,
+      fetchCompleted,
+      tool.npmPackageName,
+      tool.isInstalled() === null,
+    );
 
     // 如果最新版本还未获取到，设置 AbortController 以便版本到达后自动刷新
     const controller = new AbortController();
-    if (latestVersion === null && fetchPromise) {
+    if (fetchPromise && isLatestVersionFetchPending({ fetchPromise, fetchCompleted })) {
       fetchPromise.then(() => {
         if (!controller.signal.aborted) {
           controller.abort();
@@ -108,7 +122,9 @@ export async function showToolMenu(tool: ITool): Promise<void> {
         // 更新后重新获取最新版本信息
         if (tool.npmPackageName) {
           fetchPromise = fetchLatestVersion(tool.npmPackageName);
+          fetchCompleted = false;
           latestVersion = await fetchPromise;
+          fetchCompleted = true;
         }
         break;
 
@@ -122,10 +138,18 @@ export async function showToolMenu(tool: ITool): Promise<void> {
   }
 }
 
+export function isLatestVersionFetchPending(state: {
+  fetchPromise: Promise<string | null> | null;
+  fetchCompleted: boolean;
+}): state is { fetchPromise: Promise<string | null>; fetchCompleted: false } {
+  return Boolean(state.fetchPromise && !state.fetchCompleted);
+}
+
 // 渲染版本信息区域
 function renderVersionInfo(
   installed: string | null,
   latest: string | null,
+  fetchCompleted: boolean,
   npmPackageName?: string,
   isDesktop = false,
 ): void {
@@ -160,10 +184,17 @@ function renderVersionInfo(
       );
     }
   } else {
-    uiRenderer.renderConfigItem(t('tool_version_latest'), chalk.dim(t('tool_version_checking')));
+    uiRenderer.renderConfigItem(
+      t('tool_version_latest'),
+      chalk.dim(t(getMissingLatestVersionDisplayKey(fetchCompleted))),
+    );
   }
 
   logger.newLine();
+}
+
+export function getMissingLatestVersionDisplayKey(fetchCompleted: boolean): string {
+  return fetchCompleted ? 'tool_version_unknown' : 'tool_version_checking';
 }
 
 // 装载配置到工具
