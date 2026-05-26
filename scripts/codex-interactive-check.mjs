@@ -116,20 +116,41 @@ async function runScenario(pty, scenario, homeDir) {
   try {
     try {
       for (const step of scenario.steps) {
+        if (processState.exited && !step.expectExit) {
+          throw new Error(`Process exited before scenario step completed with code ${processState.code ?? 'null'}.`);
+        }
         if (step.waitFor) {
-          cursor = await waitForNewTranscript(transcript, cursor, step.waitFor, step.timeoutMs || DEFAULT_TIMEOUT_MS);
+          cursor = await waitForNewTranscript(
+            transcript,
+            cursor,
+            step.waitFor,
+            step.timeoutMs || DEFAULT_TIMEOUT_MS,
+            processState,
+          );
         }
         if (step.input) {
           child.write(step.input);
         }
         if (step.waitAfter) {
-          cursor = await waitForNewTranscript(transcript, cursor, step.waitAfter, step.timeoutMs || DEFAULT_TIMEOUT_MS);
+          cursor = await waitForNewTranscript(
+            transcript,
+            cursor,
+            step.waitAfter,
+            step.timeoutMs || DEFAULT_TIMEOUT_MS,
+            processState,
+          );
         }
         if (step.pauseMs) {
           await delay(step.pauseMs);
         }
         if (step.expectSelected) {
-          cursor = await waitForSelectedOption(transcript, cursor, step.expectSelected, step.timeoutMs || DEFAULT_TIMEOUT_MS);
+          cursor = await waitForSelectedOption(
+            transcript,
+            cursor,
+            step.expectSelected,
+            step.timeoutMs || DEFAULT_TIMEOUT_MS,
+            processState,
+          );
         }
         if (step.expectExit) {
           exitResult = await waitForExitOrKill(child, processState, step.timeoutMs || scenario.exitTimeoutMs || 5000);
@@ -186,7 +207,7 @@ export function createScenarioErrorResult(scenario, transcript, error) {
   };
 }
 
-function waitForSelectedOption(transcript, cursor, optionText, timeoutMs) {
+function waitForSelectedOption(transcript, cursor, optionText, timeoutMs, processState = null) {
   const startedAt = Date.now();
   return new Promise((resolve, reject) => {
     const timer = setInterval(() => {
@@ -194,6 +215,11 @@ function waitForSelectedOption(transcript, cursor, optionText, timeoutMs) {
       if (hasSelectedOption(clean.slice(cursor), optionText)) {
         clearInterval(timer);
         resolve(clean.length);
+        return;
+      }
+      if (processState?.exited) {
+        clearInterval(timer);
+        reject(new Error(`Process exited before selecting option "${optionText}" with code ${processState.code ?? 'null'}.`));
         return;
       }
       if (Date.now() - startedAt > timeoutMs) {
@@ -204,7 +230,7 @@ function waitForSelectedOption(transcript, cursor, optionText, timeoutMs) {
   });
 }
 
-function waitForNewTranscript(transcript, cursor, expected, timeoutMs) {
+function waitForNewTranscript(transcript, cursor, expected, timeoutMs, processState = null) {
   const startedAt = Date.now();
   return new Promise((resolve, reject) => {
     const timer = setInterval(() => {
@@ -212,6 +238,11 @@ function waitForNewTranscript(transcript, cursor, expected, timeoutMs) {
       if (nextCursor !== null) {
         clearInterval(timer);
         resolve(nextCursor);
+        return;
+      }
+      if (processState?.exited) {
+        clearInterval(timer);
+        reject(new Error(`Process exited before terminal output appeared with code ${processState.code ?? 'null'}: ${expected}`));
         return;
       }
       if (Date.now() - startedAt > timeoutMs) {
