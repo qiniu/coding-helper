@@ -43,10 +43,12 @@ export function analyzeTranscript(transcript, options) {
 
 export function updateTranscriptCursor(transcript, cursor, expected) {
   const clean = stripAnsi(transcript.join(''));
-  if (!clean.slice(cursor).includes(expected)) {
+  const slice = clean.slice(cursor);
+  const index = slice.indexOf(expected);
+  if (index === -1) {
     return null;
   }
-  return clean.length;
+  return cursor + index + expected.length;
 }
 
 export function hasSelectedOption(transcript, optionText) {
@@ -81,7 +83,6 @@ function ensureNodePtySpawnHelperExecutable() {
 
 async function runScenario(pty, scenario, homeDir) {
   const transcript = [];
-  const failures = [];
   const preloadPath = ensureDisableFetchPreload(homeDir);
   const processState = { exited: false, code: null, signal: null };
   const child = pty.spawn(process.execPath, buildCliArgs(scenario.args, preloadPath), {
@@ -92,6 +93,7 @@ async function runScenario(pty, scenario, homeDir) {
     env: {
       ...process.env,
       HOME: homeDir,
+      USERPROFILE: homeDir,
       LANG: 'zh_CN.UTF-8',
       TERM: 'xterm-256color',
       NO_COLOR: '1',
@@ -147,6 +149,10 @@ async function runScenario(pty, scenario, homeDir) {
     }
   }
 
+  if (scenarioError) {
+    return createScenarioErrorResult(scenario, transcript, scenarioError);
+  }
+
   const output = transcript.join('');
   const analysis = analyzeTranscript(output, scenario.analysis);
   if (exitResult.timedOut) {
@@ -158,14 +164,6 @@ async function runScenario(pty, scenario, homeDir) {
     analysis.failures.push(`Process exited with non-zero code ${exitResult.code}.`);
     analysis.ok = false;
     analysis.summary = analysis.failures.join('\n');
-  }
-  if (failures.length) {
-    analysis.failures.push(...failures);
-    analysis.ok = false;
-    analysis.summary = analysis.failures.join('\n');
-  }
-  if (scenarioError) {
-    return createScenarioErrorResult(scenario, transcript, scenarioError);
   }
   return {
     name: scenario.name,
@@ -302,6 +300,18 @@ function ensureDisableFetchPreload(homeDir) {
   return preloadPath;
 }
 
+const MAIN_MENU_OPTIONS = ['配置语言', '配置线路', '设置 API Key', '配置编码工具', '健康检查', '重新初始化', '退出'];
+const TOOL_MENU_OPTIONS = ['配置模型', '配置装载', '卸载配置', '验证配置', '重新加载', '查看状态', '返回'];
+
+function downToOption(options, fromOption, toOption) {
+  const fromIndex = options.indexOf(fromOption);
+  const toIndex = options.indexOf(toOption);
+  if (fromIndex === -1 || toIndex === -1 || toIndex < fromIndex) {
+    throw new Error(`Cannot navigate from "${fromOption}" to "${toOption}".`);
+  }
+  return '\u001B[B'.repeat(toIndex - fromIndex);
+}
+
 function createToolMenuScenario(tool) {
   const title = tool.displayName;
   return {
@@ -310,7 +320,7 @@ function createToolMenuScenario(tool) {
     steps: [
       { waitFor: '配置模型', input: '\u001B[B', expectSelected: '配置装载' },
       { input: '\u001B[A', expectSelected: '配置模型' },
-      { input: '\u001B[B\u001B[B\u001B[B\u001B[B\u001B[B\u001B[B', expectSelected: '返回' },
+      { input: downToOption(TOOL_MENU_OPTIONS, '配置模型', '返回'), expectSelected: '返回' },
       { input: '\r', expectExit: true },
     ],
     analysis: {
@@ -324,10 +334,15 @@ function createToolMenuScenario(tool) {
 export function buildScenarios(tools) {
   const toolNames = tools.map((tool) => tool.displayName);
   const toolSelectorTarget = tools[1] || tools[0];
-  const toolSelectorSteps = [
-    { waitFor: '主菜单', input: '\u001B[B\u001B[B\u001B[B\r', pauseMs: 200 },
-    { waitFor: '配置编码工具', pauseMs: 200 },
-  ];
+  const toolSelectorSteps = toolSelectorTarget
+    ? [
+        { waitFor: '主菜单', input: `${downToOption(MAIN_MENU_OPTIONS, '配置语言', '配置编码工具')}\r`, pauseMs: 200 },
+        { waitFor: '配置编码工具', pauseMs: 200 },
+      ]
+    : [
+        { waitFor: '主菜单', input: downToOption(MAIN_MENU_OPTIONS, '配置语言', '退出'), expectSelected: '退出' },
+        { input: '\r', expectExit: true },
+      ];
 
   if (toolSelectorTarget) {
     const downCount = tools.findIndex((tool) => tool.name === toolSelectorTarget.name);
@@ -341,7 +356,7 @@ export function buildScenarios(tools) {
       waitAfter: '配置模型',
     });
     toolSelectorSteps.push({
-      input: '\u001B[B\u001B[B\u001B[B\u001B[B\u001B[B\u001B[B',
+      input: downToOption(TOOL_MENU_OPTIONS, '配置模型', '返回'),
       expectSelected: '返回',
     });
     toolSelectorSteps.push({
@@ -349,7 +364,7 @@ export function buildScenarios(tools) {
       waitAfter: '主菜单',
     });
     toolSelectorSteps.push({
-      input: '\u001B[B\u001B[B\u001B[B\u001B[B\u001B[B\u001B[B',
+      input: downToOption(MAIN_MENU_OPTIONS, '配置语言', '退出'),
       expectSelected: '退出',
     });
     toolSelectorSteps.push({
@@ -365,7 +380,7 @@ export function buildScenarios(tools) {
       steps: [
         { waitFor: '主菜单', input: '\u001B[B', expectSelected: '配置线路' },
         { input: '\u001B[A', expectSelected: '配置语言' },
-        { input: '\u001B[B\u001B[B\u001B[B\u001B[B\u001B[B\u001B[B', expectSelected: '退出' },
+        { input: downToOption(MAIN_MENU_OPTIONS, '配置语言', '退出'), expectSelected: '退出' },
         { input: '\r', expectExit: true },
       ],
       analysis: {

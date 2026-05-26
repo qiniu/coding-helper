@@ -99,7 +99,16 @@ test('updateTranscriptCursor only matches output appended after the previous cur
   assert.equal(updateTranscriptCursor(transcript, cursor, 'Configure tools'), null);
 
   transcript.push('Tool selector\nCodex\n');
-  assert.equal(updateTranscriptCursor(transcript, cursor, 'Codex'), stripAnsi(transcript.join('')).length);
+  assert.equal(updateTranscriptCursor(transcript, cursor, 'Codex'), `${transcript[0]}Tool selector\nCodex`.length);
+});
+
+test('updateTranscriptCursor preserves later output in the same appended chunk', () => {
+  const transcript = ['Tool selector\nAlpha Tool\nBeta Tool\n'];
+
+  const nextCursor = updateTranscriptCursor(transcript, 0, 'Alpha Tool');
+
+  assert.equal(nextCursor, 'Tool selector\nAlpha Tool'.length);
+  assert.equal(updateTranscriptCursor(transcript, nextCursor, 'Beta Tool'), 'Tool selector\nAlpha Tool\nBeta Tool'.length);
 });
 
 test('hasSelectedOption requires the pointer to be on the expected option', () => {
@@ -111,6 +120,16 @@ test('buildScenarios marks exit steps explicitly', () => {
   const scenarios = buildScenarios([{ name: 'alpha', displayName: 'Alpha Tool' }]);
 
   assert.equal(scenarios.every(hasScenarioExitStep), true);
+});
+
+test('buildScenarios keeps an exit path when no tools are registered', () => {
+  const scenarios = buildScenarios([]);
+
+  assert.equal(scenarios.every(hasScenarioExitStep), true);
+  assert.deepEqual(
+    scenarios.map((scenario) => scenario.name),
+    ['main menu keyboard navigation', 'tool selector keyboard navigation'],
+  );
 });
 
 test('createScenarioErrorResult preserves transcript and failure reason in report', () => {
