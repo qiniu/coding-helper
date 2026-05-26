@@ -1,0 +1,254 @@
+name: Codex PR Review
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  evidence:
+    name: Collect review evidence
+    if: github.event_name == 'pull_request' && !github.event.pull_request.draft
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    outputs:
+      unit_tests: ${{ steps.unit_tests.outcome }}
+      interactive_tests: ${{ steps.interactive_tests.outcome }}
+    steps:
+      - name: Checkout PR merge commit
+        uses: actions/checkout@v6
+        with:
+          ref: refs/pull/${{ github.event.pull_request.number }}/merge
+          persist-credentials: false
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v6
+        with:
+          version: 9
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Run unit tests
+        id: unit_tests
+        continue-on-error: true
+        shell: bash
+        run: |
+          set -o pipefail
+          pnpm test 2>&1 | tee codex-unit-test.log
+
+      - name: Run interactive terminal check
+        id: interactive_tests
+        continue-on-error: true
+        shell: bash
+        env:
+          CODEX_INTERACTIVE_REPORT: codex-interactive-report.md
+        run: |
+          set -o pipefail
+          pnpm test:interactive 2>&1 | tee codex-interactive-test.log
+
+      - name: Upload review evidence
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: codex-review-evidence
+          path: |
+            codex-unit-test.log
+            codex-interactive-test.log
+            codex-interactive-report.md
+          if-no-files-found: ignore
+
+  review:
+    name: Review PR
+    if: github.event_name == 'pull_request' && !github.event.pull_request.draft
+    needs: evidence
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    outputs:
+      final_message: ${{ steps.codex.outputs.final-message }}
+    steps:
+      - name: Checkout PR merge commit
+        uses: actions/checkout@v6
+        with:
+          ref: refs/pull/${{ github.event.pull_request.number }}/merge
+          persist-credentials: false
+
+      - name: Fetch PR base and head
+        run: |
+          git fetch --no-tags origin \
+            ${{ github.event.pull_request.base.ref }} \
+            +refs/pull/${{ github.event.pull_request.number }}/head
+
+      - name: Download review evidence
+        uses: actions/download-artifact@v6
+        with:
+          name: codex-review-evidence
+
+      - name: Run Codex PR review
+        id: codex
+        uses: openai/codex-action@v1
+        with:
+          openai-api-key: ${{ secrets.QNAIGC_API_KEY }}
+          responses-api-endpoint: https://api.qnaigc.com/bypass/openai/v1/responses
+          model: openai/gpt-5.5
+          effort: medium
+          sandbox: read-only
+          safety-strategy: read-only
+          prompt: |
+            This is PR #${{ github.event.pull_request.number }} for ${{ github.repository }}.
+
+            Before reviewing, read CLAUDE.md from the checked-out workspace and follow its project-specific instructions.
+
+            请使用中文完成整段评审，包括结论、问题、验证说明和无问题时的说明。
+            只评审这个 PR 引入的变更，不要修改文件。
+            优先关注具体 bug、行为回归、安全风险、数据丢失风险、并发问题、缺失测试，以及 CLI 交互体验问题。
+
+            这个仓库是交互式 CLI 工具。请先根据 PR diff 判断本次改动影响了哪些命令、向导、菜单、工具适配器或配置写入路径，再重点审阅对应交互场景是否正常。不要只检查 Codex 工具，必须从整个项目角度评估交互风险。
+
+            请重点审阅 PR 是否可能导致以下问题：
+            - 进入菜单后菜单一直闪烁或重复刷新。
+            - 方向键无法上下选择选项。
+            - 回车无法确认选项。
+            - 菜单卡住、无法退出，或终端输出不可读。
+            - 配置写入污染真实 HOME，而不是测试隔离目录。
+
+            Workflow 已经在你之前运行了测试，请读取这些文件作为证据：
+            - codex-unit-test.log
+            - codex-interactive-test.log
+            - codex-interactive-report.md
+
+            codex-interactive-report.md 会列出实际覆盖的真实伪终端场景。交互检查脚本会从当前构建产物中的 toolManager 动态发现已注册工具，并为主菜单、工具选择器以及每个工具菜单生成键盘导航场景。
+
+            如果 PR 改动了某个具体工具、菜单、向导 flow、i18n 文案、配置模型状态或终端渲染逻辑，请优先检查报告中对应场景的终端 transcript，并结合 diff 判断是否存在用户可见交互回归。
+
+            测试步骤结果：
+            - pnpm test: ${{ needs.evidence.outputs.unit_tests }}
+            - pnpm test:interactive: ${{ needs.evidence.outputs.interactive_tests }}
+
+            Use this comparison range:
+            git log --oneline ${{ github.event.pull_request.base.sha }}...${{ github.event.pull_request.head.sha }}
+            git diff --stat ${{ github.event.pull_request.base.sha }}...${{ github.event.pull_request.head.sha }}
+            git diff ${{ github.event.pull_request.base.sha }}...${{ github.event.pull_request.head.sha }}
+
+            PR 标题：
+            ${{ github.event.pull_request.title }}
+
+            PR 描述：
+            ----
+            ${{ github.event.pull_request.body }}
+
+            返回一段简洁的中文 Markdown 评审，格式要求：
+            - 顶部第一行必须且只能使用以下结论之一：
+              - 结论：通过
+              - 结论：需要关注
+            - 先列出发现的问题，按严重程度排序，尽可能包含文件路径和行号。
+            - 如果交互测试失败，请说明失败的用户可见表现，以及它和本次 PR 改动的关系。
+            - 最后包含一个简短的测试/验证小节，必须提到 pnpm test 和 pnpm test:interactive 的结果。
+
+  feedback:
+    name: Comment and label PR
+    if: github.event_name == 'pull_request' && !github.event.pull_request.draft && always()
+    needs: review
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      issues: write
+      pull-requests: write
+    steps:
+      - name: Comment and label
+        uses: actions/github-script@v8
+        env:
+          CODEX_FINAL_MESSAGE: ${{ needs.review.outputs.final_message }}
+          CODEX_REVIEW_RESULT: ${{ needs.review.result }}
+        with:
+          github-token: ${{ github.token }}
+          script: |
+            const owner = context.repo.owner;
+            const repo = context.repo.repo;
+            const issue_number = context.payload.pull_request.number;
+            const result = process.env.CODEX_REVIEW_RESULT;
+            const message = process.env.CODEX_FINAL_MESSAGE || "";
+
+            const attentionLabel = "codex: needs attention";
+            const failedLabel = "codex: failed";
+            const managedLabels = [attentionLabel, failedLabel];
+
+            const existing = await github.paginate(github.rest.issues.listLabelsOnIssue, {
+              owner,
+              repo,
+              issue_number,
+            });
+            const codexLabels = existing
+              .filter((label) => managedLabels.includes(label.name))
+              .map((label) => label.name);
+            for (const name of codexLabels) {
+              try {
+                await github.rest.issues.removeLabel({ owner, repo, issue_number, name });
+              } catch (error) {
+                if (error.status !== 404) {
+                  throw error;
+                }
+              }
+            }
+
+            let selected = failedLabel;
+            if (result === "success") {
+              selected = /^(结论：通过|Verdict:\s*clean\b)/im.test(message)
+                ? ""
+                : attentionLabel;
+            }
+            if (selected) {
+              try {
+                await github.rest.issues.getLabel({
+                  owner,
+                  repo,
+                  name: selected,
+                });
+              } catch (error) {
+                if (error.status !== 404) {
+                  throw error;
+                }
+                await github.rest.issues.createLabel({
+                  owner,
+                  repo,
+                  name: selected,
+                  color: selected === failedLabel ? "d73a4a" : "fbca04",
+                  description: selected === failedLabel
+                    ? "Codex PR review failed to generate usable feedback"
+                    : "Codex PR review found issues that need attention",
+                });
+              }
+              await github.rest.issues.addLabels({
+                owner,
+                repo,
+                issue_number,
+                labels: [selected],
+              });
+            }
+
+            const body = result === "success" && message.trim()
+              ? `## Codex 评审\n\n${message.trim()}`
+              : [
+                  "## Codex 评审",
+                  "",
+                  "Codex 评审未生成反馈，请查看 workflow 日志了解详情。",
+                ].join("\n");
+
+            await github.rest.issues.createComment({
+              owner,
+              repo,
+              issue_number,
+              body,
+            });
