@@ -45,6 +45,13 @@ test('analyzeTranscript reports missing expected interactive states', () => {
   ]);
 });
 
+test('analyzeTranscript tolerates omitted analysis options', () => {
+  const result = analyzeTranscript('Main menu\n');
+
+  assert.equal(result.ok, true);
+  assert.deepEqual(result.failures, []);
+});
+
 test('stripAnsi removes terminal control sequences before analysis', () => {
   assert.equal(stripAnsi('\u001bc\u001b[2J\u001b[32mCodex\u001b[39m'), 'Codex');
 });

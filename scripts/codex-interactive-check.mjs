@@ -20,11 +20,12 @@ export function stripAnsi(value) {
   return value.replace(/\u001B(?:[@-Z\\-_a-z]|\[[0-?]*[ -/]*[@-~])/g, '');
 }
 
-export function analyzeTranscript(transcript, options) {
+export function analyzeTranscript(transcript, options = {}) {
   const clean = stripAnsi(transcript);
   const failures = [];
+  const expectedPatterns = options.expectedPatterns ?? [];
 
-  for (const expected of options.expectedPatterns) {
+  for (const expected of expectedPatterns) {
     if (!clean.includes(expected)) {
       failures.push(`Expected terminal output did not include "${expected}".`);
     }
@@ -32,9 +33,10 @@ export function analyzeTranscript(transcript, options) {
 
   const pattern = options.repeatedRenderPattern;
   const count = pattern ? clean.split(pattern).length - 1 : 0;
-  if (pattern && count > options.maxRepeatedRenders) {
+  const maxRepeatedRenders = options.maxRepeatedRenders ?? Number.POSITIVE_INFINITY;
+  if (pattern && count > maxRepeatedRenders) {
     failures.push(
-      `Repeated render pattern "${pattern}" appeared ${count} times, exceeding threshold ${options.maxRepeatedRenders}.`,
+      `Repeated render pattern "${pattern}" appeared ${count} times, exceeding threshold ${maxRepeatedRenders}.`,
     );
   }
 
@@ -90,6 +92,7 @@ async function runScenario(pty, scenario, homeDir) {
   const transcript = [];
   const preloadPath = ensureDisableFetchPreload(homeDir);
   const processState = { exited: false, code: null, signal: null };
+  let exitSubscription;
   const child = pty.spawn(process.execPath, buildCliArgs(scenario.args, preloadPath), {
     name: 'xterm-256color',
     cols: 100,
@@ -108,7 +111,7 @@ async function runScenario(pty, scenario, homeDir) {
   child.onData((data) => {
     transcript.push(data);
   });
-  const exitSubscription = child.onExit(({ exitCode, signal }) => {
+  exitSubscription = child.onExit(({ exitCode, signal }) => {
     processState.exited = true;
     processState.code = exitCode;
     processState.signal = signal;
@@ -169,7 +172,7 @@ async function runScenario(pty, scenario, homeDir) {
       scenarioError = error;
     }
   } finally {
-    exitSubscription.dispose();
+    exitSubscription?.dispose();
     if (!processState.exited) {
       safeKill(child);
     }
@@ -327,10 +330,15 @@ export function createHomeFixtureConfig() {
 
 function createHomeFixture() {
   const homeDir = fs.mkdtempSync(path.join(os.tmpdir(), 'coding-helper-interactive-'));
-  const configDir = path.join(homeDir, '.coding-helper');
-  fs.mkdirSync(configDir, { recursive: true, mode: 0o700 });
-  fs.writeFileSync(path.join(configDir, 'config.yaml'), createHomeFixtureConfig(), { mode: 0o600 });
-  return homeDir;
+  try {
+    const configDir = path.join(homeDir, '.coding-helper');
+    fs.mkdirSync(configDir, { recursive: true, mode: 0o700 });
+    fs.writeFileSync(path.join(configDir, 'config.yaml'), createHomeFixtureConfig(), { mode: 0o600 });
+    return homeDir;
+  } catch (error) {
+    fs.rmSync(homeDir, { recursive: true, force: true });
+    throw error;
+  }
 }
 
 function ensureDisableFetchPreload(homeDir) {
