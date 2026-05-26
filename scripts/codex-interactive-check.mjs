@@ -9,7 +9,12 @@ import { fileURLToPath } from 'node:url';
 const DEFAULT_TIMEOUT_MS = 15000;
 const DEFAULT_REPORT_PATH = 'codex-interactive-report.md';
 const DISABLE_FETCH_PRELOAD = 'disable-fetch.cjs';
-const DISABLE_FETCH_PRELOAD_SOURCE = 'globalThis.fetch = () => new Promise(() => {});\n';
+const DISABLE_FETCH_PRELOAD_SOURCE = [
+  "globalThis.fetch = async () => {",
+  "  throw new Error('Network fetch is disabled during interactive checks.');",
+  '};',
+  '',
+].join('\n');
 
 export function stripAnsi(value) {
   return value.replace(/\u001B(?:[@-Z\\-_a-z]|\[[0-?]*[ -/]*[@-~])/g, '');
@@ -183,6 +188,11 @@ async function runScenario(pty, scenario, homeDir) {
   }
   if (exitResult.code !== null && exitResult.code !== 0) {
     analysis.failures.push(`Process exited with non-zero code ${exitResult.code}.`);
+    analysis.ok = false;
+    analysis.summary = analysis.failures.join('\n');
+  }
+  if (exitResult.signal) {
+    analysis.failures.push(`Process exited after receiving signal ${exitResult.signal}.`);
     analysis.ok = false;
     analysis.summary = analysis.failures.join('\n');
   }
