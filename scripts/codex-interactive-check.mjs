@@ -531,20 +531,28 @@ export function formatReport(results) {
 
 async function main() {
   ensureNodePtySpawnHelperExecutable();
-  const { default: pty } = await import('node-pty');
-  const { toolManager } = await import('../dist/lib/tool-manager.js');
-  const tools = toolManager.getAll().map((tool) => ({
-    name: tool.name,
-    displayName: tool.displayName,
-  }));
   const homeDir = createHomeFixture();
+  const originalHome = process.env.HOME;
+  const originalUserProfile = process.env.USERPROFILE;
   const results = [];
 
   try {
+    process.env.HOME = homeDir;
+    process.env.USERPROFILE = homeDir;
+
+    const { default: pty } = await import('node-pty');
+    const { toolManager } = await import('../dist/lib/tool-manager.js');
+    const tools = toolManager.getAll().map((tool) => ({
+      name: tool.name,
+      displayName: tool.displayName,
+    }));
+
     for (const scenario of buildScenarios(tools)) {
       results.push(await runScenario(pty, scenario, homeDir));
     }
   } finally {
+    restoreEnvValue('HOME', originalHome);
+    restoreEnvValue('USERPROFILE', originalUserProfile);
     fs.rmSync(homeDir, { recursive: true, force: true });
   }
 
@@ -556,6 +564,14 @@ async function main() {
     console.error(failures.join('\n'));
     process.exit(1);
   }
+}
+
+function restoreEnvValue(name, value) {
+  if (value === undefined) {
+    delete process.env[name];
+    return;
+  }
+  process.env[name] = value;
 }
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
