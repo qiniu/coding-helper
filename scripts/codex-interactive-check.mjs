@@ -341,8 +341,25 @@ function ensureDisableFetchPreload(homeDir) {
   return preloadPath;
 }
 
-const MAIN_MENU_OPTIONS = ['配置语言', '配置线路', '设置 API Key', '配置编码工具', '健康检查', '重新初始化', '退出'];
-const TOOL_MENU_OPTIONS = ['配置模型', '配置装载', '卸载配置', '验证配置', '重新加载', '查看状态', '返回'];
+const ZH_LOCALE = JSON.parse(fs.readFileSync(new URL('../src/locales/zh_CN.json', import.meta.url), 'utf8'));
+const MAIN_MENU_OPTIONS = [
+  ZH_LOCALE.menu_configure_language,
+  ZH_LOCALE.menu_configure_endpoint,
+  ZH_LOCALE.menu_configure_apikey,
+  ZH_LOCALE.menu_configure_tools,
+  ZH_LOCALE.menu_clear_config,
+  ZH_LOCALE.menu_update_helper,
+  ZH_LOCALE.menu_exit,
+];
+const TOOL_MENU_OPTIONS = [
+  ZH_LOCALE.tool_configure_models,
+  ZH_LOCALE.tool_load_config,
+  ZH_LOCALE.tool_unload_config,
+  ZH_LOCALE.tool_launch,
+  ZH_LOCALE.tool_update,
+  ZH_LOCALE.tool_view_config,
+  ZH_LOCALE.tool_back,
+];
 
 function downToOption(options, fromOption, toOption) {
   const fromIndex = options.indexOf(fromOption);
@@ -359,15 +376,23 @@ function createToolMenuScenario(tool) {
     name: `${title} tool menu keyboard navigation`,
     args: ['enter', tool.name],
     steps: [
-      { waitFor: '配置模型', input: '\u001B[B', expectSelected: '配置装载' },
-      { input: '\u001B[A', expectSelected: '配置模型' },
-      { input: downToOption(TOOL_MENU_OPTIONS, '配置模型', '返回'), expectSelected: '返回' },
+      { waitFor: ZH_LOCALE.tool_configure_models, input: '\u001B[B', expectSelected: ZH_LOCALE.tool_load_config },
+      { input: '\u001B[A', expectSelected: ZH_LOCALE.tool_configure_models },
+      {
+        input: downToOption(TOOL_MENU_OPTIONS, ZH_LOCALE.tool_configure_models, ZH_LOCALE.tool_back),
+        expectSelected: ZH_LOCALE.tool_back,
+      },
       { input: '\r', expectExit: true },
     ],
     analysis: {
-      repeatedRenderPattern: '请选择操作',
+      repeatedRenderPattern: ZH_LOCALE.menu_select_action,
       maxRepeatedRenders: 20,
-      expectedPatterns: [`${title} 配置`, '配置模型', '配置装载', '返回'],
+      expectedPatterns: [
+        ZH_LOCALE.tool_menu_title.replace('{{tool}}', title),
+        ZH_LOCALE.tool_configure_models,
+        ZH_LOCALE.tool_load_config,
+        ZH_LOCALE.tool_back,
+      ],
     },
   };
 }
@@ -377,11 +402,19 @@ export function buildScenarios(tools) {
   const toolSelectorTarget = tools[1] || tools[0];
   const toolSelectorSteps = toolSelectorTarget
     ? [
-        { waitFor: '主菜单', input: `${downToOption(MAIN_MENU_OPTIONS, '配置语言', '配置编码工具')}\r`, pauseMs: 200 },
-        { waitFor: '配置编码工具', pauseMs: 200 },
+        {
+          waitFor: ZH_LOCALE.menu_main_title,
+          input: `${downToOption(MAIN_MENU_OPTIONS, ZH_LOCALE.menu_configure_language, ZH_LOCALE.menu_configure_tools)}\r`,
+          pauseMs: 200,
+        },
+        { waitFor: ZH_LOCALE.menu_configure_tools, pauseMs: 200 },
       ]
     : [
-        { waitFor: '主菜单', input: downToOption(MAIN_MENU_OPTIONS, '配置语言', '退出'), expectSelected: '退出' },
+        {
+          waitFor: ZH_LOCALE.menu_main_title,
+          input: downToOption(MAIN_MENU_OPTIONS, ZH_LOCALE.menu_configure_language, ZH_LOCALE.menu_exit),
+          expectSelected: ZH_LOCALE.menu_exit,
+        },
         { input: '\r', expectExit: true },
       ];
 
@@ -394,19 +427,19 @@ export function buildScenarios(tools) {
     });
     toolSelectorSteps.push({
       input: '\r',
-      waitAfter: '配置模型',
+      waitAfter: ZH_LOCALE.tool_configure_models,
     });
     toolSelectorSteps.push({
-      input: downToOption(TOOL_MENU_OPTIONS, '配置模型', '返回'),
-      expectSelected: '返回',
+      input: downToOption(TOOL_MENU_OPTIONS, ZH_LOCALE.tool_configure_models, ZH_LOCALE.tool_back),
+      expectSelected: ZH_LOCALE.tool_back,
     });
     toolSelectorSteps.push({
       input: '\r',
-      waitAfter: '主菜单',
+      waitAfter: ZH_LOCALE.menu_main_title,
     });
     toolSelectorSteps.push({
-      input: downToOption(MAIN_MENU_OPTIONS, '配置语言', '退出'),
-      expectSelected: '退出',
+      input: downToOption(MAIN_MENU_OPTIONS, ZH_LOCALE.menu_configure_language, ZH_LOCALE.menu_exit),
+      expectSelected: ZH_LOCALE.menu_exit,
     });
     toolSelectorSteps.push({
       input: '\r',
@@ -419,15 +452,23 @@ export function buildScenarios(tools) {
       name: 'main menu keyboard navigation',
       args: ['enter'],
       steps: [
-        { waitFor: '主菜单', input: '\u001B[B', expectSelected: '配置线路' },
-        { input: '\u001B[A', expectSelected: '配置语言' },
-        { input: downToOption(MAIN_MENU_OPTIONS, '配置语言', '退出'), expectSelected: '退出' },
+        { waitFor: ZH_LOCALE.menu_main_title, input: '\u001B[B', expectSelected: ZH_LOCALE.menu_configure_endpoint },
+        { input: '\u001B[A', expectSelected: ZH_LOCALE.menu_configure_language },
+        {
+          input: downToOption(MAIN_MENU_OPTIONS, ZH_LOCALE.menu_configure_language, ZH_LOCALE.menu_exit),
+          expectSelected: ZH_LOCALE.menu_exit,
+        },
         { input: '\r', expectExit: true },
       ],
       analysis: {
-        repeatedRenderPattern: '请选择操作',
+        repeatedRenderPattern: ZH_LOCALE.menu_select_action,
         maxRepeatedRenders: 20,
-        expectedPatterns: ['主菜单', '配置语言', '配置线路', '退出'],
+        expectedPatterns: [
+          ZH_LOCALE.menu_main_title,
+          ZH_LOCALE.menu_configure_language,
+          ZH_LOCALE.menu_configure_endpoint,
+          ZH_LOCALE.menu_exit,
+        ],
       },
     },
     {
@@ -435,9 +476,9 @@ export function buildScenarios(tools) {
       args: ['enter'],
       steps: toolSelectorSteps,
       analysis: {
-        repeatedRenderPattern: '请选择操作',
+        repeatedRenderPattern: ZH_LOCALE.menu_select_action,
         maxRepeatedRenders: 30,
-        expectedPatterns: ['配置编码工具', ...toolNames],
+        expectedPatterns: [ZH_LOCALE.menu_configure_tools, ...toolNames],
       },
     },
     ...tools.map((tool) => createToolMenuScenario(tool)),
