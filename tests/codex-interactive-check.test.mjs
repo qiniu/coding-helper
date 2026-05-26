@@ -120,6 +120,7 @@ test('updateTranscriptCursor preserves later output in the same appended chunk',
 
 test('hasSelectedOption requires the pointer to be on the expected option', () => {
   assert.equal(hasSelectedOption('❯ ◆ 配置语言\n  ◇ 配置线路', '配置语言'), true);
+  assert.equal(hasSelectedOption('> ◆ 配置语言\n  ◇ 配置线路', '配置语言'), true);
   assert.equal(hasSelectedOption('  ◆ 配置语言\n❯ ◇ 配置线路', '配置语言'), false);
 });
 

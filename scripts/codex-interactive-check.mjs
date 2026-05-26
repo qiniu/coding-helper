@@ -61,7 +61,7 @@ export function updateTranscriptCursor(transcript, cursor, expected) {
 export function hasSelectedOption(transcript, optionText) {
   return stripAnsi(transcript)
     .split('\n')
-    .some((line) => line.includes('❯') && line.includes(optionText));
+    .some((line) => /^\s*(❯|>)\s/.test(line) && line.includes(optionText));
 }
 
 export function hasScenarioExitStep(scenario) {
