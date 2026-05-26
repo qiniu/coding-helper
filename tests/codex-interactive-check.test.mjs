@@ -11,6 +11,7 @@ import {
   hasSelectedOption,
   hasScenarioExitStep,
   resolveNodePtySpawnHelperPath,
+  updateSelectedOptionCursor,
   updateTranscriptCursor,
   stripAnsi,
 } from '../scripts/codex-interactive-check.mjs';
@@ -122,6 +123,15 @@ test('hasSelectedOption requires the pointer to be on the expected option', () =
   assert.equal(hasSelectedOption('❯ ◆ 配置语言\n  ◇ 配置线路', '配置语言'), true);
   assert.equal(hasSelectedOption('> ◆ 配置语言\n  ◇ 配置线路', '配置语言'), true);
   assert.equal(hasSelectedOption('  ◆ 配置语言\n❯ ◇ 配置线路', '配置语言'), false);
+});
+
+test('updateSelectedOptionCursor preserves later output in the same appended chunk', () => {
+  const transcript = ['❯ ◆ 配置语言\n  ◇ 配置线路\n主菜单\n'];
+
+  const nextCursor = updateSelectedOptionCursor(transcript, 0, '配置语言');
+
+  assert.equal(nextCursor, '❯ ◆ 配置语言'.length);
+  assert.equal(updateTranscriptCursor(transcript, nextCursor, '主菜单'), '❯ ◆ 配置语言\n  ◇ 配置线路\n主菜单'.length);
 });
 
 test('buildScenarios marks exit steps explicitly', () => {

@@ -59,9 +59,24 @@ export function updateTranscriptCursor(transcript, cursor, expected) {
 }
 
 export function hasSelectedOption(transcript, optionText) {
-  return stripAnsi(transcript)
-    .split('\n')
-    .some((line) => /^\s*(❯|>)\s/.test(line) && line.includes(optionText));
+  return updateSelectedOptionCursor([transcript], 0, optionText) !== null;
+}
+
+export function updateSelectedOptionCursor(transcript, cursor, optionText) {
+  const clean = stripAnsi(transcript.join(''));
+  const lines = clean.slice(cursor).match(/[^\n]*(?:\n|$)/g) ?? [];
+  let offset = cursor;
+
+  for (const lineWithBreak of lines) {
+    if (!lineWithBreak) break;
+    const line = lineWithBreak.endsWith('\n') ? lineWithBreak.slice(0, -1) : lineWithBreak;
+    if (/^\s*(❯|>)\s/.test(line) && line.includes(optionText)) {
+      return offset + line.length;
+    }
+    offset += lineWithBreak.length;
+  }
+
+  return null;
 }
 
 export function hasScenarioExitStep(scenario) {
@@ -224,10 +239,10 @@ function waitForSelectedOption(transcript, cursor, optionText, timeoutMs, proces
   const startedAt = Date.now();
   return new Promise((resolve, reject) => {
     const timer = setInterval(() => {
-      const clean = stripAnsi(transcript.join(''));
-      if (hasSelectedOption(clean.slice(cursor), optionText)) {
+      const nextCursor = updateSelectedOptionCursor(transcript, cursor, optionText);
+      if (nextCursor !== null) {
         clearInterval(timer);
-        resolve(clean.length);
+        resolve(nextCursor);
         return;
       }
       if (processState?.exited) {
