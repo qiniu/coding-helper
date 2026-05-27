@@ -13,6 +13,7 @@ dist/
 # Logs
 *.log
 npm-debug.log*
+codex-interactive-report.md
 
 # Runtime data
 *.pid
