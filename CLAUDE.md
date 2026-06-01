@@ -59,8 +59,10 @@ node dist/cli.js lang show
 
 ## API Endpoints
 
-- 国内线路: `https://api.qnaigc.com`
+- 国内线路: `https://openai.qiniu.com`
+- 国内备用线路: `https://api.qnaigc.com`
 - 海外线路: `https://openai.sufy.com`
+- Modelink 线路: `https://api.modelink.ai`
 - 支持接口: `/v1/chat/completions`、`/v1/messages`、`/v1/models`
 - API Key 校验: `/v2/stat/usage`（轻量级，验证 token 有效性）
 - 认证: Bearer token
