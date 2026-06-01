@@ -5,6 +5,15 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.3.5] - 2026-06-01
+
+### 更新内容
+* ci: 添加 Codex PR 交互审阅流程 by @krisxia0506 in https://github.com/qiniu/coding-helper/pull/28
+* feat: add Modelink endpoint by @krisxia0506 in https://github.com/qiniu/coding-helper/pull/30
+
+
+**Full Changelog**: https://github.com/qiniu/coding-helper/compare/v0.3.4...v0.3.5
+
 ## [0.3.4] - 2026-05-25
 
 ### 更新内容
