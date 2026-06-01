@@ -4,6 +4,7 @@ import os from 'node:os';
 import { execSync } from 'node:child_process';
 import type { ITool } from './base-tool.js';
 import { configManager, type ModelConfig } from '../config.js';
+import { DEFAULT_ENDPOINT, getBaseUrl } from '../endpoints.js';
 import { t } from '../i18n.js';
 import { uiRenderer } from '../wizard/ui/ui-renderer.js';
 import { promptHelper } from '../wizard/ui/prompt-helper.js';
@@ -14,6 +15,7 @@ const CODEX_AUTH_FILE = path.join(CODEX_DIR, 'auth.json');
 const PROVIDER_NAME = 'qnaigc';
 const PROFILE_NAME = 'qn-gpt';
 const CODEX_MODEL = 'openai/gpt-5.5';
+const DEFAULT_CODEX_BASE_URL = getBaseUrl(DEFAULT_ENDPOINT);
 
 // Codex 工具实现
 export class CodexTool implements ITool {
@@ -88,7 +90,7 @@ export function buildCodexConfig(existing: string, baseUrl?: string, model?: str
   let content = removeManagedCodexConfig(existing);
   content = upsertTopLevelModelProvider(content);
 
-  const providerBaseUrl = `${(baseUrl || 'https://api.qnaigc.com').replace(/\/+$/, '')}/bypass/openai/v1`;
+  const providerBaseUrl = `${(baseUrl || DEFAULT_CODEX_BASE_URL).replace(/\/+$/, '')}/bypass/openai/v1`;
   const sections = [
     `[model_providers.${PROVIDER_NAME}]`,
     'name = "Qiniu"',

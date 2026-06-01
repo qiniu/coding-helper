@@ -27,7 +27,7 @@
 ## ✨ Features
 
 - **🎯 Interactive Wizard** — Guided step-by-step setup for language, endpoint, API Key, and model on first run
-- **🌐 Multi-Region Support** — Domestic (api.qnaigc.com) / International (openai.sufy.com) endpoints
+- **🌐 Multi-Region Support** — Domestic (openai.qiniu.com) / Domestic Backup (api.qnaigc.com) / International (openai.sufy.com) / Modelink (api.modelink.ai) endpoints
 - **🔐 API Key Management** — Input, validate, save, and revoke API keys
 - **📦 Model Configuration** — Fetch available models from the API, with manual model ID input support
 - **⚡ Claude Code Integration** — Automatically writes environment variables to `~/.claude/settings.json`
@@ -208,8 +208,10 @@ npx qiniu-coding-helper enter hermes
 
 | Region | Base URL | Best For |
 |--------|----------|----------|
-| 🇨🇳 **Domestic** | `https://api.qnaigc.com` | Users in China |
+| 🇨🇳 **Domestic** | `https://openai.qiniu.com` | Users in China |
+| 🇨🇳 **Domestic Backup** | `https://api.qnaigc.com` | Users in China |
 | 🌍 **International** | `https://openai.sufy.com` | Users outside China |
+| 🔁 **Modelink** | `https://api.modelink.ai` | Available in and outside China |
 
 ### 🔧 Claude Code Environment Variables
 
@@ -218,7 +220,7 @@ When configuration is applied, these environment variables are set in `~/.claude
 ```json
 {
   "env": {
-    "ANTHROPIC_BASE_URL": "https://api.qnaigc.com",
+    "ANTHROPIC_BASE_URL": "https://openai.qiniu.com",
     "ANTHROPIC_AUTH_TOKEN": "<your-api-key>",
     "API_TIMEOUT_MS": "3000000",
     "CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC": "1"
@@ -239,7 +241,7 @@ model_provider = "qnaigc"
 
 [model_providers.qnaigc]
 name = "Qiniu"
-base_url = "https://api.qnaigc.com/bypass/openai/v1"
+base_url = "https://openai.qiniu.com/bypass/openai/v1"
 requires_openai_auth = true
 wire_api = "responses"
 
@@ -263,7 +265,7 @@ The configuration flow lets you multi-select models from the Qiniu model market 
       "id": "anthropic/claude-sonnet-4-5",
       "name": "Claude Sonnet 4.5",
       "vendor": "Qiniu",
-      "url": "https://api.qnaigc.com/v1/chat/completions",
+      "url": "https://openai.qiniu.com/v1/chat/completions",
       "apiKey": "<your-api-key>",
       "maxInputTokens": 200000,
       "maxOutputTokens": 8192,
@@ -300,7 +302,7 @@ Hermes Agent stores its configuration in `~/.hermes/config.yaml`. The configurat
 model:
   provider: custom
   default: anthropic/claude-sonnet-4-5
-  base_url: https://api.qnaigc.com/v1
+  base_url: https://openai.qiniu.com/v1
   api_key: <your-api-key>
 ```
 
