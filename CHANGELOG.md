@@ -5,6 +5,14 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.3.6] - 2026-06-06
+
+### 更新内容
+* fix: 兼容低版本 Node 启动预检 by @krisxia0506 in https://github.com/qiniu/coding-helper/pull/31
+
+
+**Full Changelog**: https://github.com/qiniu/coding-helper/compare/v0.3.5...v0.3.6
+
 ## [0.3.5] - 2026-06-01
 
 ### 更新内容
