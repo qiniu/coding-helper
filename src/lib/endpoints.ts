@@ -7,11 +7,6 @@ export interface EndpointDefinition {
 }
 
 export const ENDPOINT_DEFINITIONS: Record<string, EndpointDefinition> = {
-  qiniu: {
-    id: 'qiniu',
-    i18nKey: 'endpoint_qiniu',
-    baseUrl: 'https://openai.qiniu.com',
-  },
   china: {
     id: 'china',
     i18nKey: 'endpoint_china',
@@ -20,16 +15,11 @@ export const ENDPOINT_DEFINITIONS: Record<string, EndpointDefinition> = {
   international: {
     id: 'international',
     i18nKey: 'endpoint_international',
-    baseUrl: 'https://openai.sufy.com',
-  },
-  modelink: {
-    id: 'modelink',
-    i18nKey: 'endpoint_modelink',
     baseUrl: 'https://api.modelink.ai',
   },
 };
 
-export const DEFAULT_ENDPOINT = 'qiniu';
+export const DEFAULT_ENDPOINT = 'china';
 
 // 根据端点 ID 获取 base URL
 export function getBaseUrl(endpointId: string): string {

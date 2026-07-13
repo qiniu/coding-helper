@@ -47,14 +47,14 @@ test('buildHermesConfig writes Qiniu custom endpoint and preserves unrelated con
 });
 
 test('buildHermesConfig escapes scalar values that require YAML quoting', () => {
-  const next = buildHermesConfig('', 'https://openai.sufy.com/', 'key:with#chars', 'vendor/model:latest');
+  const next = buildHermesConfig('', 'https://api.modelink.ai/', 'key:with#chars', 'vendor/model:latest');
   const parsed = yaml.load(next);
 
-  assert.match(next, /base_url: https:\/\/openai\.sufy\.com\/v1/);
+  assert.match(next, /base_url: https:\/\/api\.modelink\.ai\/v1/);
   assert.deepEqual(parsed.model, {
     provider: 'custom',
     default: 'vendor/model:latest',
-    base_url: 'https://openai.sufy.com/v1',
+    base_url: 'https://api.modelink.ai/v1',
     api_key: 'key:with#chars',
   });
 });
