@@ -2,7 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
 import yaml from 'js-yaml';
-import { DEFAULT_ENDPOINT, getBaseUrl } from './endpoints.js';
+import { DEFAULT_ENDPOINT, getBaseUrl, normalizeEndpointId } from './endpoints.js';
 
 // 配置文件路径
 const CONFIG_DIR = path.join(os.homedir(), '.coding-helper');
@@ -96,7 +96,8 @@ class ConfigManager {
   // 线路选择
   getEndpoint(): string {
     this.load();
-    return this.config.endpoint || DEFAULT_ENDPOINT;
+    // 规范化旧 id，兼容历史配置（如 modelink → international）
+    return normalizeEndpointId(this.config.endpoint || DEFAULT_ENDPOINT);
   }
 
   setEndpoint(endpoint: string): void {

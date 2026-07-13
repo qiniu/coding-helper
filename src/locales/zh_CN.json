@@ -8,10 +8,8 @@
   "language_current": "当前语言: {{lang}}",
 
   "endpoint_prompt": "请选择 API 线路",
-  "endpoint_qiniu": "国内线路 (openai.qiniu.com)",
-  "endpoint_china": "国内备用线路 (api.qnaigc.com)",
-  "endpoint_international": "海外线路 (openai.sufy.com)",
-  "endpoint_modelink": "Modelink 线路 (api.modelink.ai)",
+  "endpoint_china": "国内线路 (api.qnaigc.com)",
+  "endpoint_international": "海外线路 (api.modelink.ai)",
   "endpoint_set": "线路已设置为: {{endpoint}}",
 
   "apikey_hint": "如需获取 API Key，请访问: https://portal.qiniu.com/ai-inference/api-key",
