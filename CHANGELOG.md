@@ -5,6 +5,14 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.3.7] - 2026-07-13
+
+### 更新内容
+* refactor(endpoints): 精简为国内与海外两条线路 by @krisxia0506 in https://github.com/qiniu/coding-helper/pull/33
+
+
+**Full Changelog**: https://github.com/qiniu/coding-helper/compare/v0.3.6...v0.3.7
+
 ## [0.3.6] - 2026-06-06
 
 ### 更新内容
