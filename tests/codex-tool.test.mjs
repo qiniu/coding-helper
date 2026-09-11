@@ -16,6 +16,7 @@ import {
 test('buildCodexModelCatalog contains only GPT models with Codex metadata', () => {
   const catalog = JSON.parse(buildCodexModelCatalog([
     { id: 'openai/gpt-5.4', context_length: 1050000, max_tokens: 128000 },
+    { id: 'x-ai/grok-4.6', context_length: 500000, max_tokens: 128000 },
     { id: 'anthropic/claude-sonnet', context_length: 200000, max_tokens: 64000 },
   ]));
 
