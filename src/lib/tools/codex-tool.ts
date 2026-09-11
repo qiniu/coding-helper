@@ -16,7 +16,7 @@ const CODEX_CATALOG_DIR = path.join(CODEX_DIR, 'model-catalogs');
 const CODEX_CATALOG_FILE = path.join(CODEX_CATALOG_DIR, 'qnaigc.json');
 const PROVIDER_NAME = 'qnaigc';
 const PROFILE_NAME = 'qn-gpt';
-const CODEX_MODEL = 'openai/gpt-5.5';
+const CODEX_MODEL = 'openai/gpt-6-astra';
 const DEFAULT_CODEX_BASE_URL = getBaseUrl(DEFAULT_ENDPOINT);
 
 export interface CodexCatalogModel {
