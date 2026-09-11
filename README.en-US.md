@@ -232,6 +232,8 @@ When configuration is applied, these environment variables are set in `~/.claude
 
 When Codex configuration is applied, Coding Helper writes the Qiniu model provider to `~/.codex/config.toml` and stores the API Key in Codex's own `~/.codex/auth.json` auth cache. It does not rely on a `QINIU_API_KEY` shell environment variable.
 
+It also writes the current GPT model catalog supported by the Qiniu API to `~/.codex/model-catalogs/qnaigc.json` and loads it through `model_catalog_json`. The catalog includes only `openai/gpt*` models returned by `/v1/models`, together with their context metadata.
+
 The managed Codex profile uses the Qiniu OpenAI-compatible bypass endpoint:
 
 ```toml
