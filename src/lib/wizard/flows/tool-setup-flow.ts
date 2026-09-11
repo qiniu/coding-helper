@@ -12,6 +12,11 @@ async function setupTool(tool: ITool): Promise<void> {
 
   const apiKey = configManager.getApiKey();
   if (apiKey) {
+    if (tool.name === 'codex') {
+      uiRenderer.renderHeader();
+      const confirmed = await promptHelper.confirm(t('tool_config_load_confirm', { tool: tool.displayName }));
+      if (!confirmed) return;
+    }
     const models = configManager.getModels();
     try {
       await tool.loadConfig(apiKey, configManager.baseUrl, models);
