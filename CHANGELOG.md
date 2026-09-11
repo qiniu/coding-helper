@@ -5,6 +5,11 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+### 更新内容
+* feat: Codex 配置覆盖前备份原配置并展示备份路径
+
 ## [0.3.7] - 2026-07-13
 
 ### 更新内容
