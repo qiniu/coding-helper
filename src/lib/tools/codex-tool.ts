@@ -149,7 +149,9 @@ function removeTopLevelCatalogPath(content: string): string {
   const lines = content.split('\n');
   const firstTableIndex = lines.findIndex((line) => /^\[[^\]]+\]\s*$/.test(line.trim()));
   const searchEnd = firstTableIndex >= 0 ? firstTableIndex : lines.length;
-  return lines.filter((line, lineIndex) => lineIndex >= searchEnd || !/^model_catalog_json\s*=/.test(line.trim())).join('\n');
+  return lines.filter((line, lineIndex) => (
+    lineIndex >= searchEnd || !/^model_catalog_json\s*=\s*"[^"\n]*\/model-catalogs\/qnaigc\.json"\s*$/.test(line.trim())
+  )).join('\n');
 }
 
 export function buildCodexAuthJson(existing: string, apiKey: string): string {

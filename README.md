@@ -232,7 +232,7 @@ npx qiniu-coding-helper enter hermes
 
 配置应用后，Coding Helper 会将七牛模型 provider 写入 `~/.codex/config.toml`，并将 API Key 写入 Codex 自己的 `~/.codex/auth.json` 认证缓存。它不依赖 `QINIU_API_KEY` shell 环境变量。
 
-同时会在 `~/.codex/model-catalogs/qnaigc.json` 写入当前七牛 API 支持的 GPT 模型目录，并通过 `model_catalog_json` 配置项加载。目录只包含 `/v1/models` 返回的 `openai/gpt*` 模型及其上下文元数据。
+同时会在 `~/.codex/model-catalogs/qnaigc.json` 写入维护在 Coding Helper 中的七牛 GPT 模型目录，并通过 `model_catalog_json` 配置项加载。目录只包含七牛支持的 `openai/gpt*` 模型及其上下文元数据。
 
 托管的 Codex profile 使用七牛 OpenAI 兼容 bypass 端点：
 

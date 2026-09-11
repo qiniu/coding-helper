@@ -59,8 +59,13 @@ test('buildCodexConfig preserves unrelated TOML and replaces managed qnaigc bloc
 });
 
 test('removeManagedCodexConfig removes the managed catalog path', () => {
-  const next = removeManagedCodexConfig('model_catalog_json = "/tmp/qnaigc.json"\nmodel_provider = "qnaigc"\n');
+  const next = removeManagedCodexConfig('model_catalog_json = "/home/user/.codex/model-catalogs/qnaigc.json"\nmodel_provider = "qnaigc"\n');
   assert.doesNotMatch(next, /model_catalog_json/);
+});
+
+test('removeManagedCodexConfig preserves a user-owned catalog path', () => {
+  const next = removeManagedCodexConfig('model_catalog_json = "/tmp/custom-catalog.json"\nmodel_provider = "qnaigc"\n');
+  assert.match(next, /model_catalog_json = "\/tmp\/custom-catalog\.json"/);
 });
 
 test('removeManagedCodexConfig removes only helper-managed Codex settings', () => {
