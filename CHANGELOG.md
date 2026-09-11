@@ -5,6 +5,14 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.4.0] - 2026-09-11
+
+### 更新内容
+* feat: 为 Codex 配置增加 GPT model-catalogs by @krisxia0506 in https://github.com/qiniu/coding-helper/pull/37
+
+
+**Full Changelog**: https://github.com/qiniu/coding-helper/compare/v0.3.7...v0.4.0
+
 ## [Unreleased]
 
 ### 更新内容
