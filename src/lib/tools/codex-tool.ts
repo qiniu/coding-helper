@@ -145,11 +145,19 @@ export function buildCodexConfig(_existing: string, baseUrl?: string, model?: st
 
 export function removeManagedCodexConfig(existing: string): string {
   let content = existing;
+  content = removeTopLevelModel(content);
   content = removeTopLevelCatalogPath(content);
   content = removeTopLevelQnaigcModelProvider(content);
   content = removeTomlTable(content, `model_providers.${PROVIDER_NAME}`);
   content = removeTomlTable(content, `profiles.${PROFILE_NAME}`);
   return normalizeToml(content);
+}
+
+function removeTopLevelModel(content: string): string {
+  const lines = content.split('\n');
+  const firstTableIndex = lines.findIndex((line) => /^\[[^\]]+\]\s*$/.test(line.trim()));
+  const searchEnd = firstTableIndex >= 0 ? firstTableIndex : lines.length;
+  return lines.filter((line, lineIndex) => lineIndex >= searchEnd || !/^model\s*=/.test(line.trim())).join('\n');
 }
 
 function removeTopLevelCatalogPath(content: string): string {

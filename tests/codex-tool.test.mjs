@@ -102,6 +102,11 @@ test('removeManagedCodexConfig removes the managed catalog path', () => {
   assert.doesNotMatch(next, /model_catalog_json/);
 });
 
+test('removeManagedCodexConfig removes the managed top-level model', () => {
+  const next = removeManagedCodexConfig('model = "openai/gpt-6-astra"\nmodel_provider = "qnaigc"\n');
+  assert.doesNotMatch(next, /^model\s*=/m);
+});
+
 test('removeManagedCodexConfig preserves a user-owned catalog path', () => {
   const next = removeManagedCodexConfig('model_catalog_json = "/tmp/custom-catalog.json"\nmodel_provider = "qnaigc"\n');
   assert.match(next, /model_catalog_json = "\/tmp\/custom-catalog\.json"/);

@@ -181,6 +181,12 @@ async function runInitialToolSetup(tool: ITool): Promise<void> {
   const completed = await tool.runModelConfigFlow();
   if (!completed) return;
 
+  if (tool.name === 'codex') {
+    uiRenderer.renderHeader();
+    const confirmed = await promptHelper.confirm(t('tool_config_load_confirm', { tool: tool.displayName }));
+    if (!confirmed) return;
+  }
+
   await applyConfig(tool);
 }
 
