@@ -145,7 +145,7 @@ export function buildCodexConfig(_existing: string, baseUrl?: string, model?: st
 
 export function removeManagedCodexConfig(existing: string): string {
   let content = existing;
-  content = removeTopLevelModel(content);
+  if (hasManagedCodexConfig(content)) content = removeTopLevelModel(content);
   content = removeTopLevelCatalogPath(content);
   content = removeTopLevelQnaigcModelProvider(content);
   content = removeTomlTable(content, `model_providers.${PROVIDER_NAME}`);

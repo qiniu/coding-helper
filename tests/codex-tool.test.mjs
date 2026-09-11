@@ -103,8 +103,13 @@ test('removeManagedCodexConfig removes the managed catalog path', () => {
 });
 
 test('removeManagedCodexConfig removes the managed top-level model', () => {
-  const next = removeManagedCodexConfig('model = "openai/gpt-6-astra"\nmodel_provider = "qnaigc"\n');
+  const next = removeManagedCodexConfig('model = "openai/gpt-6-astra"\nmodel_provider = "qnaigc"\n[model_providers.qnaigc]\n');
   assert.doesNotMatch(next, /^model\s*=/m);
+});
+
+test('removeManagedCodexConfig preserves a user model without managed qnaigc config', () => {
+  const next = removeManagedCodexConfig('model = "customer-model"\n[model_providers.other]\n');
+  assert.match(next, /^model = "customer-model"/m);
 });
 
 test('removeManagedCodexConfig preserves a user-owned catalog path', () => {
