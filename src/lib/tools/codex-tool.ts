@@ -122,7 +122,9 @@ export function buildCodexConfig(existing: string, baseUrl?: string, model?: str
     '',
   ];
 
-  if (catalogPath) sections.unshift(`model_catalog_json = "${escapeTomlString(catalogPath)}"`);
+  if (catalogPath && !hasTopLevelCatalogPath(content)) {
+    sections.unshift(`model_catalog_json = "${escapeTomlString(catalogPath)}"`);
+  }
 
   if (model) {
     sections.push(
@@ -150,8 +152,15 @@ function removeTopLevelCatalogPath(content: string): string {
   const firstTableIndex = lines.findIndex((line) => /^\[[^\]]+\]\s*$/.test(line.trim()));
   const searchEnd = firstTableIndex >= 0 ? firstTableIndex : lines.length;
   return lines.filter((line, lineIndex) => (
-    lineIndex >= searchEnd || !/^model_catalog_json\s*=\s*"[^"\n]*\/model-catalogs\/qnaigc\.json"\s*$/.test(line.trim())
+    lineIndex >= searchEnd || !/^model_catalog_json\s*=\s*"[^"\n]*(?:\/|\\\\)model-catalogs(?:\/|\\\\)qnaigc\.json"\s*$/.test(line.trim())
   )).join('\n');
+}
+
+function hasTopLevelCatalogPath(content: string): boolean {
+  const lines = content.split('\n');
+  const firstTableIndex = lines.findIndex((line) => /^\[[^\]]+\]\s*$/.test(line.trim()));
+  const searchEnd = firstTableIndex >= 0 ? firstTableIndex : lines.length;
+  return lines.some((line, lineIndex) => lineIndex < searchEnd && /^model_catalog_json\s*=/.test(line.trim()));
 }
 
 export function buildCodexAuthJson(existing: string, apiKey: string): string {

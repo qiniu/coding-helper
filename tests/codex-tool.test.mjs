@@ -68,6 +68,22 @@ test('removeManagedCodexConfig preserves a user-owned catalog path', () => {
   assert.match(next, /model_catalog_json = "\/tmp\/custom-catalog\.json"/);
 });
 
+test('buildCodexConfig does not duplicate a user-owned catalog path', () => {
+  const next = buildCodexConfig(
+    'model_catalog_json = "/tmp/custom-catalog.json"\n',
+    'https://api.qnaigc.com',
+    'openai/gpt-5.5',
+    '/home/user/.codex/model-catalogs/qnaigc.json',
+  );
+  assert.equal((next.match(/model_catalog_json\s*=/g) || []).length, 1);
+  assert.match(next, /model_catalog_json = "\/tmp\/custom-catalog\.json"/);
+});
+
+test('removeManagedCodexConfig removes the managed catalog path with Windows separators', () => {
+  const next = removeManagedCodexConfig('model_catalog_json = "C:\\\\Users\\\\user\\\\.codex\\\\model-catalogs\\\\qnaigc.json"\n');
+  assert.doesNotMatch(next, /model_catalog_json/);
+});
+
 test('removeManagedCodexConfig removes only helper-managed Codex settings', () => {
   const content = buildCodexConfig(
     [
