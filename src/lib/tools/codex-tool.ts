@@ -94,7 +94,7 @@ export class CodexTool implements ITool {
   }
 
   getLoadConfigNotes(): string[] {
-    return this.lastBackupPaths.map((path) => t('codex_backup_created', { path }));
+    return this.lastBackupPaths.map((path) => formatCodexBackupNote(path));
   }
 
   async unloadConfig(): Promise<void> {
@@ -178,6 +178,15 @@ export function backupCodexFile(filePath: string, now = new Date()): string | un
   }
   fs.copyFileSync(filePath, backupPath);
   return backupPath;
+}
+
+export function formatCodexBackupNote(
+  backupPath: string,
+  translate: (key: string, params?: Record<string, string>) => string = t,
+): string {
+  const key = 'codex_backup_created';
+  const translated = translate(key, { path: backupPath });
+  return translated === key ? `Codex 原配置已备份到：${backupPath}` : translated;
 }
 
 export function buildCodexModelCatalog(models: CodexCatalogModel[]): string {

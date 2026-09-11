@@ -9,6 +9,7 @@ import {
   buildCodexAuthJson,
   buildCodexModelCatalog,
   backupCodexFile,
+  formatCodexBackupNote,
   removeManagedCodexConfig,
 } from '../dist/lib/tools/codex-tool.js';
 
@@ -88,6 +89,11 @@ test('backupCodexFile avoids overwriting an existing same-second backup', () => 
   assert.equal(fs.readFileSync(second, 'utf8'), 'second\n');
   assert.notEqual(first, second);
   fs.rmSync(dir, { recursive: true, force: true });
+});
+
+test('formatCodexBackupNote always includes the backup path when translation is missing', () => {
+  const note = formatCodexBackupNote('/tmp/config.toml.bak-fenno-20260911123456', () => 'codex_backup_created');
+  assert.match(note, /Codex 原配置已备份到：\/tmp\/config\.toml\.bak-fenno-20260911123456/);
 });
 
 test('removeManagedCodexConfig removes the managed catalog path', () => {
