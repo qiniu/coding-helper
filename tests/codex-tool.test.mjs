@@ -51,6 +51,7 @@ test('buildCodexConfig replaces existing TOML to avoid configuration conflicts',
 
   assert.doesNotMatch(next, /approval_policy = "on-request"/);
   assert.match(next, /model_provider = "qnaigc"/);
+  assert.match(next, /^model = "openai\/gpt-5\.2"\nmodel_provider = "qnaigc"/m);
   assert.doesNotMatch(next, /\[model_providers\.other\]/);
   assert.match(next, /\[model_providers\.qnaigc\]\nname = "Qiniu"\nbase_url = "https:\/\/api\.qnaigc\.com\/bypass\/openai\/v1"/);
   assert.match(next, /requires_openai_auth = true/);
@@ -118,7 +119,7 @@ test('buildCodexConfig writes the managed catalog at top level', () => {
     'openai/gpt-5.5',
     '/home/user/.codex/model-catalogs/qnaigc.json',
   );
-  assert.match(next, /^model_provider = "qnaigc"\nmodel_catalog_json = "\/home\/user\/\.codex\/model-catalogs\/qnaigc\.json"/);
+  assert.match(next, /^model = "openai\/gpt-5\.5"\nmodel_provider = "qnaigc"\nmodel_catalog_json = "\/home\/user\/\.codex\/model-catalogs\/qnaigc\.json"/);
   assert.doesNotMatch(next, /profiles\.keep/);
 });
 

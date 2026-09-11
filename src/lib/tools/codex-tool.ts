@@ -119,6 +119,7 @@ export class CodexTool implements ITool {
 export function buildCodexConfig(_existing: string, baseUrl?: string, model?: string, catalogPath?: string): string {
   const providerBaseUrl = `${(baseUrl || DEFAULT_CODEX_BASE_URL).replace(/\/+$/, '')}/bypass/openai/v1`;
   const sections = [
+    ...(model ? [`model = "${escapeTomlString(model)}"`] : []),
     `model_provider = "${PROVIDER_NAME}"`,
     ...(catalogPath ? [`model_catalog_json = "${escapeTomlString(catalogPath)}"`] : []),
     '',
