@@ -111,6 +111,9 @@ export class CodexTool implements ITool {
 export function buildCodexConfig(existing: string, baseUrl?: string, model?: string, catalogPath?: string): string {
   let content = removeManagedCodexConfig(existing);
   content = upsertTopLevelModelProvider(content);
+  if (catalogPath && !hasTopLevelCatalogPath(content)) {
+    content = upsertTopLevelCatalogPath(content, catalogPath);
+  }
 
   const providerBaseUrl = `${(baseUrl || DEFAULT_CODEX_BASE_URL).replace(/\/+$/, '')}/bypass/openai/v1`;
   const sections = [
@@ -121,10 +124,6 @@ export function buildCodexConfig(existing: string, baseUrl?: string, model?: str
     'wire_api = "responses"',
     '',
   ];
-
-  if (catalogPath && !hasTopLevelCatalogPath(content)) {
-    sections.unshift(`model_catalog_json = "${escapeTomlString(catalogPath)}"`);
-  }
 
   if (model) {
     sections.push(
@@ -149,11 +148,7 @@ export function removeManagedCodexConfig(existing: string): string {
 
 function removeTopLevelCatalogPath(content: string): string {
   const lines = content.split('\n');
-  const firstTableIndex = lines.findIndex((line) => /^\[[^\]]+\]\s*$/.test(line.trim()));
-  const searchEnd = firstTableIndex >= 0 ? firstTableIndex : lines.length;
-  return lines.filter((line, lineIndex) => (
-    lineIndex >= searchEnd || !/^model_catalog_json\s*=\s*"[^"\n]*(?:\/|\\\\)model-catalogs(?:\/|\\\\)qnaigc\.json"\s*$/.test(line.trim())
-  )).join('\n');
+  return lines.filter((line) => !/^model_catalog_json\s*=\s*"[^"\n]*(?:\/|\\\\)model-catalogs(?:\/|\\\\)qnaigc\.json"\s*$/.test(line.trim())).join('\n');
 }
 
 function hasTopLevelCatalogPath(content: string): boolean {
@@ -161,6 +156,14 @@ function hasTopLevelCatalogPath(content: string): boolean {
   const firstTableIndex = lines.findIndex((line) => /^\[[^\]]+\]\s*$/.test(line.trim()));
   const searchEnd = firstTableIndex >= 0 ? firstTableIndex : lines.length;
   return lines.some((line, lineIndex) => lineIndex < searchEnd && /^model_catalog_json\s*=/.test(line.trim()));
+}
+
+function upsertTopLevelCatalogPath(content: string, catalogPath: string): string {
+  const lines = content.split('\n');
+  const firstTableIndex = lines.findIndex((line) => /^\[[^\]]+\]\s*$/.test(line.trim()));
+  const insertAt = firstTableIndex >= 0 ? firstTableIndex : lines.length;
+  lines.splice(insertAt, 0, `model_catalog_json = "${escapeTomlString(catalogPath)}"`);
+  return lines.join('\n');
 }
 
 export function buildCodexAuthJson(existing: string, apiKey: string): string {

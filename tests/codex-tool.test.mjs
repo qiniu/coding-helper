@@ -79,6 +79,16 @@ test('buildCodexConfig does not duplicate a user-owned catalog path', () => {
   assert.match(next, /model_catalog_json = "\/tmp\/custom-catalog\.json"/);
 });
 
+test('buildCodexConfig keeps the managed catalog at top level after existing tables', () => {
+  const next = buildCodexConfig(
+    '[profiles.keep]\nmodel = "keep"\n',
+    'https://api.qnaigc.com',
+    'openai/gpt-5.5',
+    '/home/user/.codex/model-catalogs/qnaigc.json',
+  );
+  assert.match(next, /^model_provider = "qnaigc"\nmodel_catalog_json = "\/home\/user\/\.codex\/model-catalogs\/qnaigc\.json"\n\[profiles\.keep\]/);
+});
+
 test('removeManagedCodexConfig removes the managed catalog path with Windows separators', () => {
   const next = removeManagedCodexConfig('model_catalog_json = "C:\\\\Users\\\\user\\\\.codex\\\\model-catalogs\\\\qnaigc.json"\n');
   assert.doesNotMatch(next, /model_catalog_json/);
