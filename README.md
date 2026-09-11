@@ -230,7 +230,9 @@ npx qiniu-coding-helper enter hermes
 
 ### 🔧 Codex 配置
 
-配置应用后，Coding Helper 会将七牛模型 provider 写入 `~/.codex/config.toml`，并将 API Key 写入 Codex 自己的 `~/.codex/auth.json` 认证缓存。它不依赖 `QINIU_API_KEY` shell 环境变量。
+配置应用后，Coding Helper 会先将已有的 `~/.codex/config.toml` 和 `~/.codex/model-catalogs/qnaigc.json` 备份为带时间戳的 `.bak-fenno-*` 文件，并在终端显示每个备份路径。随后会用七牛 Codex 配置完整覆盖 `config.toml`，避免与客户原配置冲突；卸载时不会自动恢复备份，请按提示路径手动恢复。API Key 会写入 Codex 自己的 `~/.codex/auth.json` 认证缓存。它不依赖 `QINIU_API_KEY` shell 环境变量。
+
+同时会在 `~/.codex/model-catalogs/qnaigc.json` 写入维护在 Coding Helper 中的七牛 GPT 模型目录，并通过 `model_catalog_json` 配置项加载。目录只包含七牛支持的 `openai/gpt*` 模型及其上下文元数据。
 
 托管的 Codex profile 使用七牛 OpenAI 兼容 bypass 端点：
 

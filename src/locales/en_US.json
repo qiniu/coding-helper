@@ -154,6 +154,7 @@
   "config_view_hermes_model": "Hermes Agent Model",
   "config_view_codex_model": "Model",
   "codex_fixed_model_hint": "Codex uses a fixed model \"{{model}}\" via Qiniu proxy. No selection needed.",
+  "codex_backup_created": "Existing Codex configuration backed up to: {{path}}",
 
   "tool_desktop_launch_hint": "{{tool}} is a desktop application. Please launch it manually.",
   "tool_desktop_update_hint": "{{tool}} is a desktop application. Please visit the official website to download the latest version.",

@@ -12,10 +12,30 @@ import { promptHelper } from '../wizard/ui/prompt-helper.js';
 const CODEX_DIR = path.join(os.homedir(), '.codex');
 const CODEX_CONFIG_FILE = path.join(CODEX_DIR, 'config.toml');
 const CODEX_AUTH_FILE = path.join(CODEX_DIR, 'auth.json');
+const CODEX_CATALOG_DIR = path.join(CODEX_DIR, 'model-catalogs');
+const CODEX_CATALOG_FILE = path.join(CODEX_CATALOG_DIR, 'qnaigc.json');
 const PROVIDER_NAME = 'qnaigc';
 const PROFILE_NAME = 'qn-gpt';
-const CODEX_MODEL = 'openai/gpt-5.5';
+const CODEX_MODEL = 'openai/gpt-6-astra';
 const DEFAULT_CODEX_BASE_URL = getBaseUrl(DEFAULT_ENDPOINT);
+
+export interface CodexCatalogModel {
+  id: string;
+  context_length: number;
+  max_tokens: number;
+}
+
+const GPT_MODELS: CodexCatalogModel[] = [
+  ['openai/gpt-5-pro', 400000, 128000], ['openai/gpt-5.5', 1000000, 128000],
+  ['openai/gpt-5.6-sol', 1050000, 128000], ['openai/gpt-5.6-terra', 1050000, 128000],
+  ['openai/gpt-5.6-luna', 1050000, 128000], ['openai/gpt-6-astra', 1050000, 128000],
+  ['openai/gpt-5.3-codex', 400000, 128000], ['openai/gpt-5-nano', 400000, 128000],
+  ['openai/gpt-5.2-chat', 128000, 32000], ['openai/gpt-5-chat', 128000, 16400],
+  ['openai/gpt-5-mini', 400000, 400000], ['openai/gpt-5', 400000, 128000],
+  ['openai/gpt-5.2', 400000, 128000], ['openai/gpt-5.2-codex', 400000, 128000],
+  ['openai/gpt-5.4-mini', 400000, 128000], ['openai/gpt-5.4-pro', 1000000, 128000],
+  ['openai/gpt-5.4-nano', 400000, 128000], ['openai/gpt-5.4', 1050000, 128000],
+].map(([id, context_length, max_tokens]) => ({ id: id as string, context_length: context_length as number, max_tokens: max_tokens as number }));
 
 // Codex 工具实现
 export class CodexTool implements ITool {
@@ -27,6 +47,7 @@ export class CodexTool implements ITool {
   updateCommand = 'npm install -g @openai/codex@latest';
   npmPackageName = '@openai/codex';
   aliases = ['openai-codex'];
+  private lastBackupPaths: string[] = [];
 
   getVersion(): string | null {
     try {
@@ -63,14 +84,23 @@ export class CodexTool implements ITool {
   }
 
   async loadConfig(apiKey: string, baseUrl: string, models: ModelConfig): Promise<void> {
+    this.lastBackupPaths = [
+      backupCodexFile(CODEX_CONFIG_FILE),
+      backupCodexFile(CODEX_CATALOG_FILE),
+    ].filter((backup): backup is string => !!backup);
     writeCodexAuth(buildCodexAuthJson(readCodexAuth(), apiKey));
-    const content = readCodexConfig();
-    writeCodexConfig(buildCodexConfig(content, baseUrl, models.codexModel || this.defaultModel));
+    writeCodexCatalog(buildCodexModelCatalog(GPT_MODELS));
+    writeCodexConfig(buildCodexConfig('', baseUrl, models.codexModel || this.defaultModel, CODEX_CATALOG_FILE));
+  }
+
+  getLoadConfigNotes(): string[] {
+    return this.lastBackupPaths.map((path) => formatCodexBackupNote(path));
   }
 
   async unloadConfig(): Promise<void> {
     const content = readCodexConfig();
     writeCodexConfig(removeManagedCodexConfig(content));
+    if (fs.existsSync(CODEX_CATALOG_FILE)) fs.rmSync(CODEX_CATALOG_FILE);
   }
 
   async runModelConfigFlow(): Promise<boolean> {
@@ -86,12 +116,13 @@ export class CodexTool implements ITool {
   }
 }
 
-export function buildCodexConfig(existing: string, baseUrl?: string, model?: string): string {
-  let content = removeManagedCodexConfig(existing);
-  content = upsertTopLevelModelProvider(content);
-
+export function buildCodexConfig(_existing: string, baseUrl?: string, model?: string, catalogPath?: string): string {
   const providerBaseUrl = `${(baseUrl || DEFAULT_CODEX_BASE_URL).replace(/\/+$/, '')}/bypass/openai/v1`;
   const sections = [
+    ...(model ? [`model = "${escapeTomlString(model)}"`] : []),
+    `model_provider = "${PROVIDER_NAME}"`,
+    ...(catalogPath ? [`model_catalog_json = "${escapeTomlString(catalogPath)}"`] : []),
+    '',
     `[model_providers.${PROVIDER_NAME}]`,
     'name = "Qiniu"',
     `base_url = "${escapeTomlString(providerBaseUrl)}"`,
@@ -109,15 +140,29 @@ export function buildCodexConfig(existing: string, baseUrl?: string, model?: str
     );
   }
 
-  return normalizeToml(`${content.trimEnd()}\n\n${sections.join('\n')}`);
+  return normalizeToml(sections.join('\n'));
 }
 
 export function removeManagedCodexConfig(existing: string): string {
   let content = existing;
+  if (hasManagedCodexConfig(content)) content = removeTopLevelModel(content);
+  content = removeTopLevelCatalogPath(content);
   content = removeTopLevelQnaigcModelProvider(content);
   content = removeTomlTable(content, `model_providers.${PROVIDER_NAME}`);
   content = removeTomlTable(content, `profiles.${PROFILE_NAME}`);
   return normalizeToml(content);
+}
+
+function removeTopLevelModel(content: string): string {
+  const lines = content.split('\n');
+  const firstTableIndex = lines.findIndex((line) => /^\[[^\]]+\]\s*$/.test(line.trim()));
+  const searchEnd = firstTableIndex >= 0 ? firstTableIndex : lines.length;
+  return lines.filter((line, lineIndex) => lineIndex >= searchEnd || !/^model\s*=/.test(line.trim())).join('\n');
+}
+
+function removeTopLevelCatalogPath(content: string): string {
+  const lines = content.split('\n');
+  return lines.filter((line) => !/^model_catalog_json\s*=\s*"[^"\n]*(?:\/|\\\\)model-catalogs(?:\/|\\\\)qnaigc\.json"\s*$/.test(line.trim())).join('\n');
 }
 
 export function buildCodexAuthJson(existing: string, apiKey: string): string {
@@ -125,6 +170,63 @@ export function buildCodexAuthJson(existing: string, apiKey: string): string {
   auth.auth_mode = 'apikey';
   auth.OPENAI_API_KEY = apiKey;
   return `${JSON.stringify(auth, null, 2)}\n`;
+}
+
+export function backupCodexFile(filePath: string, now = new Date()): string | undefined {
+  if (!fs.existsSync(filePath)) return undefined;
+  const pad = (value: number): string => String(value).padStart(2, '0');
+  const timestamp = `${now.getFullYear()}${pad(now.getMonth() + 1)}${pad(now.getDate())}` +
+    `${pad(now.getHours())}${pad(now.getMinutes())}${pad(now.getSeconds())}`;
+  const baseBackupPath = `${filePath}.bak-fenno-${timestamp}`;
+  let backupPath = baseBackupPath;
+  let suffix = 1;
+  while (fs.existsSync(backupPath)) {
+    backupPath = `${baseBackupPath}-${suffix}`;
+    suffix += 1;
+  }
+  fs.copyFileSync(filePath, backupPath);
+  return backupPath;
+}
+
+export function formatCodexBackupNote(
+  backupPath: string,
+  translate: (key: string, params?: Record<string, string>) => string = t,
+): string {
+  const key = 'codex_backup_created';
+  const translated = translate(key, { path: backupPath });
+  return translated === key ? `Codex 原配置已备份到：${backupPath}` : translated;
+}
+
+export function buildCodexModelCatalog(models: CodexCatalogModel[]): string {
+  const reasoningLevels = ['low', 'medium', 'high', 'xhigh'].map((effort) => ({
+    effort,
+    description: effort === 'low' ? 'Fast responses with lighter reasoning' :
+      effort === 'medium' ? 'Balances speed and reasoning depth for everyday tasks' :
+      effort === 'high' ? 'Greater reasoning depth for complex problems' :
+      'Extra high reasoning depth for complex problems',
+  }));
+  return JSON.stringify({ models: models.filter((model) => model.id.startsWith('openai/gpt')).map((model, index) => ({
+    slug: model.id,
+    display_name: model.id.replace('openai/', '').replace(/(^|[-.])([a-z])/g, (_, prefix, letter) => `${prefix}${letter.toUpperCase()}`),
+    description: `${model.id.replace('openai/', '')} coding model.`,
+    default_reasoning_level: 'medium',
+    supported_reasoning_levels: reasoningLevels,
+    shell_type: 'unified_exec',
+    visibility: 'list',
+    supported_in_api: true,
+    priority: index + 1,
+    additional_speed_tiers: [],
+    service_tiers: [],
+    context_window: model.context_length,
+    max_context_window: model.context_length,
+    effective_context_window_percent: 95,
+    input_modalities: ['text', 'image'],
+    used_fallback_model_metadata: false,
+    support_verbosity: false,
+    truncation_policy: { mode: 'tokens', limit: 10000 },
+    experimental_supported_tools: [],
+    base_instructions: 'You are Codex, a coding agent based on GPT-5.',
+  })) }) + '\n';
 }
 
 function readCodexConfig(): string {
@@ -154,6 +256,13 @@ function writeCodexConfig(content: string): void {
     fs.mkdirSync(CODEX_DIR, { recursive: true, mode: 0o700 });
   }
   fs.writeFileSync(CODEX_CONFIG_FILE, content, { encoding: 'utf-8', mode: 0o600 });
+}
+
+function writeCodexCatalog(content: string): void {
+  if (!fs.existsSync(CODEX_CATALOG_DIR)) {
+    fs.mkdirSync(CODEX_CATALOG_DIR, { recursive: true, mode: 0o700 });
+  }
+  fs.writeFileSync(CODEX_CATALOG_FILE, content, { encoding: 'utf-8', mode: 0o600 });
 }
 
 function writeCodexAuth(content: string): void {

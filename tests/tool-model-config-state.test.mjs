@@ -20,6 +20,7 @@ test('Codex model setup saves the fixed model in coding-helper config', async ()
   promptHelper.pressEnter = async () => {};
 
   try {
+    assert.equal(tool.defaultModel, 'openai/gpt-6-astra');
     assert.equal(hasSavedToolModelConfig(tool, configManager.getModels()), false);
 
     await tool.runModelConfigFlow();

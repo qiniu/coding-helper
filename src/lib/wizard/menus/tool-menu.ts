@@ -181,6 +181,12 @@ async function runInitialToolSetup(tool: ITool): Promise<void> {
   const completed = await tool.runModelConfigFlow();
   if (!completed) return;
 
+  if (tool.name === 'codex') {
+    uiRenderer.renderHeader();
+    const confirmed = await promptHelper.confirm(t('tool_config_load_confirm', { tool: tool.displayName }));
+    if (!confirmed) return;
+  }
+
   await applyConfig(tool);
 }
 
@@ -268,11 +274,13 @@ async function applyConfig(tool: ITool): Promise<void> {
     await tool.loadConfig(apiKey, configManager.baseUrl, models);
     uiRenderer.renderHeader();
     uiRenderer.renderSuccess(t('tool_config_loaded', { tool: tool.displayName }));
+    for (const note of tool.getLoadConfigNotes?.() ?? []) uiRenderer.renderHint(note);
   } catch (err: unknown) {
     uiRenderer.renderHeader();
     uiRenderer.renderError(
       err instanceof Error ? err.message : t('tool_config_load_failed', { tool: tool.displayName }),
     );
+    for (const note of tool.getLoadConfigNotes?.() ?? []) uiRenderer.renderHint(note);
   }
   await promptHelper.pressEnter();
 }
