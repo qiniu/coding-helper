@@ -83,10 +83,16 @@ export class CodexTool implements ITool {
   }
 
   async loadConfig(apiKey: string, baseUrl: string, models: ModelConfig): Promise<void> {
+    const backups = [
+      backupCodexFile(CODEX_CONFIG_FILE),
+      backupCodexFile(CODEX_CATALOG_FILE),
+    ].filter((backup): backup is string => !!backup);
     writeCodexAuth(buildCodexAuthJson(readCodexAuth(), apiKey));
     writeCodexCatalog(buildCodexModelCatalog(GPT_MODELS));
-    const content = readCodexConfig();
-    writeCodexConfig(buildCodexConfig(content, baseUrl, models.codexModel || this.defaultModel, CODEX_CATALOG_FILE));
+    writeCodexConfig(buildCodexConfig('', baseUrl, models.codexModel || this.defaultModel, CODEX_CATALOG_FILE));
+    for (const backup of backups) {
+      uiRenderer.renderHint(t('codex_backup_created', { path: backup }));
+    }
   }
 
   async unloadConfig(): Promise<void> {
@@ -108,15 +114,12 @@ export class CodexTool implements ITool {
   }
 }
 
-export function buildCodexConfig(existing: string, baseUrl?: string, model?: string, catalogPath?: string): string {
-  let content = removeManagedCodexConfig(existing);
-  content = upsertTopLevelModelProvider(content);
-  if (catalogPath && !hasTopLevelCatalogPath(content)) {
-    content = upsertTopLevelCatalogPath(content, catalogPath);
-  }
-
+export function buildCodexConfig(_existing: string, baseUrl?: string, model?: string, catalogPath?: string): string {
   const providerBaseUrl = `${(baseUrl || DEFAULT_CODEX_BASE_URL).replace(/\/+$/, '')}/bypass/openai/v1`;
   const sections = [
+    `model_provider = "${PROVIDER_NAME}"`,
+    ...(catalogPath ? [`model_catalog_json = "${escapeTomlString(catalogPath)}"`] : []),
+    '',
     `[model_providers.${PROVIDER_NAME}]`,
     'name = "Qiniu"',
     `base_url = "${escapeTomlString(providerBaseUrl)}"`,
@@ -134,7 +137,7 @@ export function buildCodexConfig(existing: string, baseUrl?: string, model?: str
     );
   }
 
-  return normalizeToml(`${content.trimEnd()}\n\n${sections.join('\n')}`);
+  return normalizeToml(sections.join('\n'));
 }
 
 export function removeManagedCodexConfig(existing: string): string {
@@ -151,26 +154,21 @@ function removeTopLevelCatalogPath(content: string): string {
   return lines.filter((line) => !/^model_catalog_json\s*=\s*"[^"\n]*(?:\/|\\\\)model-catalogs(?:\/|\\\\)qnaigc\.json"\s*$/.test(line.trim())).join('\n');
 }
 
-function hasTopLevelCatalogPath(content: string): boolean {
-  const lines = content.split('\n');
-  const firstTableIndex = lines.findIndex((line) => /^\[[^\]]+\]\s*$/.test(line.trim()));
-  const searchEnd = firstTableIndex >= 0 ? firstTableIndex : lines.length;
-  return lines.some((line, lineIndex) => lineIndex < searchEnd && /^model_catalog_json\s*=/.test(line.trim()));
-}
-
-function upsertTopLevelCatalogPath(content: string, catalogPath: string): string {
-  const lines = content.split('\n');
-  const firstTableIndex = lines.findIndex((line) => /^\[[^\]]+\]\s*$/.test(line.trim()));
-  const insertAt = firstTableIndex >= 0 ? firstTableIndex : lines.length;
-  lines.splice(insertAt, 0, `model_catalog_json = "${escapeTomlString(catalogPath)}"`);
-  return lines.join('\n');
-}
-
 export function buildCodexAuthJson(existing: string, apiKey: string): string {
   const auth = parseJsonObject(existing);
   auth.auth_mode = 'apikey';
   auth.OPENAI_API_KEY = apiKey;
   return `${JSON.stringify(auth, null, 2)}\n`;
+}
+
+export function backupCodexFile(filePath: string, now = new Date()): string | undefined {
+  if (!fs.existsSync(filePath)) return undefined;
+  const pad = (value: number): string => String(value).padStart(2, '0');
+  const timestamp = `${now.getFullYear()}${pad(now.getMonth() + 1)}${pad(now.getDate())}` +
+    `${pad(now.getHours())}${pad(now.getMinutes())}${pad(now.getSeconds())}`;
+  const backupPath = `${filePath}.bak-fenno-${timestamp}`;
+  fs.copyFileSync(filePath, backupPath);
+  return backupPath;
 }
 
 export function buildCodexModelCatalog(models: CodexCatalogModel[]): string {

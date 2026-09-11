@@ -1,10 +1,14 @@
 import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
 import test from 'node:test';
 
 import {
   buildCodexConfig,
   buildCodexAuthJson,
   buildCodexModelCatalog,
+  backupCodexFile,
   removeManagedCodexConfig,
 } from '../dist/lib/tools/codex-tool.js';
 
@@ -21,7 +25,7 @@ test('buildCodexModelCatalog contains only GPT models with Codex metadata', () =
   assert.equal(catalog.models[0].support_verbosity, false);
 });
 
-test('buildCodexConfig preserves unrelated TOML and replaces managed qnaigc blocks', () => {
+test('buildCodexConfig replaces existing TOML to avoid configuration conflicts', () => {
   const existing = [
     'approval_policy = "on-request"',
     'model_provider = "old"',
@@ -45,17 +49,29 @@ test('buildCodexConfig preserves unrelated TOML and replaces managed qnaigc bloc
 
   const next = buildCodexConfig(existing, 'https://api.qnaigc.com', 'openai/gpt-5.2', '/tmp/qnaigc.json');
 
-  assert.match(next, /^approval_policy = "on-request"/);
+  assert.doesNotMatch(next, /approval_policy = "on-request"/);
   assert.match(next, /model_provider = "qnaigc"/);
-  assert.match(next, /\[model_providers\.other\]\nname = "Other"/);
+  assert.doesNotMatch(next, /\[model_providers\.other\]/);
   assert.match(next, /\[model_providers\.qnaigc\]\nname = "Qiniu"\nbase_url = "https:\/\/api\.qnaigc\.com\/bypass\/openai\/v1"/);
   assert.match(next, /requires_openai_auth = true/);
   assert.match(next, /model_catalog_json = "\/tmp\/qnaigc\.json"/);
   assert.doesNotMatch(next, /env_key = "QINIU_API_KEY"/);
   assert.match(next, /\[profiles\.qn-gpt\]\nmodel_provider = "qnaigc"\nmodel = "openai\/gpt-5\.2"/);
-  assert.match(next, /\[profiles\.keep\]\nmodel_provider = "other"\nmodel = "keep-model"/);
+  assert.doesNotMatch(next, /\[profiles\.keep\]/);
   assert.doesNotMatch(next, /https:\/\/old\.example/);
   assert.doesNotMatch(next, /model = "old-model"/);
+});
+
+test('backupCodexFile copies an existing file and returns its backup path', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'coding-helper-codex-'));
+  const file = path.join(dir, 'config.toml');
+  fs.writeFileSync(file, 'customer config\n');
+
+  const backup = backupCodexFile(file, new Date(2026, 8, 11, 12, 34, 56));
+
+  assert.equal(backup, `${file}.bak-fenno-20260911123456`);
+  assert.equal(fs.readFileSync(backup, 'utf8'), 'customer config\n');
+  fs.rmSync(dir, { recursive: true, force: true });
 });
 
 test('removeManagedCodexConfig removes the managed catalog path', () => {
@@ -68,7 +84,7 @@ test('removeManagedCodexConfig preserves a user-owned catalog path', () => {
   assert.match(next, /model_catalog_json = "\/tmp\/custom-catalog\.json"/);
 });
 
-test('buildCodexConfig does not duplicate a user-owned catalog path', () => {
+test('buildCodexConfig replaces a user-owned catalog path', () => {
   const next = buildCodexConfig(
     'model_catalog_json = "/tmp/custom-catalog.json"\n',
     'https://api.qnaigc.com',
@@ -76,17 +92,19 @@ test('buildCodexConfig does not duplicate a user-owned catalog path', () => {
     '/home/user/.codex/model-catalogs/qnaigc.json',
   );
   assert.equal((next.match(/model_catalog_json\s*=/g) || []).length, 1);
-  assert.match(next, /model_catalog_json = "\/tmp\/custom-catalog\.json"/);
+  assert.match(next, /model_catalog_json = "\/home\/user\/\.codex\/model-catalogs\/qnaigc\.json"/);
+  assert.doesNotMatch(next, /custom-catalog/);
 });
 
-test('buildCodexConfig keeps the managed catalog at top level after existing tables', () => {
+test('buildCodexConfig writes the managed catalog at top level', () => {
   const next = buildCodexConfig(
     '[profiles.keep]\nmodel = "keep"\n',
     'https://api.qnaigc.com',
     'openai/gpt-5.5',
     '/home/user/.codex/model-catalogs/qnaigc.json',
   );
-  assert.match(next, /^model_provider = "qnaigc"\nmodel_catalog_json = "\/home\/user\/\.codex\/model-catalogs\/qnaigc\.json"\n\[profiles\.keep\]/);
+  assert.match(next, /^model_provider = "qnaigc"\nmodel_catalog_json = "\/home\/user\/\.codex\/model-catalogs\/qnaigc\.json"/);
+  assert.doesNotMatch(next, /profiles\.keep/);
 });
 
 test('removeManagedCodexConfig removes the managed catalog path with Windows separators', () => {
@@ -95,19 +113,19 @@ test('removeManagedCodexConfig removes the managed catalog path with Windows sep
 });
 
 test('removeManagedCodexConfig removes only helper-managed Codex settings', () => {
-  const content = buildCodexConfig(
-    [
-      '[profiles.keep]',
-      'model_provider = "qnaigc"',
-      'model = "keep"',
-      '',
-      '[model_providers.qnaigc.auth]',
-      'command = "old-token-command"',
-      '',
-    ].join('\n'),
-    'https://api.qnaigc.com',
-    'openai/gpt-5.2',
-  );
+  const content = [
+    '[profiles.keep]',
+    'model_provider = "qnaigc"',
+    'model = "keep"',
+    '',
+    '[model_providers.qnaigc.auth]',
+    'command = "old-token-command"',
+    '',
+    '[profiles.qn-gpt]',
+    'model_provider = "qnaigc"',
+    'model = "openai/gpt-5.2"',
+    '',
+  ].join('\n');
   const next = removeManagedCodexConfig(content);
 
   assert.match(next, /\[profiles\.keep\]\nmodel_provider = "qnaigc"\nmodel = "keep"/);
