@@ -32,6 +32,9 @@ export interface ITool {
   // 将完整配置写入工具
   loadConfig(apiKey: string, baseUrl: string, models: ModelConfig): Promise<void>;
 
+  // 配置装载完成后需要在成功页展示的补充信息
+  getLoadConfigNotes?(): string[];
+
   // 从工具移除配置
   unloadConfig(): void | Promise<void>;
 

@@ -54,6 +54,7 @@ export async function authCommand(tokenOrAction?: string): Promise<void> {
     try {
       await tool.loadConfig(apiKey, configManager.baseUrl, configManager.getModels());
       uiRenderer.renderSuccess(t('tool_config_loaded', { tool: tool.displayName }));
+      for (const note of tool.getLoadConfigNotes?.() ?? []) uiRenderer.renderHint(note);
     } catch (err: unknown) {
       uiRenderer.renderError(
         err instanceof Error ? err.message : t('tool_config_load_failed', { tool: tool.displayName }),

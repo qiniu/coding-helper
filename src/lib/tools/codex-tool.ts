@@ -47,6 +47,7 @@ export class CodexTool implements ITool {
   updateCommand = 'npm install -g @openai/codex@latest';
   npmPackageName = '@openai/codex';
   aliases = ['openai-codex'];
+  private lastBackupPaths: string[] = [];
 
   getVersion(): string | null {
     try {
@@ -83,16 +84,17 @@ export class CodexTool implements ITool {
   }
 
   async loadConfig(apiKey: string, baseUrl: string, models: ModelConfig): Promise<void> {
-    const backups = [
+    this.lastBackupPaths = [
       backupCodexFile(CODEX_CONFIG_FILE),
       backupCodexFile(CODEX_CATALOG_FILE),
     ].filter((backup): backup is string => !!backup);
     writeCodexAuth(buildCodexAuthJson(readCodexAuth(), apiKey));
     writeCodexCatalog(buildCodexModelCatalog(GPT_MODELS));
     writeCodexConfig(buildCodexConfig('', baseUrl, models.codexModel || this.defaultModel, CODEX_CATALOG_FILE));
-    for (const backup of backups) {
-      uiRenderer.renderHint(t('codex_backup_created', { path: backup }));
-    }
+  }
+
+  getLoadConfigNotes(): string[] {
+    return this.lastBackupPaths.map((path) => t('codex_backup_created', { path }));
   }
 
   async unloadConfig(): Promise<void> {

@@ -268,6 +268,7 @@ async function applyConfig(tool: ITool): Promise<void> {
     await tool.loadConfig(apiKey, configManager.baseUrl, models);
     uiRenderer.renderHeader();
     uiRenderer.renderSuccess(t('tool_config_loaded', { tool: tool.displayName }));
+    for (const note of tool.getLoadConfigNotes?.() ?? []) uiRenderer.renderHint(note);
   } catch (err: unknown) {
     uiRenderer.renderHeader();
     uiRenderer.renderError(
