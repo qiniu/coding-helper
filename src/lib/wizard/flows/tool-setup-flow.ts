@@ -28,6 +28,7 @@ async function setupTool(tool: ITool): Promise<void> {
       uiRenderer.renderError(
         err instanceof Error ? err.message : t('tool_config_load_failed', { tool: tool.displayName }),
       );
+      for (const note of tool.getLoadConfigNotes?.() ?? []) uiRenderer.renderHint(note);
       await promptHelper.pressEnter();
       return;
     }
