@@ -166,7 +166,13 @@ export function backupCodexFile(filePath: string, now = new Date()): string | un
   const pad = (value: number): string => String(value).padStart(2, '0');
   const timestamp = `${now.getFullYear()}${pad(now.getMonth() + 1)}${pad(now.getDate())}` +
     `${pad(now.getHours())}${pad(now.getMinutes())}${pad(now.getSeconds())}`;
-  const backupPath = `${filePath}.bak-fenno-${timestamp}`;
+  const baseBackupPath = `${filePath}.bak-fenno-${timestamp}`;
+  let backupPath = baseBackupPath;
+  let suffix = 1;
+  while (fs.existsSync(backupPath)) {
+    backupPath = `${baseBackupPath}-${suffix}`;
+    suffix += 1;
+  }
   fs.copyFileSync(filePath, backupPath);
   return backupPath;
 }

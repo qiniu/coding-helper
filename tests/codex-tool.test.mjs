@@ -74,6 +74,21 @@ test('backupCodexFile copies an existing file and returns its backup path', () =
   fs.rmSync(dir, { recursive: true, force: true });
 });
 
+test('backupCodexFile avoids overwriting an existing same-second backup', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'coding-helper-codex-'));
+  const file = path.join(dir, 'config.toml');
+  const timestamp = new Date(2026, 8, 11, 12, 34, 56);
+  fs.writeFileSync(file, 'first\n');
+  const first = backupCodexFile(file, timestamp);
+  fs.writeFileSync(file, 'second\n');
+  const second = backupCodexFile(file, timestamp);
+
+  assert.equal(fs.readFileSync(first, 'utf8'), 'first\n');
+  assert.equal(fs.readFileSync(second, 'utf8'), 'second\n');
+  assert.notEqual(first, second);
+  fs.rmSync(dir, { recursive: true, force: true });
+});
+
 test('removeManagedCodexConfig removes the managed catalog path', () => {
   const next = removeManagedCodexConfig('model_catalog_json = "/home/user/.codex/model-catalogs/qnaigc.json"\nmodel_provider = "qnaigc"\n');
   assert.doesNotMatch(next, /model_catalog_json/);
