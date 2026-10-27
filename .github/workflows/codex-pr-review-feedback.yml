@@ -9,7 +9,8 @@ permissions:
   contents: read
 
 concurrency:
-  group: codex-review-${{ github.event.workflow_run.head_repository.id }}-${{ github.event.workflow_run.head_branch }}
+  # 旧提交的迟到/取消事件不能取消新提交的审阅。
+  group: codex-review-${{ github.event.workflow_run.head_repository.id }}-${{ github.event.workflow_run.head_sha }}
   cancel-in-progress: true
 
 jobs:

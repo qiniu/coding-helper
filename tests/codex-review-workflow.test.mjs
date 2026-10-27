@@ -14,13 +14,13 @@ function fixture() {
     base: { sha: base, repo: { full_name: 'qiniu/coding-helper' } },
     head: { sha, ref: 'feature', repo: { id: 22 } } };
   const run = { id: 1, run_attempt: 2, event: 'pull_request', head_sha: sha, head_branch: 'feature',
-    head_repository: { id: 22 }, repository: { full_name: 'qiniu/coding-helper' },
+    head_repository: { id: 22, owner: { login: 'contributor' } }, repository: { full_name: 'qiniu/coding-helper' },
     path: '.github/workflows/codex-pr-review.yml', pull_requests: [] };
   const outputs = {};
   const calls = [];
   const github = {
     rest: { repos: { listPullRequestsAssociatedWithCommit: 'associated' },
-      pulls: { get: async () => ({ data: pr }) },
+      pulls: { list: 'open-pulls', get: async () => ({ data: pr }) },
       actions: { listJobsForWorkflowRunAttempt: 'jobs' } },
     paginate: async (method, args) => {
       calls.push({ method, args });
@@ -101,3 +101,33 @@ test('feedback skips updated PR and posts with write client for current PR', asy
   assert.equal(comments[0].issue_number, 44);
   assert.match(comments[0].body, /结论：通过/);
 });
+test('failed review labels and comments instead of being treated as approval', async () => {
+  const workflow = yaml.load(readFileSync(new URL('.github/workflows/codex-pr-review-feedback.yml', root), 'utf8'));
+  const script = workflow.jobs.feedback.steps[0].with.script;
+  const execute = new (Object.getPrototypeOf(async function() {}).constructor)('github', 'context', 'core', 'process', script);
+  const writes = [];
+  const github = { rest: { pulls: { get: async () => ({ data: { state: 'open', draft: false, head: { sha } } }) },
+    issues: { listLabelsOnIssue: 'labels', getLabel: async () => ({}),
+      addLabels: async args => writes.push(args), createComment: async args => writes.push(args) } }, paginate: async () => [] };
+  await execute(github, { repo: { owner: 'qiniu', repo: 'coding-helper' } }, { notice() {} }, {
+    env: { PR_NUMBER: '44', PR_HEAD: sha, CODEX_REVIEW_RESULT: 'failure', CODEX_FINAL_MESSAGE: '' },
+  });
+  assert.deepEqual(writes[0].labels, ['codex: failed']);
+  assert.match(writes[1].body, /未生成反馈/);
+});
+
+test('fork falls back to head owner and branch when commit association is empty', async () => isolated(async () => {
+  const f = fixture();
+  const paginate = f.args.github.paginate;
+  f.args.github.paginate = (method, args) => {
+    if (method === 'associated') return [];
+    if (method === 'open-pulls') {
+      assert.equal(args.head, 'contributor:feature');
+      assert.equal(args.state, 'open');
+      return [{ number: 44 }];
+    }
+    return paginate(method, args);
+  };
+  await resolveReviewPR(f.args);
+  assert.equal(f.outputs.number, '44');
+}));

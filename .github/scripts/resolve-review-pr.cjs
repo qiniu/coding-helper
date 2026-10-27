@@ -7,9 +7,16 @@ module.exports = async function resolveReviewPR({ github, context, core }) {
     throw new Error('Unexpected evidence workflow identity');
   }
   // fork 的 workflow_run.pull_requests 可能为空，使用提交关联 API 获取候选 PR。
-  const candidates = await github.paginate(github.rest.repos.listPullRequestsAssociatedWithCommit, {
+  let candidates = await github.paginate(github.rest.repos.listPullRequestsAssociatedWithCommit, {
     owner, repo, commit_sha: run.head_sha, per_page: 100,
   });
+  // fork 提交尚未进入目标仓库时，提交关联 API 也可能返回空列表。
+  if (candidates.length === 0) {
+    candidates = await github.paginate(github.rest.pulls.list, {
+      owner, repo, state: 'open',
+      head: `${run.head_repository.owner.login}:${run.head_branch}`, per_page: 100,
+    });
+  }
   const matches = [];
   for (const candidate of candidates) {
     const { data: pr } = await github.rest.pulls.get({ owner, repo, pull_number: candidate.number });
