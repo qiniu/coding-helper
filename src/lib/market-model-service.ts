@@ -56,16 +56,18 @@ export interface ModelCapabilities {
 
 // 推断模型能力（features 字段优先，architecture 兜底）
 export function getModelCapabilities(model: MarketModelInfo): ModelCapabilities {
-  const contextLength = model.model_constraints.context_length;
-  const maxTokens = model.model_constraints.max_tokens;
+  const contextLength = model.model_constraints?.context_length ?? 0;
+  const maxTokens = model.model_constraints?.max_tokens ?? 0;
   return {
     toolCall:
-      model.features.includes(FEATURE_TOOL_CALL) ||
-      model.architecture.function_calling.supported,
-    images: model.architecture.input_modalities.includes(MODALITY_IMAGE),
+      model.features?.includes(FEATURE_TOOL_CALL) ||
+      model.architecture?.function_calling?.supported ||
+      false,
+    images: model.architecture?.input_modalities?.includes(MODALITY_IMAGE) ?? false,
     reasoning:
-      model.features.includes(FEATURE_REASONING) ||
-      model.architecture.reasoning.supported,
+      model.features?.includes(FEATURE_REASONING) ||
+      model.architecture?.reasoning?.supported ||
+      false,
     maxInputTokens: contextLength > 0 ? contextLength : DEFAULT_CONTEXT_LENGTH,
     maxOutputTokens: maxTokens > 0 ? maxTokens : DEFAULT_MAX_TOKENS,
   };
