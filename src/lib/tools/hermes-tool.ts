@@ -1,12 +1,12 @@
 import { stateStore } from '../core/state-store.js';
 import { isQiniuBaseUrl } from '../endpoints.js';
+import { findCommand, commandVersion } from '../../utils/find-command.js';
 import { applyConfigEdits, restoreConfigEdits } from '../core/config-transaction.js';
 import { parseYamlDocument, setYamlValue, stringifyYamlDocument, deleteYamlValue } from '../core/yaml-edit.js';
 import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
 import yaml from 'js-yaml';
-import { execSync } from 'node:child_process';
 import type { ITool } from './base-tool.js';
 import { configManager, type ModelConfig } from '../config.js';
 import { t } from '../i18n.js';
@@ -23,28 +23,13 @@ export class HermesTool implements ITool {
   name = 'hermes';
   displayName = 'Hermes Agent';
   command = 'hermes';
+  searchPaths?: string[];
   installCommand = 'curl -fsSL https://hermes-agent.nousresearch.com/install.sh | bash';
   updateCommand = 'hermes update';
 
-  getVersion(): string | null {
-    try {
-      const output = execSync('hermes --version', { stdio: 'pipe', encoding: 'utf-8' }).trim();
-      const match = output.match(/(\d+\.\d+\.\d+)/);
-      return match ? match[1] : output;
-    } catch {
-      return null;
-    }
-  }
+  getVersion(): string | null { const file = findCommand(this.command, this.searchPaths); return file ? commandVersion(file) : null; }
 
-  isInstalled(): boolean {
-    try {
-      const command = process.platform === 'win32' ? 'where hermes' : 'which hermes';
-      execSync(command, { stdio: 'pipe' });
-      return true;
-    } catch {
-      return false;
-    }
-  }
+  isInstalled(): boolean { return !!findCommand(this.command, this.searchPaths); }
 
   getConfig(): Record<string, unknown> {
     return parseYamlObject(readHermesConfig());

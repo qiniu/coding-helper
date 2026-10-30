@@ -1,8 +1,8 @@
+import { findCommand, commandVersion } from '../../utils/find-command.js';
 import fs from 'node:fs';
 import { isDeepStrictEqual } from 'node:util';
 import path from 'node:path';
 import os from 'node:os';
-import { execSync } from 'node:child_process';
 import type { ITool } from './base-tool.js';
 import { configManager, type ModelConfig } from '../config.js';
 import { isQiniuBaseUrl } from '../endpoints.js';
@@ -39,33 +39,17 @@ export class ClaudeCodeTool implements ITool {
   name = 'claude-code';
   displayName = 'Claude Code';
   command = 'claude';
+  searchPaths = [path.join(os.homedir(), '.claude', 'local', 'claude'), path.join(os.homedir(), '.claude', 'local', 'node_modules', '.bin', 'claude')];
   installCommand = 'npm install -g @anthropic-ai/claude-code';
   updateCommand = 'claude update';
   npmPackageName = '@anthropic-ai/claude-code';
   aliases = ['claude'];
 
   // 获取已安装的 Claude Code 版本
-  getVersion(): string | null {
-    try {
-      const output = execSync('claude --version', { stdio: 'pipe', encoding: 'utf-8' }).trim();
-      // 提取语义化版本号（兼容 "1.0.23" 或 "claude v1.0.23" 等格式）
-      const match = output.match(/(\d+\.\d+\.\d+)/);
-      return match ? match[1] : output;
-    } catch {
-      return null;
-    }
-  }
+  getVersion(): string | null { const file = findCommand(this.command, this.searchPaths); return file ? commandVersion(file) : null; }
 
   // 检查 claude 命令是否可用
-  isInstalled(): boolean {
-    try {
-      const command = process.platform === 'win32' ? 'where claude' : 'which claude';
-      execSync(command, { stdio: 'pipe' });
-      return true;
-    } catch {
-      return false;
-    }
-  }
+  isInstalled(): boolean { return !!findCommand(this.command, this.searchPaths); }
 
   // 读取当前 Claude Code settings.json
   getConfig(): Record<string, unknown> {

@@ -1,10 +1,10 @@
+import { findCommand, commandVersion } from '../../utils/find-command.js';
 import { applyConfigEdits, restoreConfigEdits, parseConfigObject } from '../core/config-transaction.js';
 import { validateToml, upsertTopLevelTomlKey, removeTopLevelTomlKey, removeTomlTable as removeSharedTomlTable } from '../core/toml-edit.js';
 import { fetchModelLimits } from './openai-compat-tool.js';
 import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
-import { execSync } from 'node:child_process';
 import type { ITool } from './base-tool.js';
 import { configManager, type ModelConfig } from '../config.js';
 import { DEFAULT_ENDPOINT, getBaseUrl } from '../endpoints.js';
@@ -48,30 +48,15 @@ export class CodexTool implements ITool {
   displayName = 'Codex';
   defaultModel = CODEX_MODEL;
   command = 'codex';
+  searchPaths?: string[];
   installCommand = 'npm install -g @openai/codex';
   updateCommand = 'npm install -g @openai/codex@latest';
   npmPackageName = '@openai/codex';
   aliases = ['openai-codex'];
 
-  getVersion(): string | null {
-    try {
-      const output = execSync('codex --version', { stdio: 'pipe', encoding: 'utf-8' }).trim();
-      const match = output.match(/(\d+\.\d+\.\d+)/);
-      return match ? match[1] : output;
-    } catch {
-      return null;
-    }
-  }
+  getVersion(): string | null { const file = findCommand(this.command, this.searchPaths); return file ? commandVersion(file) : null; }
 
-  isInstalled(): boolean {
-    try {
-      const command = process.platform === 'win32' ? 'where codex' : 'which codex';
-      execSync(command, { stdio: 'pipe' });
-      return true;
-    } catch {
-      return false;
-    }
-  }
+  isInstalled(): boolean { return !!findCommand(this.command, this.searchPaths); }
 
   getConfig(): Record<string, unknown> {
     const content = readCodexConfig();

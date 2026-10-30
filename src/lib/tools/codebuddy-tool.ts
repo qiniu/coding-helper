@@ -1,6 +1,6 @@
+import { findCommand, commandVersion } from '../../utils/find-command.js';
 import path from 'node:path';
 import os from 'node:os';
-import { execSync } from 'node:child_process';
 import type { ITool } from './base-tool.js';
 import { configManager, type ModelConfig } from '../config.js';
 import {
@@ -37,28 +37,13 @@ export class CodeBuddyTool implements ITool {
   name = 'codebuddy';
   displayName = 'CodeBuddy';
   command = 'codebuddy';
+  searchPaths?: string[];
   installCommand = 'npm install -g @tencent-ai/codebuddy-code';
   npmPackageName = '@tencent-ai/codebuddy-code';
 
-  getVersion(): string | null {
-    try {
-      const output = execSync('codebuddy --version', { stdio: 'pipe', encoding: 'utf-8' }).trim();
-      const match = output.match(/(\d+\.\d+\.\d+)/);
-      return match ? match[1] : output;
-    } catch {
-      return null;
-    }
-  }
+  getVersion(): string | null { const file = findCommand(this.command, this.searchPaths); return file ? commandVersion(file) : null; }
 
-  isInstalled(): boolean {
-    try {
-      const command = process.platform === 'win32' ? 'where codebuddy' : 'which codebuddy';
-      execSync(command, { stdio: 'pipe' });
-      return true;
-    } catch {
-      return false;
-    }
-  }
+  isInstalled(): boolean { return !!findCommand(this.command, this.searchPaths); }
 
   getConfig(): Record<string, unknown> {
     try {

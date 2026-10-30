@@ -1,3 +1,6 @@
+import { executeToolUpdate } from '../../../utils/update-command.js';
+import spawn from 'cross-spawn';
+import { findCommand } from '../../../utils/find-command.js';
 import { runCommand } from '../../../commands/run.js';
 import { LauncherShutdown } from '../../../utils/launcher-shutdown.js';
 import chalk from 'chalk';
@@ -325,11 +328,12 @@ export async function launchTool(tool: ITool): Promise<void> {
   }
 
   logger.info(t('tool_launching', { tool: tool.displayName }));
-  const { execSync } = await import('node:child_process');
   try {
-    execSync(tool.command, { stdio: 'inherit' });
-  } catch {
-    // 用户退出工具时正常
+    const result = spawn.sync(findCommand(tool.command, tool.searchPaths) ?? tool.command, [], { stdio: 'inherit' });
+    if (result.error) throw result.error;
+  } catch (error) {
+    uiRenderer.renderError(error instanceof Error ? error.message : String(error));
+    await promptHelper.pressEnter();
   }
 }
 
@@ -377,9 +381,8 @@ export async function updateTool(tool: ITool): Promise<void> {
   if (!confirmed) return;
 
   logger.info(t('tool_updating', { tool: tool.displayName }));
-  const { execSync } = await import('node:child_process');
   try {
-    execSync(tool.updateCommand ?? tool.installCommand, { stdio: 'inherit' });
+    executeToolUpdate(tool);
 
     // 更新后重新获取版本
     const newVersion = tool.getVersion();

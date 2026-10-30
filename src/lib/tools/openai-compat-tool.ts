@@ -1,6 +1,6 @@
 import fs from 'node:fs';
 import { restoreConfigEdits } from '../core/config-transaction.js';
-import { execSync } from 'node:child_process';
+import { findCommand, commandVersion } from '../../utils/find-command.js';
 import type { ITool } from './base-tool.js';
 import { configManager, type ModelConfig } from '../config.js';
 import { marketModelService } from '../market-model-service.js';
@@ -59,27 +59,13 @@ export abstract class OpenAICompatTool implements ITool {
   abstract command: string;
   abstract installCommand: string;
   aliases?: string[];
+  searchPaths?: string[];
   updateCommand?: string;
   npmPackageName?: string;
 
-  isInstalled(): boolean {
-    try {
-      execSync(process.platform === 'win32' ? `where ${this.command}` : `which ${this.command}`, { stdio: 'pipe' });
-      return true;
-    } catch {
-      return false;
-    }
-  }
+  isInstalled(): boolean { return !!findCommand(this.command, this.searchPaths); }
 
-  getVersion(): string | null {
-    try {
-      const output = execSync(`${this.command} --version`, { stdio: 'pipe', encoding: 'utf-8', timeout: 5000 }).trim();
-      const match = output.match(/(\d+\.\d+\.\d+)/);
-      return match ? match[1] : output;
-    } catch {
-      return null;
-    }
-  }
+  getVersion(): string | null { const file = findCommand(this.command, this.searchPaths); return file ? commandVersion(file) : null; }
 
   // 本工具使用的模型：单独选择过的优先，否则用通用默认模型
   protected resolveModel(models: ModelConfig): string {

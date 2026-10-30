@@ -15,6 +15,7 @@ export interface ITool {
 
   // 命令行别名（如 codebuddy 工具支持 'workbuddy' 别名）
   aliases?: string[];
+  searchPaths?: string[];
 
   // 更新命令（可选，默认使用 installCommand）
   updateCommand?: string;
