@@ -1,4 +1,9 @@
 {
+  "doctor_account": "账户可用性",
+  "account_usable": "最小模型请求成功。",
+  "account_unknown": "暂时无法判断账户可用性，请检查网络和模型状态。",
+  "account_unusable": "账户或 API Key 当前无法调用模型。",
+  "account_billing_suspended": "账户因计费状态暂停，请检查余额与账单。",
   "restore_title": "还原客户端配置",
   "restore_nothing": "没有可自动还原的工具，可用 status 检查配置状态。",
   "restore_empty_tools": "请至少提供一个工具名称。",
