@@ -23,6 +23,7 @@
 | Codex | CLI | `~/.codex/config.toml`、`~/.codex/auth.json` |
 | Kimi Code CLI | CLI | [配置说明 / Configuration](docs/tools/kimi-code.md) |
 | CodeBuddy | CLI | `~/.codebuddy/models.json` |
+| Grok CLI | CLI | [配置说明 / Configuration](docs/tools/grok.md) |
 | WorkBuddy | 桌面应用 | `~/.workbuddy/models.json` |
 | Hermes Agent | CLI | `~/.hermes/config.yaml` |
 

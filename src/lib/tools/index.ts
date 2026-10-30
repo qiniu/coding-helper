@@ -4,5 +4,6 @@ export { QwenCodeTool } from './qwen-code-tool.js';
 export { CodexTool } from './codex-tool.js';
 export { KimiCodeTool } from './kimi-code-tool.js';
 export { CodeBuddyTool } from './codebuddy-tool.js';
+export { GrokTool } from './grok-tool.js';
 export { WorkBuddyTool } from './workbuddy-tool.js';
 export { HermesTool } from './hermes-tool.js';
