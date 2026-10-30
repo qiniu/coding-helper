@@ -13,6 +13,7 @@ import { DroidTool } from './tools/droid-tool.js';
 import { MinimaxCodeTool } from './tools/minimax-code-tool.js';
 
 import { CopilotTool } from './tools/copilot-tool.js';
+import { OpenCodeTool } from './tools/opencode-tool.js';
 
 // 工具注册中心
 class ToolManager {
@@ -32,6 +33,7 @@ class ToolManager {
     this.register(new OpenClawTool());
     this.register(new HermesTool());
     this.register(new DroidTool());
+    this.register(new OpenCodeTool());
   }
 
   // 注册工具

@@ -339,6 +339,8 @@ export function createHomeFixtureConfig() {
     'workbuddyModels:',
     '  - openai/gpt-5.5',
     'hermesModel: openai/gpt-5.5',
+    'toolModels:',
+    '  opencode: deepseek-v3',
     '',
   ].join('\n');
 }

@@ -6,7 +6,7 @@
 [![License: AGPL-3.0](https://img.shields.io/badge/License-AGPL--3.0-blue.svg)](https://www.gnu.org/licenses/agpl-3.0)
 [![Node.js Version](https://img.shields.io/node/v/qiniu-coding-helper.svg)](https://nodejs.org)
 
-**The CLI helper for configuring Claude Code, Codex, CodeBuddy, WorkBuddy, and Hermes Agent with Qiniu AI API endpoints**
+**The CLI helper for configuring Claude Code, Codex, CodeBuddy, WorkBuddy, Hermes Agent, and OpenCode with Qiniu AI API endpoints**
 
 [简体中文](README.md) · [Supported Tools](#-supported-tools) · [Features](#-features) · [Prerequisites](#-prerequisites) · [Quick Start](#-quick-start) · [Commands](#-commands) · [Configuration](#-configuration) · [FAQ](#-faq)
 
@@ -30,6 +30,7 @@
 | OpenClaw | CLI | [配置说明 / Configuration](docs/tools/openclaw.md) |
 | Hermes Agent | CLI | `~/.hermes/config.yaml` |
 | Factory Droid | CLI | [配置说明 / Configuration](docs/tools/droid.md) |
+| OpenCode | CLI | `~/.config/opencode/opencode.json` |
 
 ## ✨ Features
 
@@ -42,6 +43,8 @@
 - **🤝 CodeBuddy Integration** — Multi-select Qiniu market models and write them into `~/.codebuddy/models.json`
 - **🤝 WorkBuddy Integration** — Multi-select Qiniu market models and write them into `~/.workbuddy/models.json`
 - **☤ Hermes Agent Integration** — Select a default Qiniu market model and write it into `~/.hermes/config.yaml`
+- **🧱 OpenCode Integration** — Add a Qiniu provider and make it the default model; unloading restores the previous values
+- **🛡️ OpenCode safe writes** — For OpenCode, back up the original file to `~/.coding-helper/backups/` and write atomically; a config that fails to parse is reported, never overwritten
 - **🔍 Health Check** — Built-in `doctor` command to verify config, API Key, network, tools, Git, and Node.js
 - **🌍 Internationalization** — Supports Chinese (zh_CN) and English (en_US)
 
@@ -210,6 +213,7 @@ npx qiniu-coding-helper enter hermes
 | **CodeBuddy Models** | `~/.codebuddy/models.json` | Qiniu model entries (URL, API Key, capabilities) |
 | **WorkBuddy Models** | `~/.workbuddy/models.json` | Qiniu model entries (URL, API Key, capabilities) |
 | **Hermes Agent Config** | `~/.hermes/config.yaml` | Qiniu custom provider, default model, and API Key |
+| **OpenCode Config** | `~/.config/opencode/opencode.json` | Qiniu provider (`qiniu`) and default model |
 
 ### 🌍 Region Endpoints
 
@@ -306,6 +310,27 @@ model:
 Unloading restores the entire pre-load file byte-for-byte, including its provider, model, endpoint, and API key; only helper-created files are removed. External edits block reload and unload. Save those edits separately, restore the original backup, successfully unload to clear the transaction record, then load again. Without restoration state, existing files remain unchanged and legacy credentials require manual recovery.
 
 Treat `~/.hermes/config.yaml` like a password because the API Key is stored in plaintext.
+
+### 🔧 OpenCode Configuration
+
+This adapter supports OpenCode 1.x and installs/updates `opencode-ai@1`, using the v1 `provider/options` schema. The menu identifies it as OpenCode 1.x. Loading and updating reject detected v2 clients; v2 `providers/settings` configurations are rejected without migration or overwriting the v2 installation.
+
+OpenCode's global config lives at `~/.config/opencode/opencode.json` (under `XDG_CONFIG_HOME` when set; `opencode.jsonc` takes precedence when present). Loading adds an OpenAI-compatible provider named `qiniu` and sets the default model to `qiniu/<model>`, leaving other providers and settings untouched:
+
+```json
+{
+  "provider": {
+    "qiniu": {
+      "npm": "@ai-sdk/openai-compatible",
+      "options": { "baseURL": "https://api.qnaigc.com/v1", "apiKey": "<your-api-key>" },
+      "models": { "deepseek-v3": { "name": "deepseek-v3" } }
+    }
+  },
+  "model": "qiniu/deepseek-v3"
+}
+```
+
+Unloading restores the previous `qiniu` provider and `model`, removing fields that did not exist before; only files created by this helper are removed when restoration leaves an empty object. Existing empty files are retained. Unloading only reverses fields that still match the last applied values, preserving subsequent edits. Without restoration state, an existing global config.json, opencode.json or opencode.jsonc causes an actionable error and remains unchanged; remove legacy credentials manually or recover a known backup. It is not reported as successfully removed. When both JSONC and JSON exist, JSONC takes precedence. Commented, malformed, or symlinked configurations are rejected without overwriting them. Provider filters must allow Qiniu, and its whitelist/blacklist must allow the selected model before loading. If JSONC appears after loading, unloading still restores the recorded target; unload before switching the managed target file. Retry if configuration changes while model metadata is being fetched. If managed fields change after loading, unload before loading again. Corrupt or legacy restoration records without an applied snapshot require recovery from backup. Concurrent helper instances fail with a retry message; remove a stale state.lock after a crash only after confirming no helper instance is running. Reloads retain the committed snapshot and a pending journal until the client write completes. After an interruption, recovery identifies the written version before restoring it. If later edits make this ambiguous, it keeps the journal and reports an error. Unloading leaves configuration directories intact, including directory symlink targets. Filters are evaluated in config.json → opencode.json → opencode.jsonc order. Existing options, headers, variants, and unmanaged limit fields of the selected model are preserved, and market reasoning capability is propagated. Original values are tracked separately for each configuration path in `~/.coding-helper/state.json` and the original file is backed up under `~/.coding-helper/backups/`; "Clear Coding Helper Configuration" keeps both.
 
 ---
 

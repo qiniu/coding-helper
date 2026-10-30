@@ -11,3 +11,4 @@ export { WorkBuddyTool } from './workbuddy-tool.js';
 export { OpenClawTool } from './openclaw-tool.js';
 export { HermesTool } from './hermes-tool.js';
 export { DroidTool } from './droid-tool.js';
+export { OpenCodeTool } from './opencode-tool.js';

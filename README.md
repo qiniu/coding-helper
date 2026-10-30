@@ -6,7 +6,7 @@
 [![License: AGPL-3.0](https://img.shields.io/badge/License-AGPL--3.0-blue.svg)](https://www.gnu.org/licenses/agpl-3.0)
 [![Node.js Version](https://img.shields.io/node/v/qiniu-coding-helper.svg)](https://nodejs.org)
 
-**一站式配置 Claude Code、Codex、CodeBuddy、WorkBuddy 和 Hermes Agent 使用七牛 AI API 端点的 CLI 工具**
+**一站式配置 Claude Code、Codex、CodeBuddy、WorkBuddy、Hermes Agent 和 OpenCode 使用七牛 AI API 端点的 CLI 工具**
 
 [English](README.en-US.md) · [支持的工具](#-支持的工具) · [功能特性](#-功能特性) · [前置要求](#-前置要求) · [快速开始](#-快速开始) · [命令一览](#-命令一览) · [配置说明](#-配置说明) · [常见问题](#-常见问题)
 
@@ -30,6 +30,7 @@
 | OpenClaw | CLI | [配置说明 / Configuration](docs/tools/openclaw.md) |
 | Hermes Agent | CLI | `~/.hermes/config.yaml` |
 | Factory Droid | CLI | [配置说明 / Configuration](docs/tools/droid.md) |
+| OpenCode | CLI | `~/.config/opencode/opencode.json` |
 
 ## ✨ 功能特性
 
@@ -42,6 +43,8 @@
 - **🤝 CodeBuddy 集成** — 多选七牛模型市场中的模型，写入 `~/.codebuddy/models.json`
 - **🤝 WorkBuddy 集成** — 多选七牛模型市场中的模型，写入 `~/.workbuddy/models.json`
 - **☤ Hermes Agent 集成** — 选择七牛模型市场中的默认模型，写入 `~/.hermes/config.yaml`
+- **🧱 OpenCode 集成** — 写入七牛 provider 并设为默认模型，卸载时按原值还原
+- **🛡️ OpenCode 安全写入** — OpenCode 写入前备份原文件到 `~/.coding-helper/backups/`，原子写入；配置文件解析失败时报错，不会覆盖
 - **🔍 健康检查** — 内置 `doctor` 命令，检测配置文件、API Key、网络、工具安装状态
 - **🌍 国际化** — 支持中文 (zh_CN) 和英文 (en_US)
 
@@ -210,6 +213,7 @@ npx qiniu-coding-helper enter hermes
 | **CodeBuddy 模型** | `~/.codebuddy/models.json` | 七牛模型条目（URL、API Key、能力标签） |
 | **WorkBuddy 模型** | `~/.workbuddy/models.json` | 七牛模型条目（URL、API Key、能力标签） |
 | **Hermes Agent 配置** | `~/.hermes/config.yaml` | 七牛 custom provider、默认模型和 API Key |
+| **OpenCode 配置** | `~/.config/opencode/opencode.json` | 七牛 provider（`qiniu`）和默认模型 |
 
 ### 🌍 线路端点
 
@@ -304,6 +308,27 @@ model:
 卸载配置按记录逐字节还原装载前的整个文件，包括原有 provider、model、端点和 API Key；仅本工具新建的文件会删除。外部编辑会阻止重载和卸载，请先另存这些编辑，再恢复原始备份，成功卸载以清理事务记录，最后重新装载。没有恢复记录时不修改现有文件，并提示手动清理旧凭据。
 
 请将 `~/.hermes/config.yaml` 视为密码文件，因为其中以明文形式保存了 API Key。
+
+### 🔧 OpenCode 配置
+
+此适配器明确支持 OpenCode 1.x，使用 `opencode-ai@1` 安装和更新，写入 v1 的 `provider/options` 格式。菜单标为 OpenCode 1.x；检测到 v2 时拒绝装载或更新，避免覆盖 v2 安装。v2 的 `providers/settings` 配置也会被拒绝，不自动迁移。
+
+OpenCode 的全局配置在 `~/.config/opencode/opencode.json`（设置了 `XDG_CONFIG_HOME` 时在其下；`opencode.jsonc` 存在时优先使用它）。装载时添加名为 `qiniu` 的 OpenAI 兼容 provider，并把默认模型设为 `qiniu/<模型>`，其他 provider 和设置原样保留：
+
+```json
+{
+  "provider": {
+    "qiniu": {
+      "npm": "@ai-sdk/openai-compatible",
+      "options": { "baseURL": "https://api.qnaigc.com/v1", "apiKey": "<your-api-key>" },
+      "models": { "deepseek-v3": { "name": "deepseek-v3" } }
+    }
+  },
+  "model": "qiniu/deepseek-v3"
+}
+```
+
+卸载配置会还原装载前的 `qiniu` provider 和 `model`；装载前不存在的字段会被移除。只有本工具新建且还原后为空的文件才删除；原有空对象文件保留。卸载只撤销仍与最后装载值相同的字段，保留用户后续修改；没有还原记录且任一全局配置（config.json、opencode.json 或 opencode.jsonc）存在时，明确报错并保留文件，请手动清理旧凭据或恢复已知备份，不会显示已移除。JSONC 与 JSON 同时存在时优先使用 JSONC；含注释、损坏或符号链接配置会明确报错，不会覆盖。provider 过滤禁止七牛，或 qiniu 的 whitelist/blacklist 排除所选模型时，需先调整过滤配置。装载后新增 JSONC 时，卸载仍还原原先记录的目标文件；切换装载目标前必须先卸载原目标。请求模型信息期间配置变化时需重试；装载后的托管字段被手动修改时，先卸载再重新装载。损坏或缺少写入快照的旧还原记录会报错，需要先从备份恢复。多个实例同时操作时会提示稍后重试；异常退出留下的 state.lock 只能在确认没有实例运行后手动移除。重载先保留已提交快照及待提交日志；进程中断后会根据文件内容确认写入是否完成，再继续还原。如果文件又被外部修改而无法判定，则保留恢复记录并报错。卸载不删除配置目录，避免破坏用户目录或目录符号链接。校验过滤时会按 config.json → opencode.json → opencode.jsonc 顺序计算实际配置；选中模型已有的 options、headers、variants 及非托管 limit 字段保留，并写入市场返回的 reasoning 能力。首次写入前的原值按配置文件路径分别记录在 `~/.coding-helper/state.json`，原文件备份在 `~/.coding-helper/backups/`，「清除 Coding Helper 配置」不会删除这两处。
 
 ---
 

@@ -48,3 +48,10 @@ test('hasSavedToolModelConfig recognizes saved tool model fields', () => {
     true,
   );
 });
+
+test('OpenCode saved generic models bypass first-time setup without affecting legacy tools', () => {
+  assert.equal(hasSavedToolModelConfig({ name: 'opencode' }, { toolModels: { opencode: 'vision' } }), true);
+  assert.equal(hasSavedToolModelConfig({ name: 'opencode' }, { defaultModel: 'default' }), true);
+  assert.equal(hasSavedToolModelConfig({ name: 'opencode' }, { toolModels: { other: 'model' } }), false);
+  assert.equal(hasSavedToolModelConfig({ name: 'claude-code' }, { defaultModel: 'default' }), false);
+});

@@ -1,10 +1,11 @@
 // npm registry 版本查询服务
 
 // 从 npm registry 获取包的最新版本
-export async function fetchLatestVersion(packageName: string): Promise<string | null> {
+export async function fetchLatestVersion(packageName: string, supportedMajor?: number): Promise<string | null> {
+  let timeout: ReturnType<typeof setTimeout> | undefined;
   try {
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 5000);
+    timeout = setTimeout(() => controller.abort(), 5000);
 
     const response = await fetch(`https://registry.npmjs.org/${packageName}/latest`, {
       method: 'GET',
@@ -12,14 +13,18 @@ export async function fetchLatestVersion(packageName: string): Promise<string | 
       signal: controller.signal,
     });
 
-    clearTimeout(timeout);
 
     if (!response.ok) return null;
 
     const data = (await response.json()) as { version?: string };
-    return data.version || null;
+    const version = data.version;
+    if (typeof version !== 'string' || !version) return null;
+    if (supportedMajor !== undefined && Number(version.match(/^(\d+)\./)?.[1]) !== supportedMajor) return null;
+    return version;
   } catch {
     return null;
+  } finally {
+    clearTimeout(timeout);
   }
 }
 

@@ -165,6 +165,10 @@ test('createScenarioErrorResult preserves transcript and failure reason in repor
   assert.match(report, /Timed out waiting/);
 });
 
+test('interactive fixture saves the OpenCode model to exercise menu navigation', () => {
+  assert.match(createHomeFixtureConfig(), /toolModels:\n  opencode: deepseek-v3/);
+});
+
 test('selector visits every tool beyond the visible page and supports launch-only tools',()=>{
   const tools=Array.from({length:13},(_,i)=>({name:'tool-'+i,displayName:'Tool '+i,launchOnly:i===12}));
   const scenarios=buildScenarios(tools);const selector=scenarios[1];
