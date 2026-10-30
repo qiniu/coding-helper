@@ -5,6 +5,18 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.5.0] - 2026-10-30
+
+### 更新内容
+* fix(ci): support Codex reviews for external contributors by @krisxia0506 in https://github.com/qiniu/coding-helper/pull/48
+* chore: require maintainer review for all files by @krisxia0506 in https://github.com/qiniu/coding-helper/pull/66
+* fix: 容错市场模型能力字段为空或缺失 by @laitekin in https://github.com/qiniu/coding-helper/pull/44
+* build: 跨平台构建与 CI 测试（拆分 0b） by @laitekin in https://github.com/qiniu/coding-helper/pull/45
+* fix(release): publish through a reviewed version PR by @krisxia0506 in https://github.com/qiniu/coding-helper/pull/90
+
+
+**Full Changelog**: https://github.com/qiniu/coding-helper/compare/v0.4.0...v0.5.0
+
 ## [0.4.0] - 2026-09-11
 
 ### 更新内容
