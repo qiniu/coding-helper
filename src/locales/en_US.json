@@ -1,5 +1,6 @@
 {
   "quick_save_failed": "Client settings were applied, but helper settings could not be saved. Fix helper permissions or use restore to undo client changes.",
+  "quick_launch_only_no_save": "Launch-only tools require saved helper settings; remove --no-save.",
   "setup_preview_ready": "Planned configuration for {{tool}}; no files written.",
   "setup_preview_unsupported": "This adapter requires an external writer and does not support a safe preview.",
   "quick_start": "Start the tool",

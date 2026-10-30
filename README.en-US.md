@@ -34,6 +34,8 @@
 
 ## ✨ Features
 
+Quick configuration accepts `claude,codex,opencode` or `all` for installed CLI tools. `--dry-run` previews without writing files; `--no-save` writes clients and restoration journals without saving helper keys/endpoints/models, and skips launch-only tools. Only successful model settings are saved. Exit codes are 1 if no tool succeeds and 2 for partial write failures. Previews still perform network checks and omit configuration contents.
+
 `coding-helper setup --tools codex --dry-run --json` previews transactions in memory and reports file paths, operations and line counts without creating client directories, backups, locks or journals. Configuration contents are omitted to protect existing credentials. MiniMax's external writer does not support safe previews and reports failure explicitly.
 
 Quick setup: `coding-helper opencode [API key] [model ID]`; keys can also come from `QINIU_API_KEY` or saved settings. Supports `--intl` and `--json`. Use `--key` for any key format and `--model` to avoid positional ambiguity. Helper settings are saved only after validation and successful client configuration. Codex compatibility is checked using a minimal Responses request.

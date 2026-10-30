@@ -33,6 +33,8 @@ export function createProgram(): Command {
     .option('--json', 'print quick configuration results as JSON')
     .option('--key <key>', 'explicit API key, including non-sk formats')
     .option('--model <id>', 'explicit model ID to avoid positional ambiguity')
+    .option('--dry-run', 'preview quick configuration without writing files')
+    .option('--no-save', 'write client settings without saving helper connection or models')
     .action(async (tool: string | undefined, values: string[], options: QuickOptions) => {
       if (tool) { await quickCommand(tool, values, options); return; }
       const wizard = new Wizard();

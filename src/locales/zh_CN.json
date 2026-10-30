@@ -1,5 +1,6 @@
 {
   "quick_save_failed": "客户端已配置，但 helper 设置保存失败，请检查权限，或用 restore 撤销客户端改动。",
+  "quick_launch_only_no_save": "启动器工具依赖 helper 保存的配置，请去掉 --no-save。",
   "setup_preview_ready": "已生成 {{tool}} 的配置计划，未写入文件。",
   "setup_preview_unsupported": "该适配器依赖外部写入命令，暂不支持安全预演。",
   "quick_start": "启动工具",

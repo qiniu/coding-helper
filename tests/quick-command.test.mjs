@@ -40,11 +40,11 @@ export async function runQuick(args, extraEnv = {}, seed) {
   const helper = path.join(home, '.coding-helper/config.yaml');
   const before = 'lang: en_US\nendpoint: china\napi_key: old-key\n';
   fs.writeFileSync(helper, before);
-  if (seed) seed(home);
+  const preload = seed?.(home);
   const env = { HOME: home, USERPROFILE: home, XDG_CONFIG_HOME: path.join(home, '.config'), PATH: '/usr/bin:/bin',
     CODING_HELPER_BASE_URL_CHINA: `${base}/cn`, CODING_HELPER_BASE_URL_INTERNATIONAL: `${base}/intl`, ...extraEnv };
   try {
-    const result = await execute(process.execPath, [path.resolve('dist/cli.js'), ...args], { env, timeout: 15000 });
+    const result = await execute(process.execPath, [...(preload ? ['--require', preload] : []), path.resolve('dist/cli.js'), ...args], { env, timeout: 15000 });
     return { ...result, code: 0, home, helper, before };
   } catch (error) { return { stdout: error.stdout, stderr: error.stderr, code: error.code, home, helper, before }; }
 }
@@ -91,6 +91,66 @@ test('Responses probe rejects untyped, failed or incomplete streams', async () =
   assert.equal(isCodexCompatibleStream('data: {"type":"response.completed"}\n\n'), true);
   assert.equal(isCodexCompatibleStream('data: {"type":"response.incomplete","response":{"incomplete_details":{"reason":"max_output_tokens"}}}\n\n'), true);
   for (const text of ['data: {}\n\n','data: {"type":"response.created"}\n\n', 'data: {"type":"response.failed"}\n\n']) assert.equal(isCodexCompatibleStream(text), false);
+});
+
+test('multi-tool quick setup merges model mappings and deduplicates aliases', async () => {
+  const result = await runQuick(['claude,claude-code,opencode,qwen-code','sk-cn','vendor/chat','--json']);
+  assert.equal(result.code, 0, result.stdout + result.stderr);
+  const output = JSON.parse(result.stdout);
+  assert.equal(output.results.length, 3);
+  assert.ok(output.results.every(result => result.status === 'success'));
+  const settings = fs.readFileSync(result.helper, 'utf8');
+  assert.match(settings, /opencode: vendor\/chat/);
+  assert.match(settings, /qwen-code: vendor\/chat/);
+});
+test('an incompatible tool is skipped while compatible tools in the same request succeed', async () => {
+  const result = await runQuick(['codex,opencode','sk-cn','vendor/chat','--json']);
+  assert.equal(result.code, 0, result.stdout + result.stderr);
+  assert.deepEqual(JSON.parse(result.stdout).results.map(result => result.status), ['skipped','success']);
+  assert.equal(fs.existsSync(path.join(result.home,'.codex')), false);
+});
+test('partial write failures return 2 and save models only for successful clients', async () => {
+  const result = await runQuick(['codex,opencode','sk-cn','--json'], {}, home => {
+    fs.mkdirSync(path.join(home,'.config/opencode'), {recursive:true});
+    fs.writeFileSync(path.join(home,'.config/opencode/opencode.json'), '{broken-old-secret');
+  });
+  assert.equal(result.code, 2, result.stdout + result.stderr);
+  assert.deepEqual(JSON.parse(result.stdout).results.map(result => result.status), ['success','failed']);
+  assert.match(fs.readFileSync(result.helper,'utf8'), /codexModel:/);
+  assert.doesNotMatch(fs.readFileSync(result.helper,'utf8'), /opencode:/);
+  assert.equal(result.stdout.includes('broken-old-secret'), false);
+});
+test('no-save keeps helper settings unchanged while retaining client restoration journals', async () => {
+  const result = await runQuick(['opencode','sk-cn','--no-save','--json']);
+  assert.equal(result.code, 0, result.stdout);
+  assert.equal(JSON.parse(result.stdout).helperSaved, false);
+  assert.equal(fs.readFileSync(result.helper,'utf8'), result.before);
+  assert.ok(fs.existsSync(path.join(result.home,'.coding-helper/state.json')));
+  assert.ok(fs.existsSync(path.join(result.home,'.config/opencode/opencode.json')));
+});
+test('quick dry-run previews multiple clients without persisting keys, files or journals', async () => {
+  const result = await runQuick(['codex,opencode','sk-cn','--dry-run','--json']);
+  assert.equal(result.code, 0, result.stdout + result.stderr);
+  const output = JSON.parse(result.stdout);
+  assert.equal(output.dryRun, true);
+  assert.ok(output.changes.length >= 4);
+  assert.equal(fs.readFileSync(result.helper,'utf8'), result.before);
+  assert.equal(fs.existsSync(path.join(result.home,'.codex')), false);
+  assert.equal(fs.existsSync(path.join(result.home,'.config')), false);
+  assert.deepEqual(fs.readdirSync(path.dirname(result.helper)), ['config.yaml']);
+  assert.equal(result.stdout.includes('sk-cn'), false);
+});
+test('all selects only detected CLI tools and does not execute installed host clients', async () => {
+  const result = await runQuick(['all','sk-cn','--no-save','--json'], {}, home => {
+    const dir = path.join(home,'.local/bin'); fs.mkdirSync(dir,{recursive:true});
+    for (const name of ['opencode','opencode.cmd','qwen','qwen.cmd']) fs.writeFileSync(path.join(dir,name),'fixture',{mode:0o700});
+    const preload = path.join(home,'host-isolation.cjs');
+    fs.writeFileSync(preload, "const fs=require('node:fs'),stat=fs.statSync;fs.statSync=function(file,...args){if(/^\\/(opt\\/homebrew|usr\\/local)\\/bin\\//.test(String(file))){const e=Error('absent');e.code='ENOENT';throw e;}return stat.call(this,file,...args);};require('node:child_process').spawnSync=()=>({status:0,stdout:'1.2.3',stderr:''});\n");
+    return preload;
+  });
+  assert.equal(result.code, 0, result.stdout + result.stderr);
+  assert.deepEqual(JSON.parse(result.stdout).results.map(result => result.tool).sort(), ['opencode','qwen-code']);
+  assert.equal(fs.readFileSync(result.helper,'utf8'), result.before);
 });
 
 test('explicit non-sk keys override saved credentials and select the requested model', async () => {

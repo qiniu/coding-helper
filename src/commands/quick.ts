@@ -1,4 +1,4 @@
-import { configManager } from '../lib/config.js';
+import { configManager, type ModelConfig } from '../lib/config.js';
 import { i18n, t } from '../lib/i18n.js';
 import { DEFAULT_ENDPOINT, ENDPOINT_DEFINITIONS, getBaseUrl, otherEndpoint } from '../lib/endpoints.js';
 import { validateApiKey, checkAccountStatus, describeAccountStatus } from '../lib/api-validator.js';
@@ -6,29 +6,39 @@ import { toolManager } from '../lib/tool-manager.js';
 import { modelService } from '../lib/model-service.js';
 import { marketModelService } from '../lib/market-model-service.js';
 import { parseQuickArgs, pickApiKey, pickModel } from '../lib/core/quick-args.js';
-import { modelConfigFor, savedModelFor } from '../lib/core/model-mapping.js';
-import { applyTool, type ToolResult } from '../lib/core/tool-service.js';
+import { modelConfigFor, savedModelFor, mergeModelConfigs } from '../lib/core/model-mapping.js';
+import { applyTool, exitCodeFor, type ToolResult } from '../lib/core/tool-service.js';
+import { previewWrites, publicPlannedChanges } from '../lib/core/safe-write.js';
+import type { ITool } from '../lib/tools/base-tool.js';
 import { promptHelper } from '../lib/wizard/ui/prompt-helper.js';
 import { uiRenderer } from '../lib/wizard/ui/ui-renderer.js';
 import { jsonToolResults, renderToolResults } from '../lib/wizard/ui/tool-results.js';
 import { withQuietLogs } from '../utils/logger.js';
 
-export interface QuickOptions { intl?: boolean; json?: boolean; key?: string; model?: string; }
+export interface QuickOptions { intl?: boolean; json?: boolean; dryRun?: boolean; save?: boolean; key?: string; model?: string; }
+
+class QuickError extends Error {
+  constructor(public readonly code: string, public readonly suggestions: string[] = []) { super(code); }
+}
 
 export async function quickCommand(target: string, rest: string[], options: QuickOptions): Promise<void> {
   let initialized = false;
   try {
     i18n.init(); initialized = true;
     const args = parseQuickArgs(target, rest, { apiKey: options.key, model: options.model });
-    if (args.tools === 'all' || args.tools.length !== 1) throw new Error('Specify one tool');
-    const tool = toolManager.get(args.tools[0]);
-    if (!tool) throw new Error('Unknown tool');
+    const tools = args.tools === 'all' ? toolManager.getAll().filter(tool => tool.isInstalled() === true)
+      : [...new Set(args.tools.map(name => {
+        const tool = toolManager.get(name);
+        if (!tool) throw new QuickError('unknown_tool');
+        return tool;
+      }))];
+    if (!tools.length) throw new QuickError('no_installed_tools');
     let picked = pickApiKey(args, process.env, configManager.getApiKey());
     if (!picked && !options.json && process.stdin.isTTY && process.stdout.isTTY) {
       const key = (await promptHelper.password(t('apikey_prompt'))).trim();
       if (key) picked = { key, source: 'prompt' };
     }
-    if (!picked) throw new Error('API key missing');
+    if (!picked) throw new QuickError('key_missing');
     const apiKey = picked.key;
     let endpoint = options.intl ? 'international' : configManager.getEndpoint();
     if (!Object.hasOwn(ENDPOINT_DEFINITIONS, endpoint)) endpoint = DEFAULT_ENDPOINT;
@@ -38,7 +48,7 @@ export async function quickCommand(target: string, rest: string[], options: Quic
       const retry = await validateApiKey(apiKey, getBaseUrl(alternate));
       if (retry.valid) { endpoint = alternate; validation = retry; }
     }
-    if (!validation.valid) throw new Error('API key validation failed');
+    if (!validation.valid) throw new QuickError('key_invalid');
     const baseUrl = getBaseUrl(endpoint);
     const account = await checkAccountStatus(apiKey, baseUrl);
     if (account.usable === false) throw new Error(describeAccountStatus(account));
@@ -48,42 +58,64 @@ export async function quickCommand(target: string, rest: string[], options: Quic
       const market = await marketModelService.fetchModels(baseUrl, apiKey);
       if (market.length) capable = new Set(market.filter(model => model.features?.includes('工具调用') || model.architecture?.function_calling?.supported).map(model => model.id));
     } catch { /* 元数据不可用时仅校验模型存在性及适配器协议。 */ }
-    const saved = savedModelFor(tool, configManager.getModels());
-    const pick = pickModel(args.model, saved, available, capable);
-    let model: string | undefined;
-    if (args.model) {
-      if ('model' in pick) model = pick.model;
-      else if (pick.error === 'not_available' && tool.checkModel) model = args.model;
-      if (!model) throw new Error('Requested model is unavailable or does not support tool calling');
-      if (await tool.checkModel?.(model, { apiKey, baseUrl })) throw new Error('Model protocol is incompatible');
-    } else {
-      const candidates = tool.checkModel ? [saved, tool.defaultModel, 'model' in pick ? pick.model : undefined] : ['model' in pick ? pick.model : undefined];
+    const savedModels = configManager.getModels();
+    const requested = pickModel(args.model, undefined, available, capable);
+    if (args.model && 'error' in requested && !(requested.error === 'not_available' && tools.every(tool => !!tool.checkModel))) {
+      throw new QuickError('model_unavailable', requested.suggestions);
+    }
+    const results: ToolResult[] = [];
+    const plans: { tool: ITool; model: string; models: ModelConfig }[] = [];
+    // 所有模型计划先完成校验，随后才进行任何客户端写入。
+    for (const tool of tools) {
+      if (tool.launchOnly && options.save === false) { results.push({ tool, status: 'skipped', reason: 'quick_launch_only_no_save' }); continue; }
+      const saved = savedModelFor(tool, savedModels);
+      const pick = pickModel(args.model, saved, available, capable);
+      const candidates = args.model ? ['model' in requested ? requested.model : args.model]
+        : tool.checkModel ? [saved && (!available.includes(saved) || capable === undefined || capable.has(saved)) ? saved : undefined, tool.defaultModel, 'model' in pick ? pick.model : undefined]
+        : ['model' in pick ? pick.model : undefined];
+      let model: string | undefined;
       for (const candidate of [...new Set(candidates.filter((value): value is string => !!value))]) {
         if (!await tool.checkModel?.(candidate, { apiKey, baseUrl })) { model = candidate; break; }
       }
-      if (!model) throw new Error('No compatible model is available');
+      if (!model) { results.push({ tool, status: 'skipped', reason: 'quick_model_incompatible' }); continue; }
+      plans.push({ tool, model, models: modelConfigFor(tool, model) });
     }
-    const models = modelConfigFor(tool, model);
-    const apply = (): Promise<ToolResult> => tool.launchOnly ? Promise.resolve({ tool, status: 'success' }) : applyTool(tool, { apiKey, baseUrl, models });
-    const result = await (options.json ? withQuietLogs(apply) : apply());
+    const perform = async (): Promise<ToolResult[]> => {
+      const applied: ToolResult[] = [];
+      for (const { tool, models } of plans) {
+        const apply = (): Promise<ToolResult> => tool.launchOnly ? Promise.resolve({ tool, status: 'success' }) : applyTool(tool, { apiKey, baseUrl, models });
+        applied.push(await (options.json || options.dryRun ? withQuietLogs(apply) : apply()));
+      }
+      return applied;
+    };
+    const planned = options.dryRun ? await previewWrites(perform) : { value: await perform(), changes: [] };
+    results.push(...planned.value);
+    results.sort((a, b) => tools.indexOf(a.tool) - tools.indexOf(b.tool));
+    const successful = plans.filter(plan => results.some(result => result.tool === plan.tool && result.status === 'success'));
     let helperSaved = false, saveFailed = false;
-    if (result.status === 'success') {
+    if (successful.length && !options.dryRun && options.save !== false) {
       try {
-        configManager.saveSettings(apiKey, endpoint, models);
+        configManager.saveSettings(apiKey, endpoint, mergeModelConfigs(...successful.map(plan => plan.models)));
         modelService.clearCache(); marketModelService.clearCache(); helperSaved = true;
       } catch { saveFailed = true; }
     }
-    const exitCode = result.status === 'success' && !saveFailed ? 0 : 1;
-    if (options.json) console.log(JSON.stringify({ keySource: picked.source, endpoint, model, results: jsonToolResults([result]), helperSaved, ...(saveFailed ? { error: 'helper_settings_failed' } : {}), exitCode }, null, 2));
+    const exitCode = saveFailed || !successful.length ? 1 : exitCodeFor(results);
+    const model = tools.length === 1 ? plans[0]?.model : 'model' in requested ? requested.model : undefined;
+    const preview = options.dryRun ? { dryRun: true, changes: publicPlannedChanges(planned.changes) } : {};
+    if (options.json) console.log(JSON.stringify({ keySource: picked.source, endpoint, model,
+      toolModels: Object.fromEntries(plans.map(plan => [plan.tool.name, plan.model])),
+      results: jsonToolResults(results), helperSaved, ...(saveFailed ? { error: 'helper_settings_failed' } : {}), ...preview, exitCode }, null, 2));
     else {
-      renderToolResults([result], apiKey);
+      renderToolResults(results, apiKey, !!options.dryRun);
       if (saveFailed) uiRenderer.renderError(t('quick_save_failed'));
-      if (result.status === 'success' && !saveFailed) uiRenderer.renderHint(`${t('quick_start')}: ${tool.launchOnly ? `coding-helper run ${tool.name}` : tool.command}`);
+      if (options.dryRun) for (const change of publicPlannedChanges(planned.changes)) console.log(JSON.stringify(change));
+      else if (!saveFailed) for (const { tool } of successful) uiRenderer.renderHint(`${t('quick_start')}: ${tool.launchOnly ? `coding-helper run ${tool.name}` : tool.command}`);
     }
     process.exitCode = exitCode;
-  } catch {
-    if (options.json) console.log(JSON.stringify({ error: 'quick_configuration_failed', exitCode: 1 }));
-    else { if (!initialized) i18n.init('en_US'); uiRenderer.renderError(t('quick_failed')); }
+  } catch (error) {
+    const code = error instanceof QuickError ? error.code : 'quick_configuration_failed';
+    if (options.json) console.log(JSON.stringify({ error: code, ...(error instanceof QuickError && error.suggestions.length ? { suggestions: error.suggestions } : {}), exitCode: 1 }));
+    else { if (!initialized) i18n.init('en_US'); uiRenderer.renderError(`${t('quick_failed')} (${code})`); }
     process.exitCode = 1;
   }
 }

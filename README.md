@@ -34,6 +34,8 @@
 
 ## ✨ 功能特性
 
+多工具快捷配置：`coding-helper claude,codex,opencode [Key] [模型]`；`all` 选择已安装的 CLI 工具。支持 `--dry-run` 和 `--no-save`。后者只写客户端配置及恢复日志，不保存 helper 的 Key/线路/模型，启动器工具会跳过。仅成功工具的模型被保存；没有成功工具退出 1，部分写入失败退出 2。预演仍会做网络校验，但不输出配置正文。
+
 `coding-helper setup --tools codex --dry-run --json` 在内存中运行配置事务，报告文件路径、动作和行数，不创建客户端目录、备份、锁或恢复日志。输出不含配置正文，避免旧凭据进入日志。MiniMax 的外部写入命令不支持安全预演，会明确返回失败。
 
 单工具快捷配置：`coding-helper opencode [API Key] [模型 ID]`，Key 也可从 `QINIU_API_KEY` 或已保存配置读取；支持 `--intl`、`--json`。任意前缀的 Key 可用 `--key` 明确指定，`--model` 可消除模型位置参数歧义。所有校验完成且客户端装载成功后才保存 helper 设置。Codex 会用最小 Responses 请求验证协议兼容性。
