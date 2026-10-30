@@ -163,6 +163,25 @@ export class ClaudeCodeTool implements ITool {
     });
   }
 
+  // 启动器沿用相同环境配置，清掉父进程可能遗留的模型覆盖
+  getLaunchEnv(apiKey: string, baseUrl: string, models: ModelConfig): Record<string, string | undefined> {
+    const env: Record<string, string | undefined> = Object.fromEntries(CLAUDE_ENV_KEYS.map(key => [key, undefined]));
+    for (const key of ['CLAUDE_CODE_USE_BEDROCK','CLAUDE_CODE_USE_VERTEX','CLAUDE_CODE_USE_FOUNDRY','CLAUDE_CODE_USE_ANTHROPIC_AWS','CLAUDE_CODE_USE_MANTLE','ANTHROPIC_API_KEY']) env[key] = undefined;
+    Object.assign(env, { ANTHROPIC_BASE_URL: baseUrl, ANTHROPIC_AUTH_TOKEN: apiKey, API_TIMEOUT_MS: API_TIMEOUT,
+      CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: '1', CLAUDE_CODE_ATTRIBUTION_HEADER: '0' });
+    const selected = models.claudeCode || {};
+    if (selected.haikuModel) env.ANTHROPIC_DEFAULT_HAIKU_MODEL = selected.haikuModel;
+    if (selected.sonnetModel) env.ANTHROPIC_DEFAULT_SONNET_MODEL = selected.sonnetModel;
+    if (selected.opusModel) env.ANTHROPIC_DEFAULT_OPUS_MODEL = selected.opusModel;
+    if (selected.subagentModel) env.CLAUDE_CODE_SUBAGENT_MODEL = selected.subagentModel;
+    return env;
+  }
+
+  getLaunchSettings(apiKey: string, baseUrl: string, models: ModelConfig): Record<string, unknown> {
+    const env = Object.fromEntries(Object.entries(this.getLaunchEnv(apiKey, baseUrl, models)).map(([key,value]) => [key,value ?? '']));
+    return { env };
+  }
+
   // 从 Claude Code 移除配置
   unloadConfig(): void {
     this.clearModelConfig();

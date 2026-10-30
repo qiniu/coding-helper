@@ -178,6 +178,6 @@
   "minimax_provider_add_failed": "mcode provider add failed: {{error}}",
   "run_unsupported": "{{tool}} does not support launcher mode",
   "run_supported_tools": "Supported tools: {{tools}}",
-  "setup_reason_launch_only": "No config file; launch it with coding-helper run",
+  "setup_reason_launch_only": "Copilot uses session environment variables. Run coding-helper run copilot instead of loading a configuration file.",
   "droid_select_loaded_model": "Model registered. Start Droid, run /model, and select Qiniu: <your selected model> to activate it. The current session default has not changed."
 }

@@ -18,7 +18,7 @@ test('auth reload for a launch-only extension never calls the configuration writ
 test('launch-only initialization reports ready without attempting config writes',async()=>{
  const get=configManager.getApiKey,enter=promptHelper.pressEnter;const names=['renderHeader','renderHint','renderSuccess','renderError'];const originals=Object.fromEntries(names.map(n=>[n,uiRenderer[n]]));const messages=[];
  for(const name of names)uiRenderer[name]=value=>messages.push([name,value]);configManager.getApiKey=()=> 'test-token';promptHelper.pressEnter=async()=>{};
- try{for(const lang of ['en_US','zh_CN']){i18n.init(lang);messages.length=0;await setupTool({displayName:'GitHub Copilot CLI',name:'copilot',launchOnly:true,runModelConfigFlow:async()=>true,loadConfig:async()=>assert.fail('must not load')});assert.ok(messages.some(([kind,value])=>kind==='renderHint'&&value.includes('coding-helper run')));assert.ok(messages.some(([kind])=>kind==='renderSuccess'));assert.equal(messages.some(([kind])=>kind==='renderError'),false);}
+ try{for(const lang of ['en_US','zh_CN']){i18n.init(lang);messages.length=0;await setupTool({displayName:'GitHub Copilot CLI',name:'copilot',launchOnly:true,runModelConfigFlow:async()=>true,loadConfig:async()=>assert.fail('must not load')});assert.ok(messages.some(([kind,value])=>kind==='renderHint'&&value.includes('coding-helper run copilot')));assert.ok(messages.some(([kind])=>kind==='renderSuccess'));assert.equal(messages.some(([kind])=>kind==='renderError'),false);}
  messages.length=0;await setupTool({launchOnly:true,runModelConfigFlow:async()=>false});assert.equal(messages.length,0);
  }finally{Object.assign(uiRenderer,originals);configManager.getApiKey=get;promptHelper.pressEnter=enter;}
 });

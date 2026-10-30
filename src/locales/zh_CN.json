@@ -191,6 +191,6 @@
   "minimax_provider_add_failed": "mcode provider add 失败：{{error}}",
   "run_unsupported": "{{tool}} 不支持启动器模式",
   "run_supported_tools": "支持的工具：{{tools}}",
-  "setup_reason_launch_only": "无配置文件，请用 coding-helper run 启动",
+  "setup_reason_launch_only": "Copilot 使用会话环境变量，请运行 coding-helper run copilot，无需装载配置文件。",
   "droid_select_loaded_model": "模型已注册。启动 Droid 后运行 /model，选择 Qiniu: <所选模型> 才会生效；当前会话默认模型尚未改变。"
 }

@@ -1,4 +1,5 @@
 export { MinimaxCodeTool } from './minimax-code-tool.js';
+export { CopilotTool } from './copilot-tool.js';
 export type { ITool } from './base-tool.js';
 export { ClaudeCodeTool } from './claude-code-tool.js';
 export { QwenCodeTool } from './qwen-code-tool.js';
