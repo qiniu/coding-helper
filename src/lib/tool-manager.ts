@@ -7,6 +7,7 @@ import { CodeBuddyTool } from './tools/codebuddy-tool.js';
 import { GrokTool } from './tools/grok-tool.js';
 import { WorkBuddyTool } from './tools/workbuddy-tool.js';
 import { HermesTool } from './tools/hermes-tool.js';
+import { DroidTool } from './tools/droid-tool.js';
 
 import { MinimaxCodeTool } from './tools/minimax-code-tool.js';
 
@@ -25,6 +26,7 @@ class ToolManager {
     this.register(new GrokTool());
     this.register(new WorkBuddyTool());
     this.register(new HermesTool());
+    this.register(new DroidTool());
   }
 
   // 注册工具

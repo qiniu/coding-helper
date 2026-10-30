@@ -27,6 +27,7 @@
 | Grok CLI | CLI | [配置说明 / Configuration](docs/tools/grok.md) |
 | WorkBuddy | 桌面应用 | `~/.workbuddy/models.json` |
 | Hermes Agent | CLI | `~/.hermes/config.yaml` |
+| Factory Droid | CLI | [配置说明 / Configuration](docs/tools/droid.md) |
 
 ## ✨ 功能特性
 

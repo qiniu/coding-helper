@@ -174,5 +174,6 @@
   "auth_reload_tools": "Available tools: {{tools}}",
   "auth_unknown_tool": "Unknown tool: {{tool}}",
   "kimi_legacy_cli": "Found the legacy kimi-cli {{version}} (reads ~/.kimi). Install the new Kimi Code instead: {{command}}",
-  "minimax_provider_add_failed": "mcode provider add failed: {{error}}"
+  "minimax_provider_add_failed": "mcode provider add failed: {{error}}",
+  "droid_select_loaded_model": "Model registered. Start Droid, run /model, and select Qiniu: <your selected model> to activate it. The current session default has not changed."
 }

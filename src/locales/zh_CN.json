@@ -187,5 +187,6 @@
   "auth_reload_tools": "可用工具: {{tools}}",
   "auth_unknown_tool": "未知工具: {{tool}}",
   "kimi_legacy_cli": "检测到旧版 kimi-cli {{version}}（读取 ~/.kimi），请改装新版 Kimi Code：{{command}}",
-  "minimax_provider_add_failed": "mcode provider add 失败：{{error}}"
+  "minimax_provider_add_failed": "mcode provider add 失败：{{error}}",
+  "droid_select_loaded_model": "模型已注册。启动 Droid 后运行 /model，选择 Qiniu: <所选模型> 才会生效；当前会话默认模型尚未改变。"
 }
