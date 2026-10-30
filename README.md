@@ -18,6 +18,7 @@
 
 | 工具 | 类型 | 写入的配置 |
 |------|------|------------|
+| MiniMax Code | CLI | [配置说明 / Configuration](docs/tools/minimax-code.md) |
 | Claude Code | CLI | `~/.claude/settings.json`、`~/.claude.json` |
 | Qwen Code | CLI | [配置说明 / Configuration](docs/tools/qwen-code.md) |
 | Codex | CLI | `~/.codex/config.toml`、`~/.codex/auth.json` |

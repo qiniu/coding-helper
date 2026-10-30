@@ -1,4 +1,8 @@
 {
+  "minimax_fetching_limits": "正在获取 MiniMax 模型能力信息…",
+  "minimax_provider_start": "正在临时目录运行 MiniMax provider 配置，验证最多可能需要 90 秒…",
+  "minimax_provider_complete": "MiniMax provider 命令已完成，正在校验临时配置…",
+  "minimax_config_applied": "MiniMax 配置已装载。",
   "tool_update_command_confirm": "是否为 {{tool}} 执行此更新命令？{{command}}",
   "welcome": "欢迎使用 Coding Helper！",
   "welcome_description": "本工具帮助您配置 AI 编程助手的 API 端点和模型。",
@@ -182,5 +186,6 @@
   "auth_reload_usage": "用法: coding-helper auth reload <tool>",
   "auth_reload_tools": "可用工具: {{tools}}",
   "auth_unknown_tool": "未知工具: {{tool}}",
-  "kimi_legacy_cli": "检测到旧版 kimi-cli {{version}}（读取 ~/.kimi），请改装新版 Kimi Code：{{command}}"
+  "kimi_legacy_cli": "检测到旧版 kimi-cli {{version}}（读取 ~/.kimi），请改装新版 Kimi Code：{{command}}",
+  "minimax_provider_add_failed": "mcode provider add 失败：{{error}}"
 }

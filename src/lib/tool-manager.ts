@@ -8,11 +8,14 @@ import { GrokTool } from './tools/grok-tool.js';
 import { WorkBuddyTool } from './tools/workbuddy-tool.js';
 import { HermesTool } from './tools/hermes-tool.js';
 
+import { MinimaxCodeTool } from './tools/minimax-code-tool.js';
+
 // 工具注册中心
 class ToolManager {
   private tools: Map<string, ITool> = new Map();
 
   constructor() {
+    this.register(new MinimaxCodeTool());
     // 注册默认工具
     this.register(new ClaudeCodeTool());
     this.register(new QwenCodeTool());

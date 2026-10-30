@@ -55,13 +55,15 @@
     "ora": "^8.0.1",
     "smol-toml": "1.6.0",
     "terminal-link": "^5.0.0",
-    "yaml": "2.8.1"
+    "yaml": "2.8.1",
+    "cross-spawn": "7.0.6"
   },
   "devDependencies": {
     "@types/inquirer": "^9.0.7",
     "@types/js-yaml": "^4.0.9",
     "@types/node": "^20.11.0",
     "node-pty": "^1.1.0",
-    "typescript": "^5.3.3"
+    "typescript": "^5.3.3",
+    "@types/cross-spawn": "6.0.6"
   }
 }
