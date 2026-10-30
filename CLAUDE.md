@@ -75,6 +75,7 @@ coding-helper auth revoke          # 删除 API Key
 coding-helper auth reload <tool>   # 重新加载配置到工具
 coding-helper lang show|set <lang> # 语言管理 (zh_CN / en_US)
 coding-helper doctor               # 健康检查
+coding-helper status [--json]      # 查询工具安装与七牛接入状态
 coding-helper enter [tool]         # 进入主菜单或工具配置菜单
 ```
 

@@ -1,4 +1,12 @@
 {
+  "status_title": "Coding tool status",
+  "status_installed": "Installed",
+  "status_not_installed": "Not installed",
+  "status_configured": "Qiniu configured",
+  "status_not_configured": "Qiniu not configured",
+  "status_unknown": "Unknown",
+  "status_launcher": "Session launcher",
+  "status_detection_failed": "Some status checks failed. Fix the client configuration or installation and retry.",
   "tool_launch_exit": "{{tool}} returned exit status {{code}}. Press Enter to return to the menu.",
   "minimax_fetching_limits": "Fetching MiniMax model limits...",
   "minimax_provider_start": "Running MiniMax provider setup in a temporary directory; validation may take up to 90 seconds...",

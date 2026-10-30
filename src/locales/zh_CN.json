@@ -1,4 +1,12 @@
 {
+  "status_title": "编程工具状态",
+  "status_installed": "已安装",
+  "status_not_installed": "未安装",
+  "status_configured": "已接入七牛",
+  "status_not_configured": "未接入七牛",
+  "status_unknown": "未知",
+  "status_launcher": "会话启动器",
+  "status_detection_failed": "部分状态检测失败，请修复客户端配置或安装后重试。",
   "tool_launch_exit": "{{tool}} 退出状态为 {{code}}，按回车返回菜单。",
   "minimax_fetching_limits": "正在获取 MiniMax 模型能力信息…",
   "minimax_provider_start": "正在临时目录运行 MiniMax provider 配置，验证最多可能需要 90 秒…",

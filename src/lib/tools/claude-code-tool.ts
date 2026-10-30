@@ -61,6 +61,12 @@ export class ClaudeCodeTool implements ITool {
     return {};
   }
 
+  // 读取实际路由，不能将 helper 保存过 Key 等同于客户端已接入。
+  isConfigured(): boolean {
+    const env = readJsonObjectStrict(CLAUDE_SETTINGS_FILE).env;
+    return isRecord(env) && isQiniuBaseUrl(env.ANTHROPIC_BASE_URL);
+  }
+
   // 卸载只处理本工具记录过的字段，保留之后的用户编辑
   clearModelConfig(): void {
     stateStore.withLock(() => {

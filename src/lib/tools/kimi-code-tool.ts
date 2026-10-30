@@ -2,9 +2,11 @@ import os from 'node:os';
 import path from 'node:path';
 import type { ModelConfig } from '../config.js';
 import { t } from '../i18n.js';
+import { parse } from 'smol-toml';
+import { isQiniuBaseUrl } from '../endpoints.js';
 import { readTextFile } from '../core/safe-write.js';
 import { applyConfigEdits } from '../core/config-transaction.js';
-import { OpenAICompatTool, fetchModelLimits, openAIBaseUrl, type ModelLimits } from './openai-compat-tool.js';
+import { OpenAICompatTool, fetchModelLimits, openAIBaseUrl, isRecord, type ModelLimits } from './openai-compat-tool.js';
 import { escapeTomlString, normalizeToml, removeTomlTablesWhere, upsertTopLevelTomlKey, validateToml } from '../core/toml-edit.js';
 const PROVIDER_ID = 'qiniu';
 const MODEL_ALIAS_PREFIX = `${PROVIDER_ID}/`;
@@ -77,7 +79,8 @@ export class KimiCodeTool extends OpenAICompatTool {
   }
 
   isConfigured(): boolean {
-    return hasManagedKimiConfig(readTextFile(getKimiConfigFile()) ?? '');
+    const config = parse(readTextFile(getKimiConfigFile()) ?? '');
+    return isRecord(config.providers) && isRecord(config.providers.qiniu) && isQiniuBaseUrl(config.providers.qiniu.base_url);
   }
 
   async loadConfig(apiKey: string, baseUrl: string, models: ModelConfig): Promise<void> {

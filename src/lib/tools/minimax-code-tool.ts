@@ -6,6 +6,7 @@ import os from 'node:os';
 import path from 'node:path';
 import type { ModelConfig } from '../config.js';
 import { t } from '../i18n.js';
+import { isQiniuBaseUrl } from '../endpoints.js';
 import { readTextFile, assertNotSymlink } from '../core/safe-write.js';
 import { applyConfigEdits } from '../core/config-transaction.js';
 import { parseYamlDocument } from '../core/yaml-edit.js';
@@ -33,8 +34,9 @@ export class MinimaxCodeTool extends OpenAICompatTool {
     catch { return {}; }
   }
   isConfigured(): boolean {
-    const config = this.getConfig();
-    return isRecord(config.custom_provider) && Object.hasOwn(config.custom_provider, 'qiniu');
+    const config: unknown = parseMinimaxConfig(readTextFile(getMinimaxConfigFile()) ?? '').toJS();
+    return isRecord(config) && isRecord(config.custom_provider) && isRecord(config.custom_provider.qiniu) &&
+      isRecord(config.custom_provider.qiniu.options) && isQiniuBaseUrl(config.custom_provider.qiniu.options.baseURL);
   }
   async loadConfig(apiKey: string, baseUrl: string, models: ModelConfig): Promise<void> {
     const model = this.resolveModel(models);

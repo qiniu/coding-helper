@@ -220,7 +220,7 @@ export class OpenCodeTool extends OpenAICompatTool {
   }
 
   isConfigured(): boolean {
-    return isQiniuBaseUrl(getPath(this.getConfig(), `provider.${PROVIDER_ID}.options.baseURL`));
+    return isQiniuBaseUrl(getPath(readJsonObjectStrict(getOpenCodeConfigFile()), `provider.${PROVIDER_ID}.options.baseURL`));
   }
 
   async loadConfig(apiKey: string, baseUrl: string, models: ModelConfig): Promise<void> {

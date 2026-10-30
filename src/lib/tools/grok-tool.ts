@@ -1,6 +1,7 @@
 import os from 'node:os';
 import path from 'node:path';
 import { parse } from 'smol-toml';
+import { isQiniuBaseUrl } from '../endpoints.js';
 import type { ModelConfig } from '../config.js';
 import { readTextFile } from '../core/safe-write.js';
 import { applyConfigEdits } from '../core/config-transaction.js';
@@ -63,7 +64,8 @@ export class GrokTool extends OpenAICompatTool {
   }
 
   isConfigured(): boolean {
-    return hasManagedGrokConfig(readTextFile(getGrokConfigFile()) ?? '');
+    const config = parse(readTextFile(getGrokConfigFile()) ?? '');
+    return isRecord(config.model) && isRecord(config.model.qiniu) && isQiniuBaseUrl(config.model.qiniu.base_url);
   }
 
   async loadConfig(apiKey: string, baseUrl: string, models: ModelConfig): Promise<void> {

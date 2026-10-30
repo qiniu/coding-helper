@@ -160,7 +160,8 @@ export class OpenClawTool extends OpenAICompatTool {
   }
 
   isConfigured(): boolean {
-    return isQiniuBaseUrl(getPath(this.getConfig(), `models.providers.${PROVIDER_ID}.baseUrl`));
+    const file = getOpenClawConfigFile();
+    return isQiniuBaseUrl(getPath(parseOpenClawConfig(readTextFile(file), file), `models.providers.${PROVIDER_ID}.baseUrl`));
   }
 
   // 同一状态锁内核对已装载目标，路径变化时保留旧凭据及还原记录并提示恢复。
