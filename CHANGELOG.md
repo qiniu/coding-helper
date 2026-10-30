@@ -13,9 +13,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 * fix: 容错市场模型能力字段为空或缺失 by @laitekin in https://github.com/qiniu/coding-helper/pull/44
 * build: 跨平台构建与 CI 测试（拆分 0b） by @laitekin in https://github.com/qiniu/coding-helper/pull/45
 * fix(release): publish through a reviewed version PR by @krisxia0506 in https://github.com/qiniu/coding-helper/pull/90
+* feat: 共享安全写入与状态恢复公共层 by @laitekin in https://github.com/qiniu/coding-helper/pull/67
+* feat: 共享多文件配置事务层 by @laitekin in https://github.com/qiniu/coding-helper/pull/68
+* feat: TOML 编辑公共层 by @laitekin in https://github.com/qiniu/coding-helper/pull/70
+* feat: Codex 复用 TOML 与事务层 by @laitekin in https://github.com/qiniu/coding-helper/pull/71
+* feat: YAML 编辑公共层 by @laitekin in https://github.com/qiniu/coding-helper/pull/72
+* feat: Hermes 复用 YAML 与事务层 by @laitekin in https://github.com/qiniu/coding-helper/pull/73
+* feat: models.json 编辑公共层 by @laitekin in https://github.com/qiniu/coding-helper/pull/74
+* feat: CodeBuddy 与 WorkBuddy 复用 models.json by @laitekin in https://github.com/qiniu/coding-helper/pull/75
+* feat: Claude Code 安全配置与恢复 by @laitekin in https://github.com/qiniu/coding-helper/pull/76
+* feat: Qwen Code 工具接入 by @laitekin in https://github.com/qiniu/coding-helper/pull/77
+* feat: Kimi Code CLI 工具接入 by @laitekin in https://github.com/qiniu/coding-helper/pull/78
+* feat: Grok CLI 工具接入 by @laitekin in https://github.com/qiniu/coding-helper/pull/79
+* feat: MiniMax Code 工具接入 by @laitekin in https://github.com/qiniu/coding-helper/pull/80
+* feat: Factory Droid 工具接入 by @laitekin in https://github.com/qiniu/coding-helper/pull/81
+* feat: OpenClaw 工具接入 by @laitekin in https://github.com/qiniu/coding-helper/pull/82
+* feat: run 启动公共层 by @laitekin in https://github.com/qiniu/coding-helper/pull/83
+* feat: Copilot 与 Claude 环境启动适配 by @laitekin in https://github.com/qiniu/coding-helper/pull/84
+* feat: OpenCode 接入共享配置公共层 by @laitekin in https://github.com/qiniu/coding-helper/pull/85
+* feat: 统一命令发现与 PATH 外安装检测 by @laitekin in https://github.com/qiniu/coding-helper/pull/86
 
-
-**Full Changelog**: https://github.com/qiniu/coding-helper/compare/v0.4.0...v0.5.0
+**完整变更记录**：https://github.com/qiniu/coding-helper/compare/v0.4.0...v0.5.0
 
 ## [0.4.0] - 2026-09-11
 
