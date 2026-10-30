@@ -99,14 +99,20 @@ jobs:
             exit 1
           fi
 
-          if npm view "qiniu-coding-helper@${VERSION}" version >/dev/null 2>&1; then
-            echo "npm version already exists: qiniu-coding-helper@${VERSION}" >&2
-            exit 1
-          fi
+          node --input-type=module <<'NODE'
+          const response = await fetch(`https://registry.npmjs.org/qiniu-coding-helper/${process.env.VERSION}`, {
+            signal: AbortSignal.timeout(30000),
+          });
+          if (response.status !== 404) {
+            throw new Error(response.ok ? 'npm version already exists' : `npm registry lookup failed: HTTP ${response.status}`);
+          }
+          NODE
 
-          echo "previous_tag=${PREVIOUS_TAG}" >> "${GITHUB_OUTPUT}"
-          echo "version=${VERSION}" >> "${GITHUB_OUTPUT}"
-          echo "tag=${TAG}" >> "${GITHUB_OUTPUT}"
+          {
+            echo "previous_tag=${PREVIOUS_TAG}"
+            echo "version=${VERSION}"
+            echo "tag=${TAG}"
+          } >> "${GITHUB_OUTPUT}"
 
           echo "Previous tag: ${PREVIOUS_TAG:-<none>}"
           echo "Next tag: ${TAG}"

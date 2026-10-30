@@ -27,8 +27,12 @@ async function openReleasePr({ github, context, version, prerelease, readFile = 
   const pending = pulls.filter(pr => pr.head.repo?.full_name === `${repo.owner}/${repo.repo}` &&
     pr.head.ref.startsWith('release/v'));
   if (pending.length) {
-    if (pending.length === 1 && pending[0].head.ref === branch && pending[0].body?.includes(marker) &&
-        pending[0].labels.some(label => label.name === 'release')) return pending[0];
+    if (pending.length === 1 && pending[0].head.ref === branch && pending[0].body?.includes(marker)) {
+      if (!pending[0].labels.some(label => label.name === 'release')) {
+        await github.rest.issues.addLabels({ ...repo, issue_number: pending[0].number, labels: ['release'] });
+      }
+      return pending[0];
+    }
     throw new Error(`Review or close the existing release PR first: ${pending[0].html_url}`);
   }
   const current = await github.rest.git.getRef({ ...repo, ref: 'heads/main' });

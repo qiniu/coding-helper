@@ -78,6 +78,28 @@ test('preparation reuses an existing matching PR without overwriting it', async 
   assert.equal(f.calls.length, 0);
 });
 
+test('retry after creating a PR repairs a missing release label', async () => {
+  const f = fixture(); f.state.pulls = [{ ...f.context.payload.pull_request, labels: [] }];
+  await release.openReleasePr(f);
+  assert.deepEqual(f.calls.map(([name]) => name), ['labels']);
+});
+
+test('prerelease metadata survives preparation and merged-PR validation', async () => {
+  const f = fixture(); f.prerelease = true;
+  await release.openReleasePr(f);
+  f.context.payload.pull_request.body = f.calls.find(([name]) => name === 'pull')[1].body;
+  assert.deepEqual(await release.validateReleasePr(f), { version: '0.5.0', prerelease: true });
+});
+
+test('an edited orphan release branch is never overwritten', async () => {
+  const f = fixture(); f.state.branch = { object: { sha: 'edited' } };
+  const getCommit = f.github.rest.git.getCommit;
+  f.github.rest.git.getCommit = args => args.commit_sha === 'edited' ?
+    { data: { tree: { sha: 'different' }, parents: [{ sha: 'base' }] } } : getCommit(args);
+  await assert.rejects(release.openReleasePr(f), /different changes/);
+  assert.equal(f.calls.some(([name]) => ['ref', 'commit', 'pull'].includes(name)), false);
+});
+
 test('preparation refuses a second pending version or a moved main', async () => {
   const f = fixture(); f.state.pulls = [{ ...f.context.payload.pull_request, head: { ...f.context.payload.pull_request.head, ref: 'release/v0.6.0' } }];
   await assert.rejects(release.openReleasePr(f), /existing release PR/);
