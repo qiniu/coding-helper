@@ -1,10 +1,14 @@
 import fs from 'node:fs';
+import { isDeepStrictEqual } from 'node:util';
 import path from 'node:path';
 import os from 'node:os';
 import { execSync } from 'node:child_process';
 import type { ITool } from './base-tool.js';
 import { configManager, type ModelConfig } from '../config.js';
+import { isQiniuBaseUrl } from '../endpoints.js';
 import { t } from '../i18n.js';
+import { assertNotSymlink, readTextFile, readJsonSnapshot, readJsonObjectStrict, safeWriteFile, writeJsonOrRemove, formatJsonLike } from '../core/safe-write.js';
+import { stateStore, type ToolState, type PriorValues } from '../core/state-store.js';
 import { runModelSelectionFlow } from '../wizard/flows/model-selection-flow.js';
 import { uiRenderer } from '../wizard/ui/ui-renderer.js';
 
@@ -15,6 +19,7 @@ const API_TIMEOUT = '3000000';
 const CLAUDE_ENV_KEYS = [
   'ANTHROPIC_BASE_URL',
   'ANTHROPIC_AUTH_TOKEN',
+  'ANTHROPIC_MODEL',
   'ANTHROPIC_DEFAULT_HAIKU_MODEL',
   'ANTHROPIC_DEFAULT_SONNET_MODEL',
   'ANTHROPIC_DEFAULT_OPUS_MODEL',
@@ -65,75 +70,97 @@ export class ClaudeCodeTool implements ITool {
   // 读取当前 Claude Code settings.json
   getConfig(): Record<string, unknown> {
     try {
-      if (fs.existsSync(CLAUDE_SETTINGS_FILE)) {
-        const content = fs.readFileSync(CLAUDE_SETTINGS_FILE, 'utf-8');
-        return JSON.parse(content) as Record<string, unknown>;
-      }
+      return readJsonObjectStrict(CLAUDE_SETTINGS_FILE);
     } catch {
       // 文件不存在或解析失败
     }
     return {};
   }
 
-  // 清除所有七牛相关环境变量
+  // 卸载只处理本工具记录过的字段，保留之后的用户编辑
   clearModelConfig(): void {
-    const settings = this.getConfig();
-    const env = (settings.env as Record<string, string>) || {};
-
-    for (const key of CLAUDE_ENV_KEYS) {
-      delete env[key];
-    }
-
-    settings.env = env;
-    delete settings.companyAnnouncements;
-    delete settings.attribution;
-    this.writeSettings(settings);
+    stateStore.withLock(() => {
+      const targets = [CLAUDE_SETTINGS_FILE, CLAUDE_JSON_FILE];
+      const unrecorded = targets.filter(file => !stateStore.getState(this.name, file));
+      const exists = unrecorded.some(file => {
+        try { fs.lstatSync(file); return true; }
+        catch (error) { if ((error as NodeJS.ErrnoException).code === 'ENOENT') return false; throw error; }
+      });
+      if (exists) throw new Error('No restoration record for existing Claude configuration. Configuration is unchanged; remove legacy credentials manually or recover a known backup.');
+      const plans: ConfigPlan[] = [];
+      for (const file of targets) {
+        if (!stateStore.getState(this.name, file)) continue;
+        assertNotSymlink(file);
+        const current = readJsonSnapshot(file);
+        const saved = checkedState(recoverPending(this.name, file, current.content), file === CLAUDE_SETTINGS_FILE);
+        if (!saved) continue;
+        const original = originalConfig(saved);
+        const manageModel = saved.priors!.manageModel === true;
+        const next = restoreConfig(current.value, saved.priors!.snapshot as PriorValues, saved.applied!, file === CLAUDE_SETTINGS_FILE, manageModel);
+        const content = current.content === undefined ? undefined
+          : isDeepStrictEqual(next, original.value) ? original.content
+          : formatJsonLike(current.content, next);
+        plans.push({ file, before: current.content, after: content, previous: saved });
+      }
+      commitConfigs(this.name, plans);
+    });
   }
 
-  // 将完整配置写入 Claude Code
+  // 两个文件先全部解析和校验；任何写入失败时还原本轮已提交的文件及状态
   async loadConfig(apiKey: string, baseUrl: string, models: ModelConfig): Promise<void> {
-    // 确保目录存在
-    if (!fs.existsSync(CLAUDE_SETTINGS_DIR)) {
-      fs.mkdirSync(CLAUDE_SETTINGS_DIR, { recursive: true, mode: 0o700 });
-    }
-
-    // 读取现有配置，保留其他字段
-    const settings = this.getConfig();
-    const env = (settings.env as Record<string, string>) || {};
-
-    // 写入七牛配置
-    env.ANTHROPIC_BASE_URL = baseUrl;
-    env.ANTHROPIC_AUTH_TOKEN = apiKey;
-    env.API_TIMEOUT_MS = API_TIMEOUT;
-    // 禁用非必要流量，第三方端点不需要 Anthropic 遥测
-    env.CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC = '1';
-    // 禁用属性块，提升网关下 prompt cache 命中率
-    env.CLAUDE_CODE_ATTRIBUTION_HEADER = '0';
-
-    // 写入模型配置
-    const claudeCode = models.claudeCode || {};
-    if (claudeCode.haikuModel) env.ANTHROPIC_DEFAULT_HAIKU_MODEL = claudeCode.haikuModel;
-    if (claudeCode.sonnetModel) env.ANTHROPIC_DEFAULT_SONNET_MODEL = claudeCode.sonnetModel;
-    if (claudeCode.opusModel) env.ANTHROPIC_DEFAULT_OPUS_MODEL = claudeCode.opusModel;
-    if (claudeCode.subagentModel) env.CLAUDE_CODE_SUBAGENT_MODEL = claudeCode.subagentModel;
-
-    settings.env = env;
-
-    // 写入公司公告（使用当前语言）
-    settings.companyAnnouncements = [
-      t('company_announcement'),
-    ];
-
-    // 禁用归属标注，通过代理端点运行时标注信息不准确
-    settings.attribution = {
-      commit: '',
-      pr: '',
-    };
-
-    this.writeSettings(settings);
-
-    // 写入 ~/.claude.json，设置 onboarding 完成标记
-    this.writeClaudeJson();
+    stateStore.withLock(() => {
+      if (stateStore.getState(this.name)) throw new Error('Legacy Claude restoration state requires recovery from backup.');
+      const selected = models.claudeCode || {};
+      const clearSelection = !selected.useDefaultModels &&
+        [selected.haikuModel, selected.sonnetModel, selected.opusModel, selected.subagentModel].some(Boolean);
+      const plans: ConfigPlan[] = [];
+      for (const file of [CLAUDE_SETTINGS_FILE, CLAUDE_JSON_FILE]) {
+        assertNotSymlink(file);
+        const current = readJsonSnapshot(file);
+        const settingsFile = file === CLAUDE_SETTINGS_FILE;
+        const previous = checkedState(recoverPending(this.name, file, current.content), file === CLAUDE_SETTINGS_FILE);
+        const env = current.value.env;
+        if (settingsFile && !previous && isRecord(env) && isQiniuBaseUrl(env.ANTHROPIC_BASE_URL) &&
+            typeof env.ANTHROPIC_AUTH_TOKEN === 'string' && env.ANTHROPIC_AUTH_TOKEN) {
+          throw new Error('Legacy Claude credentials have no restoration record. Configuration is unchanged; remove legacy credentials manually or recover a known backup before loading.');
+        }
+        const managedBefore = previous?.priors?.manageModel === true;
+        const beforeSnapshot = snapshot(current.value, settingsFile, managedBefore);
+        if (previous) {
+          const expected = structuredClone(previous.applied!);
+          // 显式切换允许清掉客户端模型覆盖，其他字段及原恢复快照仍受保护。
+          if (clearSelection && settingsFile) {
+            delete beforeSnapshot.model; delete expected.model;
+            if (isRecord(beforeSnapshot.env)) delete beforeSnapshot.env.ANTHROPIC_MODEL;
+            if (isRecord(expected.env)) delete expected.env.ANTHROPIC_MODEL;
+          }
+          if (!isDeepStrictEqual(beforeSnapshot, expected)) throw new Error('Claude managed fields changed since loading. Unload before reloading.');
+        }
+        const manageModel = settingsFile && (managedBefore || clearSelection);
+        const next = structuredClone(current.value);
+        if (settingsFile) {
+          const env: Record<string, unknown> = { ...(isRecord(next.env) ? next.env : {}) };
+          for (const key of CLAUDE_ENV_KEYS) if (key !== 'ANTHROPIC_MODEL' || clearSelection) delete env[key];
+          Object.assign(env, {
+            ANTHROPIC_BASE_URL: baseUrl, ANTHROPIC_AUTH_TOKEN: apiKey, API_TIMEOUT_MS: API_TIMEOUT,
+            CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: '1', CLAUDE_CODE_ATTRIBUTION_HEADER: '0',
+          });
+          if (selected.haikuModel) env.ANTHROPIC_DEFAULT_HAIKU_MODEL = selected.haikuModel;
+          if (selected.sonnetModel) env.ANTHROPIC_DEFAULT_SONNET_MODEL = selected.sonnetModel;
+          if (selected.opusModel) env.ANTHROPIC_DEFAULT_OPUS_MODEL = selected.opusModel;
+          if (selected.subagentModel) env.CLAUDE_CODE_SUBAGENT_MODEL = selected.subagentModel;
+          next.env = env;
+          if (clearSelection) delete next.model;
+          next.companyAnnouncements = [t('company_announcement')];
+          next.attribution = { commit: '', pr: '' };
+        } else next.hasCompletedOnboarding = true;
+        const original = previous ? originalConfig(previous) : current;
+        const priors = { content: original.content ?? null, snapshot: snapshot(original.value, settingsFile, manageModel), manageModel };
+        plans.push({ file, before: current.content, after: formatJsonLike(current.content, next), previous,
+          next: { priors, applied: snapshot(next, settingsFile, manageModel) } });
+      }
+      commitConfigs(this.name, plans);
+    });
   }
 
   // 从 Claude Code 移除配置
@@ -153,27 +180,144 @@ export class ClaudeCodeTool implements ITool {
     uiRenderer.renderModelConfigItem(t('config_view_subagent'), claudeCode.subagentModel);
   }
 
-  // 写入 settings.json
-  private writeSettings(settings: Record<string, unknown>): void {
-    if (!fs.existsSync(CLAUDE_SETTINGS_DIR)) {
-      fs.mkdirSync(CLAUDE_SETTINGS_DIR, { recursive: true, mode: 0o700 });
-    }
-    fs.writeFileSync(CLAUDE_SETTINGS_FILE, JSON.stringify(settings, null, 2) + '\n', { encoding: 'utf-8', mode: 0o600 });
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return value !== null && typeof value === 'object' && !Array.isArray(value);
+}
+
+// 缺失字段不存入快照，从而与显式 null 区分
+function snapshot(config: Record<string, unknown>, settings: boolean, model: boolean): PriorValues {
+  const result: PriorValues = {};
+  if (settings && Object.hasOwn(config, 'env')) {
+    if (!isRecord(config.env)) throw new Error('Invalid Claude env: expected an object.');
+    result.env = Object.fromEntries(CLAUDE_ENV_KEYS.filter(key => Object.hasOwn(config.env!, key)).map(key => [key, (config.env as PriorValues)[key]]));
   }
+  for (const key of settings ? ['companyAnnouncements', 'attribution', ...(model ? ['model'] : [])] : ['hasCompletedOnboarding']) {
+    if (Object.hasOwn(config, key)) result[key] = structuredClone(config[key]);
+  }
+  return result;
+}
 
-  // 写入 ~/.claude.json
-  private writeClaudeJson(): void {
-    let data: Record<string, unknown> = {};
-    try {
-      if (fs.existsSync(CLAUDE_JSON_FILE)) {
-        const content = fs.readFileSync(CLAUDE_JSON_FILE, 'utf-8');
-        data = JSON.parse(content) as Record<string, unknown>;
-      }
-    } catch {
-      // 文件不存在或解析失败
+function originalConfig(saved: ToolState): { content: string | undefined; value: Record<string, unknown> } {
+  const content = saved.priors!.content as string | null;
+  const value: unknown = content === null ? {} : JSON.parse(content);
+  if (!isRecord(value)) throw new Error('Invalid Claude restoration content.');
+  return { content: content ?? undefined, value };
+}
+
+function recoverPending(tool: string, file: string, content: string | undefined): ToolState | undefined {
+  const saved = stateStore.getState(tool, file);
+  if (!saved?.pending) return saved;
+  let recovered: ToolState | undefined;
+  if (content === saved.pending.after) recovered = { priors: saved.priors, applied: saved.pending.applied };
+  else if ((content ?? null) === saved.pending.before) recovered = saved.applied ? { priors: saved.priors, applied: saved.applied } : undefined;
+  else throw new Error('Claude configuration changed during an interrupted write; restoration journal retained.');
+  stateStore.setState(tool, recovered, file);
+  return recovered;
+}
+
+function checkedState(saved: ToolState | undefined, settings: boolean): ToolState | undefined {
+  if (saved && (!isRecord(saved.priors?.snapshot) || !isRecord(saved.applied) ||
+      !(saved.priors.content === null || typeof saved.priors.content === 'string') ||
+      typeof saved.priors.manageModel !== 'boolean')) {
+    throw new Error('Claude restoration state is incomplete. Restore from backup before retrying.');
+  }
+  if (saved) {
+    const original = originalConfig(saved);
+    const model = saved.priors!.manageModel === true;
+    if (!isDeepStrictEqual(snapshot(original.value, settings, model), saved.priors!.snapshot) ||
+        !isDeepStrictEqual(snapshot(saved.applied!, settings, model), saved.applied)) {
+      throw new Error('Claude restoration snapshot is inconsistent. Restore from backup before retrying.');
     }
+  }
+  return saved;
+}
 
-    data.hasCompletedOnboarding = true;
-    fs.writeFileSync(CLAUDE_JSON_FILE, JSON.stringify(data, null, 2) + '\n', { encoding: 'utf-8', mode: 0o600 });
+// 三方还原仅撤销仍等于上次写入值的键，后续手动编辑保留
+function restoreConfig(config: Record<string, unknown>, prior: PriorValues, applied: PriorValues, settings: boolean, model: boolean): Record<string, unknown> {
+  if (settings) {
+    const env = isRecord(config.env) ? config.env : {};
+    const previous = isRecord(prior.env) ? prior.env : {};
+    const written = isRecord(applied.env) ? applied.env : {};
+    const keys = ['ANTHROPIC_BASE_URL','ANTHROPIC_AUTH_TOKEN'];
+    const equals = (target: PriorValues) => keys.every(key => isDeepStrictEqual(env[key],target[key]));
+    if (!equals(written) && !equals(previous)) throw new Error('Claude endpoint and credential changed; restore both together before unloading. Configuration is unchanged.');
+  }
+  const next = structuredClone(config);
+  const current = snapshot(config, settings, model);
+  const restore = (target: PriorValues, key: string, original: PriorValues, written: PriorValues): void => {
+    const own = (object: PriorValues) => Object.hasOwn(object, key) ? object[key] : undefined;
+    if (!isDeepStrictEqual(own(target), own(written))) return;
+    if (Object.hasOwn(original, key)) target[key] = structuredClone(original[key]);
+    else delete target[key];
+  };
+  for (const key of new Set([...Object.keys(prior), ...Object.keys(applied)])) {
+    if (key === 'env' && isRecord(next.env)) {
+      for (const envKey of CLAUDE_ENV_KEYS) restore(next.env, envKey, isRecord(prior.env) ? prior.env : {}, isRecord(applied.env) ? applied.env : {});
+      if (!Object.keys(next.env).length && !Object.hasOwn(prior, 'env')) delete next.env;
+    } else if (key !== 'env') {
+      restore(current, key, prior, applied);
+      if (Object.hasOwn(current, key)) next[key] = current[key];
+      else delete next[key];
+    }
+  }
+  return next;
+}
+
+interface ConfigPlan { file: string; before: string | undefined; after: string | undefined; previous?: ToolState; next?: ToolState; }
+
+function commitConfigs(tool: string, plans: ConfigPlan[]): void {
+  const saved: ConfigPlan[] = [];
+  const written: ConfigPlan[] = [];
+  const uncertain = new Set<ConfigPlan>();
+  const write = (file: string, content: string | undefined, expected: string | undefined): void => {
+    if (content === undefined) writeJsonOrRemove(file, {}, { content: expected });
+    else safeWriteFile(file, content, 0o600, { content: expected });
+  };
+  try {
+    // 先保存装载快照，卸载记录只在两份文件都成功后清除
+    for (const plan of plans) if (plan.next) {
+      saved.push(plan);
+      stateStore.setState(tool, { priors: plan.next.priors, applied: plan.previous?.applied,
+        pending: { before: plan.before ?? null, after: plan.after!, applied: plan.next.applied! } }, plan.file);
+    }
+    for (const plan of plans) {
+      try { write(plan.file, plan.after, plan.before); }
+      catch (error) {
+        try {
+          const current = readTextFile(plan.file);
+          if (current === plan.after) written.push(plan);
+          else if (current !== plan.before) uncertain.add(plan);
+        } catch { uncertain.add(plan); }
+        throw error;
+      }
+      written.push(plan);
+    }
+    for (const plan of plans) {
+      if (plan.next) stateStore.setState(tool, plan.next, plan.file);
+    }
+    const removals = plans.filter(plan => !plan.next);
+    if (removals.length) { saved.push(...removals); stateStore.markRemovedMany(tool, removals.map(plan => plan.file)); }
+  } catch (error) {
+    const failures: unknown[] = [];
+    const restored = new Set<ConfigPlan>();
+    for (const plan of [...written].reverse()) {
+      try { write(plan.file, plan.before, plan.after); restored.add(plan); }
+      catch (err) {
+        try { if (readTextFile(plan.file) === plan.before) restored.add(plan); else failures.push(err); }
+        catch { failures.push(err); }
+      }
+    }
+    // 回滚文件失败时保留恢复记录，避免失去唯一原值
+    for (const plan of [...saved].reverse()) {
+      // An unload may already have deleted a record before a later cleanup fails.
+      // Restore those records even if rolling client files back also failed.
+      if (!uncertain.has(plan) && (!plan.next || !written.includes(plan) || restored.has(plan))) {
+        try { stateStore.setState(tool, plan.previous, plan.file); } catch (err) { failures.push(err); }
+      }
+    }
+    if (failures.length) throw new AggregateError([error, ...failures], 'Claude configuration recovery failed. Restore from backup before retrying.');
+    throw error;
   }
 }

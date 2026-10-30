@@ -137,6 +137,15 @@ class StateStore {
     });
   }
 
+  // 多文件卸载一次提交所有记录的删除，避免中断后只剩部分记录。
+  markRemovedMany(tool: string, files: string[]): void {
+    this.withLock(() => {
+      const state = this.read();
+      for (const file of files) delete state.tools[this.key(tool, file)];
+      this.write(state);
+    });
+  }
+
   getPriors(tool: string, file?: string): PriorValues | undefined {
     tool = this.key(tool, file);
     const tools = this.read().tools;
