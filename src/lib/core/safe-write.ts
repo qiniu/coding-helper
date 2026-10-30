@@ -200,3 +200,17 @@ export function writeJsonOrRemove(file: string, data: Record<string, unknown>, e
   if (Object.keys(data).length > 0) writeJson(file, data, expected);
   else removeFile(file, expected);
 }
+
+// undefined 明确表示删除；空文本是合法的原始文件，必须保留
+export function writeTextOrRemove(file: string, content: string | undefined, expected?: FileExpectation): void {
+  if (content === undefined) removeFile(file, expected);
+  else if (!content.trim()) {
+    // 文本还原必须物化空文件，同时保留快照、符号链接与备份保护。
+    assertExpected(file, expected);
+    assertNotSymlink(file);
+    if (readTextFile(file) === content) return;
+    backupFile(file);
+    atomicWriteFile(file, content, 0o600, () => assertExpected(file, expected));
+  }
+  else safeWriteFile(file, content, 0o600, expected);
+}

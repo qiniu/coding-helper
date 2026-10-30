@@ -53,6 +53,7 @@
     "inquirer": "^9.2.12",
     "js-yaml": "^4.1.0",
     "ora": "^8.0.1",
+    "smol-toml": "1.6.0",
     "terminal-link": "^5.0.0"
   },
   "devDependencies": {
