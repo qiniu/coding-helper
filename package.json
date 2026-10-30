@@ -54,7 +54,8 @@
     "js-yaml": "^4.1.0",
     "ora": "^8.0.1",
     "smol-toml": "1.6.0",
-    "terminal-link": "^5.0.0"
+    "terminal-link": "^5.0.0",
+    "yaml": "2.8.1"
   },
   "devDependencies": {
     "@types/inquirer": "^9.0.7",
