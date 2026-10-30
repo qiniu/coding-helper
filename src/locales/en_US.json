@@ -142,6 +142,11 @@
 
   "hermes_select_model": "Select the default model for Hermes Agent (type to search or enter a custom model ID): ",
   "hermes_no_model_selected": "No model selected, configuration cancelled",
+  "generic_current_model": "{{tool}} currently uses: {{model}}",
+  "generic_select_model": "Choose the model for {{tool}} (type to search or enter a custom model ID):",
+  "generic_config_success": "Model for {{tool}}: {{model}}",
+  "generic_model_not_configured": "No model chosen for {{tool}} yet. Choose one under \"Configure Models\" first",
+  "config_view_model": "Model",
   "hermes_config_success": "Configured Hermes Agent default model: {{model}}",
   "hermes_reuse_previous_selection": "Previous model configuration detected, reuse it?",
   "hermes_fetching_models": "Fetching model list from Qiniu API...",

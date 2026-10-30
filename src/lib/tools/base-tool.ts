@@ -27,7 +27,7 @@ export interface ITool {
   getConfig(): Record<string, unknown>;
 
   // 清除模型配置
-  clearModelConfig(): void;
+  clearModelConfig(): void | Promise<void>;
 
   // 将完整配置写入工具
   loadConfig(apiKey: string, baseUrl: string, models: ModelConfig): Promise<void>;

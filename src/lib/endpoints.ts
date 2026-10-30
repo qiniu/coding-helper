@@ -41,3 +41,18 @@ export function getBaseUrl(endpointId: string): string {
   }
   return endpoint.baseUrl;
 }
+
+// 判断 URL 是否指向七牛线路（含历史域名），用于识别旧版本写入的配置
+export function isQiniuBaseUrl(url: unknown): boolean {
+  if (typeof url !== 'string') return false;
+  const known = [
+    ...Object.values(ENDPOINT_DEFINITIONS).map((def) => def.baseUrl),
+    'https://openai.qiniu.com',
+  ];
+  try {
+    const parsed = new URL(url);
+    return !parsed.username && !parsed.password && known.some((base) => parsed.origin === new URL(base).origin);
+  } catch {
+    return false;
+  }
+}

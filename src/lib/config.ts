@@ -15,6 +15,10 @@ export interface ModelConfig {
   workbuddyModels?: string[];
   hermesModel?: string;
   codexModel?: string;
+  // 通用客户端（OpenCode 等）按工具名记录所选模型
+  toolModels?: Record<string, string>;
+  // 通用客户端未单独选择时使用的默认模型
+  defaultModel?: string;
 }
 
 export interface ClaudeCodeConfig {
@@ -35,6 +39,8 @@ interface Config {
   workbuddyModels?: string[];
   hermesModel?: string;
   codexModel?: string;
+  toolModels?: Record<string, string>;
+  defaultModel?: string;
 }
 
 // 配置管理器单例
@@ -124,13 +130,12 @@ class ConfigManager {
     this.save();
   }
 
-  // 清除所有配置，直接删除配置文件夹
+  // 清除 coding-helper 配置（语言、线路、Key、模型）
+  // 保留 backups/ 与 state.json：之后仍可按记录的原值把客户端还原
   clearConfig(): void {
     this.config = {};
     this.loaded = false;
-    if (fs.existsSync(CONFIG_DIR)) {
-      fs.rmSync(CONFIG_DIR, { recursive: true, force: true });
-    }
+    fs.rmSync(CONFIG_FILE, { force: true });
   }
 
   // 模型配置
@@ -142,6 +147,8 @@ class ConfigManager {
       workbuddyModels: this.config.workbuddyModels,
       hermesModel: this.config.hermesModel,
       codexModel: this.config.codexModel,
+      toolModels: this.config.toolModels ? { ...this.config.toolModels } : undefined,
+      defaultModel: this.config.defaultModel,
     };
   }
 
@@ -157,6 +164,12 @@ class ConfigManager {
     if ('workbuddyModels' in models) this.config.workbuddyModels = models.workbuddyModels;
     if ('hermesModel' in models) this.config.hermesModel = models.hermesModel;
     if ('codexModel' in models) this.config.codexModel = models.codexModel;
+    if ('toolModels' in models) {
+      this.config.toolModels = models.toolModels
+        ? { ...this.config.toolModels, ...models.toolModels }
+        : undefined;
+    }
+    if ('defaultModel' in models) this.config.defaultModel = models.defaultModel;
     this.save();
   }
 

@@ -155,6 +155,11 @@
 
   "hermes_select_model": "请选择 Hermes Agent 默认模型（可输入搜索或自定义模型 ID）：",
   "hermes_no_model_selected": "未选择模型，配置已取消",
+  "generic_current_model": "{{tool}} 当前使用的模型：{{model}}",
+  "generic_select_model": "请选择 {{tool}} 使用的模型（可输入搜索或自定义模型 ID）：",
+  "generic_config_success": "已为 {{tool}} 选择模型：{{model}}",
+  "generic_model_not_configured": "尚未为 {{tool}} 选择模型，请先在「配置模型」中选择",
+  "config_view_model": "模型",
   "hermes_config_success": "已配置 Hermes Agent 默认模型：{{model}}",
   "hermes_reuse_previous_selection": "检测到之前的模型配置，是否复用？",
   "hermes_fetching_models": "正在从七牛 API 获取模型列表...",

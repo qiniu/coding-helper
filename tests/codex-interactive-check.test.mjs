@@ -164,3 +164,10 @@ test('createScenarioErrorResult preserves transcript and failure reason in repor
   assert.match(report, /Main Menu/);
   assert.match(report, /Timed out waiting/);
 });
+
+test('selector visits every tool beyond the visible page and supports launch-only tools',()=>{
+  const tools=Array.from({length:13},(_,i)=>({name:'tool-'+i,displayName:'Tool '+i,launchOnly:i===12}));
+  const scenarios=buildScenarios(tools);const selector=scenarios[1];
+  for(const tool of tools)assert.ok(selector.steps.some(step=>step.expectSelected===tool.displayName));
+  const launch=scenarios.at(-1);assert.equal(launch.steps[0].expectSelected,'启动工具');assert.equal(launch.steps[2].input,'\u001b[B'.repeat(4));
+});

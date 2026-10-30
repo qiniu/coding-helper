@@ -173,7 +173,7 @@ export function hasSavedToolModelConfig(
     case 'hermes':
       return !!models.hermesModel;
     default:
-      return false;
+      return !!(models.toolModels?.[tool.name] ?? models.defaultModel);
   }
 }
 

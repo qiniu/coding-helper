@@ -43,7 +43,6 @@ jobs:
 
       - name: Run unit tests
         id: unit_tests
-        continue-on-error: true
         shell: bash
         run: |
           set -o pipefail
@@ -51,7 +50,7 @@ jobs:
 
       - name: Run interactive terminal check
         id: interactive_tests
-        continue-on-error: true
+        if: ${{ !cancelled() }}
         shell: bash
         env:
           CODEX_INTERACTIVE_REPORT: codex-interactive-report.md

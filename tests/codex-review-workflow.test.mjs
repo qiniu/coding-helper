@@ -131,3 +131,11 @@ test('fork falls back to head owner and branch when commit association is empty'
   await resolveReviewPR(f.args);
   assert.equal(f.outputs.number, '44');
 }));
+
+test('evidence test failures remain failures while both suites and artifacts run',()=>{
+  const workflow=yaml.load(readFileSync(new URL('.github/workflows/codex-pr-review.yml',root),'utf8'));
+  const steps=workflow.jobs.evidence.steps;
+  for(const name of ['unit_tests','interactive_tests'])assert.notEqual(steps.find(step=>step.id===name)['continue-on-error'],true);
+  assert.match(steps.find(step=>step.id==='interactive_tests').if,/!cancelled\(\)/);
+  assert.equal(steps.find(step=>step.name==='Upload review evidence').if,'always()');
+});

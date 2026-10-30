@@ -393,16 +393,21 @@ function downToOption(options, fromOption, toOption) {
   return '\u001B[B'.repeat(toIndex - fromIndex);
 }
 
+function toolMenuOptions(tool) {
+  return tool.launchOnly ? TOOL_MENU_OPTIONS.filter(option => ![ZH_LOCALE.tool_load_config, ZH_LOCALE.tool_unload_config].includes(option)) : TOOL_MENU_OPTIONS;
+}
+
 function createToolMenuScenario(tool) {
+  const options = toolMenuOptions(tool);
   const title = tool.displayName;
   return {
     name: `${title} tool menu keyboard navigation`,
     args: ['enter', tool.name],
     steps: [
-      { waitFor: ZH_LOCALE.tool_configure_models, input: '\u001B[B', expectSelected: ZH_LOCALE.tool_load_config },
+      { waitFor: ZH_LOCALE.tool_configure_models, input: '\u001B[B', expectSelected: options[1] },
       { input: '\u001B[A', expectSelected: ZH_LOCALE.tool_configure_models },
       {
-        input: downToOption(TOOL_MENU_OPTIONS, ZH_LOCALE.tool_configure_models, ZH_LOCALE.tool_back),
+        input: downToOption(options, ZH_LOCALE.tool_configure_models, ZH_LOCALE.tool_back),
         expectSelected: ZH_LOCALE.tool_back,
       },
       { input: '\r', expectExit: true },
@@ -413,7 +418,7 @@ function createToolMenuScenario(tool) {
       expectedPatterns: [
         ZH_LOCALE.tool_menu_title.replace('{{tool}}', title),
         ZH_LOCALE.tool_configure_models,
-        ZH_LOCALE.tool_load_config,
+        options[1],
         ZH_LOCALE.tool_back,
       ],
     },
@@ -422,7 +427,7 @@ function createToolMenuScenario(tool) {
 
 export function buildScenarios(tools) {
   const toolNames = tools.map((tool) => tool.displayName);
-  const toolSelectorTarget = tools[1] || tools[0];
+  const toolSelectorTarget = tools.at(-1);
   const toolSelectorSteps = toolSelectorTarget
     ? [
         {
@@ -442,18 +447,16 @@ export function buildScenarios(tools) {
       ];
 
   if (toolSelectorTarget) {
-    const downCount = tools.findIndex((tool) => tool.name === toolSelectorTarget.name);
-    toolSelectorSteps.push({
-      input: '\u001B[B'.repeat(Math.max(0, downCount)),
-      pauseMs: 200,
-      expectSelected: toolSelectorTarget.displayName,
-    });
+    tools.forEach((tool, index) => toolSelectorSteps.push({
+      ...(index ? { input: '\u001B[B' } : {}),
+      expectSelected: tool.displayName,
+    }));
     toolSelectorSteps.push({
       input: '\r',
       waitAfter: ZH_LOCALE.tool_configure_models,
     });
     toolSelectorSteps.push({
-      input: downToOption(TOOL_MENU_OPTIONS, ZH_LOCALE.tool_configure_models, ZH_LOCALE.tool_back),
+      input: downToOption(toolMenuOptions(toolSelectorTarget), ZH_LOCALE.tool_configure_models, ZH_LOCALE.tool_back),
       expectSelected: ZH_LOCALE.tool_back,
     });
     toolSelectorSteps.push({
@@ -500,7 +503,8 @@ export function buildScenarios(tools) {
       steps: toolSelectorSteps,
       analysis: {
         repeatedRenderPattern: ZH_LOCALE.menu_select_action,
-        maxRepeatedRenders: 30,
+        // 每次真实按键都会重绘；按场景操作数计预算，仍检测无输入的刷新循环。
+        maxRepeatedRenders: 8 + toolSelectorSteps.reduce((count, step) => count + (step.input?.match(/\u001b\[[AB]|\r/g)?.length ?? 0), 0),
         expectedPatterns: [ZH_LOCALE.menu_configure_tools, ...toolNames],
       },
     },
@@ -545,6 +549,7 @@ async function main() {
     const tools = toolManager.getAll().map((tool) => ({
       name: tool.name,
       displayName: tool.displayName,
+      launchOnly: tool.launchOnly,
     }));
 
     for (const scenario of buildScenarios(tools)) {
