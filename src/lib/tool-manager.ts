@@ -6,6 +6,7 @@ import { KimiCodeTool } from './tools/kimi-code-tool.js';
 import { CodeBuddyTool } from './tools/codebuddy-tool.js';
 import { GrokTool } from './tools/grok-tool.js';
 import { WorkBuddyTool } from './tools/workbuddy-tool.js';
+import { OpenClawTool } from './tools/openclaw-tool.js';
 import { HermesTool } from './tools/hermes-tool.js';
 import { DroidTool } from './tools/droid-tool.js';
 
@@ -25,6 +26,7 @@ class ToolManager {
     this.register(new CodeBuddyTool());
     this.register(new GrokTool());
     this.register(new WorkBuddyTool());
+    this.register(new OpenClawTool());
     this.register(new HermesTool());
     this.register(new DroidTool());
   }

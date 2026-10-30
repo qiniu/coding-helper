@@ -26,6 +26,7 @@
 | CodeBuddy | CLI | `~/.codebuddy/models.json` |
 | Grok CLI | CLI | [配置说明 / Configuration](docs/tools/grok.md) |
 | WorkBuddy | Desktop app | `~/.workbuddy/models.json` |
+| OpenClaw | CLI | [配置说明 / Configuration](docs/tools/openclaw.md) |
 | Hermes Agent | CLI | `~/.hermes/config.yaml` |
 | Factory Droid | CLI | [配置说明 / Configuration](docs/tools/droid.md) |
 
