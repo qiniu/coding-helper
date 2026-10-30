@@ -18,18 +18,26 @@ on:
         type: boolean
         default: false
 
+  pull_request:
+    types: [closed]
+    branches: [main]
+
 permissions:
-  contents: write
-  id-token: write
+  contents: read
 
 concurrency:
   group: release
   cancel-in-progress: false
 
 jobs:
-  release:
-    name: Tag, package, and publish
+  prepare:
+    name: Prepare release PR
+    if: github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+      issues: write
 
     steps:
       - name: Checkout
@@ -174,156 +182,114 @@ jobs:
       - name: Verify npm package contents
         run: npm pack --dry-run
 
-      - name: Commit release changes
-        id: commit
+      - name: Create release PR
         uses: actions/github-script@v8
         env:
-          VERSION: ${{ steps.release.outputs.tag }}
+          VERSION: ${{ steps.release.outputs.version }}
+          PRERELEASE: ${{ inputs.prerelease }}
         with:
           script: |
-            const fs = require("fs");
-            const { owner, repo } = context.repo;
-            const branch = process.env.GITHUB_REF_NAME;
-            const baseSha = context.sha;
-            const files = ["package.json", "src/lib/version.ts", "CHANGELOG.md"];
+            const { openReleasePr } = require('./.github/scripts/release.cjs');
+            const pr = await openReleasePr({ github, context, version: process.env.VERSION,
+              prerelease: process.env.PRERELEASE === 'true' });
+            await core.summary.addHeading('Release PR ready for review')
+              .addLink('Review and merge to publish', pr.html_url).write();
 
-            const currentRef = await github.rest.git.getRef({
-              owner,
-              repo,
-              ref: `heads/${branch}`,
-            });
-            if (currentRef.data.object.sha !== baseSha) {
-              throw new Error(
-                `Branch ${branch} moved from ${baseSha} to ${currentRef.data.object.sha}; rerun the release workflow.`,
-              );
-            }
+  publish:
+    name: Publish merged release PR
+    if: >-
+      github.event_name == 'pull_request' &&
+      github.event.pull_request.merged == true &&
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      startsWith(github.event.pull_request.head.ref, 'release/v') &&
+      contains(github.event.pull_request.labels.*.name, 'release')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: read
+      id-token: write
+    steps:
+      - name: Checkout merged release
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.pull_request.merge_commit_sha }}
+          fetch-depth: 0
 
-            const baseCommit = await github.rest.git.getCommit({
-              owner,
-              repo,
-              commit_sha: baseSha,
-            });
+      - name: Validate release PR
+        id: release
+        uses: actions/github-script@v8
+        with:
+          script: |
+            const { validateReleasePr } = require('./.github/scripts/release.cjs');
+            const release = await validateReleasePr({ github, context });
+            for (const [key, value] of Object.entries(release)) core.setOutput(key, value);
 
-            const treeItems = [];
-            for (const path of files) {
-              const blob = await github.rest.git.createBlob({
-                owner,
-                repo,
-                content: fs.readFileSync(path, "utf8"),
-                encoding: "utf-8",
-              });
-              treeItems.push({
-                path,
-                mode: "100644",
-                type: "blob",
-                sha: blob.data.sha,
-              });
-            }
+      - name: Install pnpm
+        uses: pnpm/action-setup@v6
+        with:
+          version: 9
 
-            const tree = await github.rest.git.createTree({
-              owner,
-              repo,
-              base_tree: baseCommit.data.tree.sha,
-              tree: treeItems,
-            });
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: 'pnpm'
+          registry-url: 'https://registry.npmjs.org'
 
-            if (tree.data.sha === baseCommit.data.tree.sha) {
-              core.info(`Release files already match ${process.env.VERSION}.`);
-              core.setOutput("commit_sha", baseSha);
-              return;
-            }
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
 
-            const commit = await github.rest.git.createCommit({
-              owner,
-              repo,
-              message: `chore: release ${process.env.VERSION}`,
-              tree: tree.data.sha,
-              parents: [baseSha],
-            });
+      - name: Test and build
+        run: pnpm test
 
-            await github.rest.git.updateRef({
-              owner,
-              repo,
-              ref: `heads/${branch}`,
-              sha: commit.data.sha,
-            });
+      - name: Verify CLI and npm package
+        env:
+          VERSION: ${{ steps.release.outputs.version }}
+        run: |
+          test "$(node dist/cli.js --version)" = "$VERSION"
+          node dist/cli.js --help
+          npm pack --dry-run
 
-            core.setOutput("commit_sha", commit.data.sha);
-            core.info(`Target commit: ${commit.data.sha}`);
-
-      - name: Create and push tag
+      - name: Check published version
+        id: npm
         uses: actions/github-script@v8
         env:
-          VERSION: ${{ steps.release.outputs.tag }}
-          COMMIT_SHA: ${{ steps.commit.outputs.commit_sha }}
+          VERSION: ${{ steps.release.outputs.version }}
         with:
           script: |
-            const { owner, repo } = context.repo;
-            await github.rest.git.createRef({
-              owner,
-              repo,
-              ref: `refs/tags/${process.env.VERSION}`,
-              sha: process.env.COMMIT_SHA,
-            });
+            const { checkPublishedVersion } = require('./.github/scripts/release.cjs');
+            core.setOutput('published', await checkPublishedVersion({ github, context,
+              version: process.env.VERSION }));
+
+      - name: Create release tag
+        uses: actions/github-script@v8
+        env:
+          VERSION: ${{ steps.release.outputs.version }}
+        with:
+          script: |
+            const { ensureTag } = require('./.github/scripts/release.cjs');
+            await ensureTag({ github, context, version: process.env.VERSION });
+
+      - name: Publish to npm
+        if: steps.npm.outputs.published != 'true'
+        env:
+          PRERELEASE: ${{ steps.release.outputs.prerelease }}
+        run: |
+          if [ "$PRERELEASE" = "true" ]; then
+            npm publish --access public --provenance --tag next
+          else
+            npm publish --access public --provenance
+          fi
 
       - name: Create GitHub Release
         uses: actions/github-script@v8
         env:
-          VERSION: ${{ steps.release.outputs.tag }}
-          PREVIOUS_TAG: ${{ steps.release.outputs.previous_tag }}
-          COMMIT_SHA: ${{ steps.commit.outputs.commit_sha }}
-          PRERELEASE: ${{ inputs.prerelease }}
+          VERSION: ${{ steps.release.outputs.version }}
+          PRERELEASE: ${{ steps.release.outputs.prerelease }}
         with:
           script: |
-            const { owner, repo } = context.repo;
-            const version = process.env.VERSION;
-            const previousTag = process.env.PREVIOUS_TAG || undefined;
-            const commitSha = process.env.COMMIT_SHA;
-            const prerelease = process.env.PRERELEASE === "true";
-
-            const params = {
-              owner,
-              repo,
-              tag_name: version,
-              target_commitish: commitSha,
-            };
-            if (previousTag) {
-              params.previous_tag_name = previousTag;
-            }
-
-            const generated = await github.rest.repos.generateReleaseNotes(params);
-
-            function localizeReleaseNotes(body) {
-              return body
-                .replace(/^## What's Changed$/gm, "## 更新内容")
-                .replace(/^## New Contributors$/gm, "## 新贡献者")
-                .replace(/^\*Full Changelog\*: (.+)$/gm, "**完整变更记录**：$1");
-            }
-
-            const npmIntro = [
-              "## npm 包",
-              "",
-              `- 包名：\`qiniu-coding-helper@${version.replace(/^v/, "")}\``,
-              "",
-            ].join("\n");
-
-            const release = await github.rest.repos.createRelease({
-              owner,
-              repo,
-              tag_name: version,
-              target_commitish: commitSha,
-              name: version,
-              body: `${npmIntro}${localizeReleaseNotes(generated.data.body)}`,
-              prerelease,
-              make_latest: prerelease ? "false" : "true",
-            });
-
-            core.summary
-              .addHeading(`已发布 ${version}`)
-              .addLink("GitHub Release", release.data.html_url)
-              .addBreak()
-              .addRaw(`npm 包：qiniu-coding-helper@${version.replace(/^v/, "")}`)
-              .write();
-
-      - name: Publish to npm
-        run: npm publish --access public --provenance
+            const { ensureRelease } = require('./.github/scripts/release.cjs');
+            const release = await ensureRelease({ github, context, version: process.env.VERSION,
+              prerelease: process.env.PRERELEASE === 'true' });
+            await core.summary.addHeading(`Published v${process.env.VERSION}`)
+              .addLink('GitHub Release', release.html_url).write();
