@@ -1,5 +1,5 @@
 import { t } from '../../i18n.js';
-import { configManager } from '../../config.js';
+import { applyTool } from '../../core/tool-service.js';
 import { toolManager } from '../../tool-manager.js';
 import { promptHelper } from '../ui/prompt-helper.js';
 import { uiRenderer } from '../ui/ui-renderer.js';
@@ -17,28 +17,25 @@ export async function setupTool(tool: ITool): Promise<void> {
     return;
   }
 
-  const apiKey = configManager.getApiKey();
-  if (apiKey) {
-    if (tool.name === 'codex') {
-      uiRenderer.renderHeader();
-      const confirmed = await promptHelper.confirm(t('tool_config_load_confirm', { tool: tool.displayName }));
-      if (!confirmed) return;
-    }
-    const models = configManager.getModels();
-    try {
-      await tool.loadConfig(apiKey, configManager.baseUrl, models);
-      uiRenderer.renderHeader();
-      uiRenderer.renderSuccess(t('tool_config_loaded', { tool: tool.displayName }));
-      for (const note of tool.getLoadConfigNotes?.() ?? []) uiRenderer.renderHint(note);
-    } catch (err: unknown) {
-      uiRenderer.renderHeader();
-      uiRenderer.renderError(
-        err instanceof Error ? err.message : t('tool_config_load_failed', { tool: tool.displayName }),
-      );
-      for (const note of tool.getLoadConfigNotes?.() ?? []) uiRenderer.renderHint(note);
-      await promptHelper.pressEnter();
-      return;
-    }
+  if (tool.name === 'codex') {
+    uiRenderer.renderHeader();
+    const confirmed = await promptHelper.confirm(t('tool_config_load_confirm', { tool: tool.displayName }));
+    if (!confirmed) return;
+  }
+  try {
+    const result = await applyTool(tool);
+    if (result.status !== 'success') throw new Error(t(result.reason ?? 'tool_config_load_failed', { tool: tool.displayName }));
+    uiRenderer.renderHeader();
+    uiRenderer.renderSuccess(t('tool_config_loaded', { tool: tool.displayName }));
+    for (const note of tool.getLoadConfigNotes?.() ?? []) uiRenderer.renderHint(note);
+  } catch (err: unknown) {
+    uiRenderer.renderHeader();
+    uiRenderer.renderError(
+      err instanceof Error ? err.message : t('tool_config_load_failed', { tool: tool.displayName }),
+    );
+    for (const note of tool.getLoadConfigNotes?.() ?? []) uiRenderer.renderHint(note);
+    await promptHelper.pressEnter();
+    return;
   }
 
   uiRenderer.renderSuccess(t('tool_setup_ready', { tool: tool.displayName }));
