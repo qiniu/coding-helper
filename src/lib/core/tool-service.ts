@@ -83,6 +83,24 @@ export function getRestoreTargets(tools: ITool[]): ITool[] {
   });
 }
 
+// 当前已切到其他服务商或无法解析的配置不强行覆盖。
+export function getSyncTargets(tools: ITool[]): ITool[] {
+  return tools.filter(tool => {
+    if (tool.launchOnly) return false;
+    try { return tool.isConfigured?.() ?? false; } catch { return false; }
+  });
+}
+
+export async function syncConfiguredTools(tools: ITool[]): Promise<ToolResult[]> {
+  const results: ToolResult[] = [];
+  for (const tool of tools) {
+    const result = await applyTool(tool);
+    // 已明确选择同步的目标不能把缺少模型、没有写入算成成功。
+    results.push(result.status === 'skipped' ? { ...result, status: 'failed' } : result);
+  }
+  return results;
+}
+
 // 全部失败为 1、部分失败为 2；没有失败（含跳过）为 0。
 export function exitCodeFor(results: ToolResult[]): number {
   const failed = results.filter(result => result.status === 'failed').length;

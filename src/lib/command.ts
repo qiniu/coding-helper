@@ -46,8 +46,9 @@ export function createProgram(): Command {
   program
     .command('auth [token]')
     .description('Manage API Key')
-    .action(async (token?: string) => {
-      await authCommand(token);
+    .option('--sync', 'also update clients still configured for Qiniu')
+    .action(async (token: string | undefined, options: { sync?: boolean }) => {
+      await authCommand(token, options);
     });
 
   // status - 只读查询安装与配置状态

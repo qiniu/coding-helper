@@ -5,9 +5,11 @@ import { validateApiKey } from '../../api-validator.js';
 import { promptHelper } from '../ui/prompt-helper.js';
 import { uiRenderer } from '../ui/ui-renderer.js';
 import { modelService } from '../../model-service.js';
+import { marketModelService } from '../../market-model-service.js';
+import { syncAfterChange } from './sync-tools-flow.js';
 
 // API Key 输入和验证流程
-export async function runApiKeyFlow(): Promise<boolean> {
+export async function runApiKeyFlow(forceSync = false): Promise<boolean> {
   uiRenderer.renderHeader();
   // 显示 API Key 获取提示
   uiRenderer.renderHint(t('apikey_hint'));
@@ -32,10 +34,13 @@ export async function runApiKeyFlow(): Promise<boolean> {
 
     if (result.valid) {
       spinner.succeed(t('apikey_valid'));
+      const changed = configManager.getApiKey() !== apiKey.trim();
       configManager.setApiKey(apiKey.trim());
       // 新 API Key 需要清除模型缓存
       modelService.clearCache();
+      marketModelService.clearCache();
       uiRenderer.renderSuccess(t('apikey_saved'));
+      if (changed || forceSync) await syncAfterChange(forceSync);
       return true;
     }
 

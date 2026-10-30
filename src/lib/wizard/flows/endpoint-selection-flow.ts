@@ -4,6 +4,8 @@ import { ENDPOINT_DEFINITIONS } from '../../endpoints.js';
 import { promptHelper } from '../ui/prompt-helper.js';
 import { uiRenderer } from '../ui/ui-renderer.js';
 import { modelService } from '../../model-service.js';
+import { marketModelService } from '../../market-model-service.js';
+import { syncAfterChange } from './sync-tools-flow.js';
 
 // 线路选择流程
 export async function runEndpointSelectionFlow(): Promise<void> {
@@ -15,8 +17,11 @@ export async function runEndpointSelectionFlow(): Promise<void> {
 
   const endpoint = await promptHelper.select<string>(t('endpoint_prompt'), choices);
 
+  const changed = configManager.getEndpoint() !== endpoint;
   configManager.setEndpoint(endpoint);
   // 切换线路后清除模型缓存
   modelService.clearCache();
+  marketModelService.clearCache();
   uiRenderer.renderSuccess(t('endpoint_set', { endpoint: t(ENDPOINT_DEFINITIONS[endpoint].i18nKey) }));
+  if (changed) await syncAfterChange();
 }
