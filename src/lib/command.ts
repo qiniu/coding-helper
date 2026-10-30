@@ -1,6 +1,6 @@
 import { runCommand } from '../commands/run.js';
 import { Command } from 'commander';
-import { authCommand, doctorCommand, langShowCommand, langSetCommand, statusCommand } from '../commands/index.js';
+import { authCommand, doctorCommand, langShowCommand, langSetCommand, statusCommand, restoreCommand } from '../commands/index.js';
 import { Wizard } from './wizard/wizard.js';
 import { i18n } from './i18n.js';
 import { toolManager } from './tool-manager.js';
@@ -54,6 +54,12 @@ export function createProgram(): Command {
     .description('Show coding tool installation and Qiniu configuration status')
     .option('--json', 'print status as JSON')
     .action((options: { json?: boolean }) => { statusCommand(options); });
+
+  // restore - 根据原有事务记录还原，未记录的旧配置由适配器提示恢复方法。
+  program.command('restore [tools]')
+    .description('Restore previous client settings using saved restoration records')
+    .option('-y, --yes', 'skip confirmation; required for non-interactive use')
+    .action(async (tools: string | undefined, options: { yes?: boolean }) => { await restoreCommand(tools, options); });
 
   // doctor - 健康检查
   program

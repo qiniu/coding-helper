@@ -1,4 +1,9 @@
 {
+  "restore_title": "还原客户端配置",
+  "restore_nothing": "没有可自动还原的工具，可用 status 检查配置状态。",
+  "restore_empty_tools": "请至少提供一个工具名称。",
+  "restore_confirm": "还原 {{tools}} 的原有配置？",
+  "restore_require_yes": "非交互还原必须提供 --yes，客户端配置未改动。",
   "status_title": "编程工具状态",
   "status_installed": "已安装",
   "status_not_installed": "未安装",

@@ -1,4 +1,9 @@
 {
+  "restore_title": "Restore client settings",
+  "restore_nothing": "No automatic restore targets found. Use status to inspect client configuration.",
+  "restore_empty_tools": "Provide at least one tool name.",
+  "restore_confirm": "Restore previous settings for {{tools}}?",
+  "restore_require_yes": "Non-interactive restore requires --yes. No client settings were changed.",
   "status_title": "Coding tool status",
   "status_installed": "Installed",
   "status_not_installed": "Not installed",
