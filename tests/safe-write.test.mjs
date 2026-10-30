@@ -15,7 +15,7 @@ test('legacy directory-alias records migrate on write and conflicting originals 
  const dir=path.join(home,'legacy-state'),alias=path.join(home,'legacy-alias');fs.mkdirSync(dir);fs.symlinkSync(dir,alias,'junction');
  const realFile=path.join(dir,'config.json'),aliasFile=path.join(alias,'config.json');const file=path.join(home,'.coding-helper','state.json');fs.mkdirSync(path.dirname(file),{recursive:true});
  const original={priors:{model:'original'}};const legacy={version:1,tools:{[JSON.stringify(['legacy',aliasFile])]:original}};fs.writeFileSync(file,JSON.stringify(legacy));
- assert.deepEqual(stateStore.getPriors('legacy',realFile),original.priors);stateStore.recordPriors('legacy',{model:'managed'},realFile);assert.deepEqual(stateStore.getPriors('legacy',aliasFile),original.priors);assert.equal(Object.keys(JSON.parse(fs.readFileSync(file,'utf8')).tools).length,1);
+ assert.deepEqual(stateStore.getPriors('legacy',realFile),original.priors);stateStore.recordPriors('legacy',{model:'managed'},realFile);assert.deepEqual(stateStore.getPriors('legacy',aliasFile),original.priors);assert.equal(stateStore.getFileStates('legacy').length,1);
  legacy.tools[JSON.stringify(['legacy',realFile])]={priors:{model:'different'}};const conflict=JSON.stringify(legacy);fs.writeFileSync(file,conflict);
  assert.throws(()=>stateStore.recordPriors('legacy',{model:'overwrite'},realFile),/Conflicting restoration/);assert.equal(fs.readFileSync(file,'utf8'),conflict);stateStore.clear();
 });
@@ -23,7 +23,7 @@ test('restoration state resolves parent aliases even before the file exists',()=
  const real=path.join(home,'real-parent'),alias=path.join(home,'alias-parent');fs.mkdirSync(real);fs.symlinkSync(real,alias,'junction');
  const realFile=path.join(real,'nested','config.json'),aliasFile=path.join(alias,'nested','config.json');
  stateStore.recordPriors('alias-state',{model:'original'},realFile);stateStore.recordPriors('alias-state',{model:'managed'},aliasFile);
- assert.deepEqual(stateStore.getPriors('alias-state',aliasFile),{model:'original'});assert.equal(Object.keys(JSON.parse(fs.readFileSync(path.join(home,'.coding-helper','state.json'),'utf8')).tools).filter(key=>key.includes('alias-state')).length,1);stateStore.markRemoved('alias-state',aliasFile);assert.equal(stateStore.getState('alias-state',realFile),undefined);
+ assert.deepEqual(stateStore.getPriors('alias-state',aliasFile),{model:'original'});assert.equal(stateStore.getFileStates('alias-state').length,1);stateStore.markRemoved('alias-state',aliasFile);assert.equal(stateStore.getState('alias-state',realFile),undefined);
 });
 
 test('safeWriteFile backs up the original under ~/.coding-helper/backups', () => {

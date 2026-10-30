@@ -108,6 +108,17 @@ class StateStore {
     return Object.hasOwn(tools, key) ? tools[key] : undefined;
   }
 
+  // 查找同一工具的文件记录，避免顺序和部分重叠绕过原值保护。
+  getFileStates(tool: string): { file: string; state: ToolState }[] {
+    return Object.entries(this.read().tools).flatMap(([key, state]) => {
+      try {
+        const identity: unknown = JSON.parse(key);
+        return Array.isArray(identity) && identity.length === 2 && identity[0] === tool && typeof identity[1] === 'string'
+          ? [{ file: identity[1], state }] : [];
+      } catch { return []; }
+    });
+  }
+
   // 完整替换一条事务记录，用于装载成功后的快照及失败回滚
   setState(tool: string, value: ToolState | undefined, file?: string): void {
     this.withLock(() => {
