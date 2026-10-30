@@ -140,12 +140,15 @@ jobs:
             }
 
             const generated = await github.rest.repos.generateReleaseNotes(params);
+            const { completeReleaseNotes } = require('./.github/scripts/release-notes.cjs');
+            const notes = await completeReleaseNotes({ github, context,
+              body: generated.data.body, previousTag, targetSha: context.sha });
 
             function formatChangelogBody(body) {
               return body
                 .replace(/^## What's Changed$/gm, "### 更新内容")
                 .replace(/^## New Contributors$/gm, "### 新贡献者")
-                .replace(/^\*Full Changelog\*: (.+)$/gm, "**完整变更记录**：$1")
+                .replace(/^\*{1,2}Full Changelog\*{1,2}: (.+)$/gm, "**完整变更记录**：$1")
                 .trim();
             }
 
@@ -156,7 +159,7 @@ jobs:
             const entry = [
               `## [${versionNumber}] - ${today}`,
               "",
-              formatChangelogBody(generated.data.body),
+              formatChangelogBody(notes),
               "",
             ].join("\n");
             const next = changelog.replace(
