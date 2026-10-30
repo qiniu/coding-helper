@@ -47,6 +47,10 @@ export async function authCommand(tokenOrAction?: string): Promise<void> {
       return;
     }
     const apiKey = configManager.getApiKey();
+    if (tool.launchOnly) {
+      uiRenderer.renderHint(t('setup_reason_launch_only'));
+      return;
+    }
     if (!apiKey) {
       uiRenderer.renderError(t('apikey_not_set'));
       return;

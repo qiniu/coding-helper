@@ -1,4 +1,5 @@
 {
+  "tool_launch_exit": "{{tool}} 退出状态为 {{code}}，按回车返回菜单。",
   "minimax_fetching_limits": "正在获取 MiniMax 模型能力信息…",
   "minimax_provider_start": "正在临时目录运行 MiniMax provider 配置，验证最多可能需要 90 秒…",
   "minimax_provider_complete": "MiniMax provider 命令已完成，正在校验临时配置…",
@@ -188,5 +189,8 @@
   "auth_unknown_tool": "未知工具: {{tool}}",
   "kimi_legacy_cli": "检测到旧版 kimi-cli {{version}}（读取 ~/.kimi），请改装新版 Kimi Code：{{command}}",
   "minimax_provider_add_failed": "mcode provider add 失败：{{error}}",
+  "run_unsupported": "{{tool}} 不支持启动器模式",
+  "run_supported_tools": "支持的工具：{{tools}}",
+  "setup_reason_launch_only": "无配置文件，请用 coding-helper run 启动",
   "droid_select_loaded_model": "模型已注册。启动 Droid 后运行 /model，选择 Qiniu: <所选模型> 才会生效；当前会话默认模型尚未改变。"
 }

@@ -1,3 +1,5 @@
+import { runCommand } from '../../../commands/run.js';
+import { LauncherShutdown } from '../../../utils/launcher-shutdown.js';
 import chalk from 'chalk';
 import select from '@inquirer/select';
 import { t } from '../../i18n.js';
@@ -73,8 +75,10 @@ export async function showToolMenu(tool: ITool): Promise<void> {
         message: t('menu_select_action'),
         choices: [
           { name: `${theme.icon('◆')} ${t('tool_configure_models')}`, value: 'models' as const },
-          { name: `${theme.icon('◇')} ${t('tool_load_config')}`, value: 'load' as const },
-          { name: `${theme.icon('◈')} ${t('tool_unload_config')}`, value: 'unload' as const },
+          ...(tool.launchOnly ? [] : [
+            { name: t('tool_load_config'), value: 'load' as const },
+            { name: t('tool_unload_config'), value: 'unload' as const },
+          ]),
           { name: `${theme.icon('▸')} ${t('tool_launch')}`, value: 'launch' as const },
           { name: `${theme.dimIcon('△')} ${t('tool_update')}`, value: 'update' as const },
           { name: `${theme.dimIcon('▪')} ${t('tool_view_config')}`, value: 'view' as const },
@@ -179,7 +183,7 @@ export function hasSavedToolModelConfig(
 
 async function runInitialToolSetup(tool: ITool): Promise<void> {
   const completed = await tool.runModelConfigFlow();
-  if (!completed) return;
+  if (!completed || tool.launchOnly) return;
 
   if (tool.name === 'codex') {
     uiRenderer.renderHeader();
@@ -286,7 +290,19 @@ async function applyConfig(tool: ITool): Promise<void> {
 }
 
 // 启动工具
-async function launchTool(tool: ITool): Promise<void> {
+export async function launchTool(tool: ITool): Promise<void> {
+  if (tool.launchOnly) {
+    const previousExitCode = process.exitCode;
+    let shuttingDown = false;
+    try {
+      process.exitCode = undefined;
+      await runCommand(tool.name, []);
+      if (process.exitCode) uiRenderer.renderError(t('tool_launch_exit', { tool: tool.displayName, code: String(process.exitCode) }));
+    } catch (error) { shuttingDown = error instanceof LauncherShutdown; throw error; }
+    finally { if (!shuttingDown) process.exitCode = previousExitCode; }
+    await promptHelper.pressEnter();
+    return;
+  }
   const installed = tool.isInstalled();
   // null 表示无法检测（桌面应用），视为已安装
   if (installed === false) {

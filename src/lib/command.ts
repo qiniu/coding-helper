@@ -1,3 +1,4 @@
+import { runCommand } from '../commands/run.js';
 import { Command } from 'commander';
 import { authCommand, doctorCommand, langShowCommand, langSetCommand } from '../commands/index.js';
 import { Wizard } from './wizard/wizard.js';
@@ -74,6 +75,11 @@ export function createProgram(): Command {
     .action((locale: string) => {
       langSetCommand(locale);
     });
+
+  program.enablePositionalOptions().command('run <tool> [args...]')
+    .description('Launch a tool with Qiniu environment variables')
+    .passThroughOptions().allowUnknownOption().allowExcessArguments()
+    .action(async (tool: string, args: string[]) => { await runCommand(tool, args); });
 
   // enter - 进入菜单
   program

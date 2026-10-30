@@ -217,6 +217,12 @@ npx qiniu-coding-helper enter hermes
 | 🇨🇳 **国内线路** | `https://api.qnaigc.com` | 中国大陆用户 |
 | 🌍 **海外线路** | `https://api.modelink.ai` | 海外用户 |
 
+### run 启动器 / Launcher
+
+使用 coding-helper run <tool> -- <args> 仅为子进程注入连接环境变量，不写客户端配置文件。本层定义启动接口；支持的工具由后续适配层提供。
+
+Use coding-helper run <tool> -- <args> to launch with connection environment variables without writing client configuration. Tool adapters opt into this interface.
+
 ### 🔧 Claude Code 环境变量
 
 配置应用后，以下环境变量会写入 `~/.claude/settings.json`：

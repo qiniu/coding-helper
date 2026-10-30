@@ -5,10 +5,17 @@ import { promptHelper } from '../ui/prompt-helper.js';
 import { uiRenderer } from '../ui/ui-renderer.js';
 import type { ITool } from '../../tools/base-tool.js';
 
-async function setupTool(tool: ITool): Promise<void> {
+export async function setupTool(tool: ITool): Promise<void> {
   // 用户取消模型配置时跳过后续装载与就绪提示，避免误报"配置成功"
   const completed = await tool.runModelConfigFlow();
   if (!completed) return;
+  if (tool.launchOnly) {
+    uiRenderer.renderHeader();
+    uiRenderer.renderSuccess(t('tool_setup_ready', { tool: tool.displayName }));
+    uiRenderer.renderHint(t('setup_reason_launch_only'));
+    await promptHelper.pressEnter();
+    return;
+  }
 
   const apiKey = configManager.getApiKey();
   if (apiKey) {

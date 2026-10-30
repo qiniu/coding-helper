@@ -1,4 +1,5 @@
 {
+  "tool_launch_exit": "{{tool}} returned exit status {{code}}. Press Enter to return to the menu.",
   "minimax_fetching_limits": "Fetching MiniMax model limits...",
   "minimax_provider_start": "Running MiniMax provider setup in a temporary directory; validation may take up to 90 seconds...",
   "minimax_provider_complete": "MiniMax provider setup finished. Validating the staged configuration...",
@@ -175,5 +176,8 @@
   "auth_unknown_tool": "Unknown tool: {{tool}}",
   "kimi_legacy_cli": "Found the legacy kimi-cli {{version}} (reads ~/.kimi). Install the new Kimi Code instead: {{command}}",
   "minimax_provider_add_failed": "mcode provider add failed: {{error}}",
+  "run_unsupported": "{{tool}} does not support launcher mode",
+  "run_supported_tools": "Supported tools: {{tools}}",
+  "setup_reason_launch_only": "No config file; launch it with coding-helper run",
   "droid_select_loaded_model": "Model registered. Start Droid, run /model, and select Qiniu: <your selected model> to activate it. The current session default has not changed."
 }
