@@ -1,5 +1,4 @@
 import chalk from 'chalk';
-import select from '@inquirer/select';
 import { t } from '../../i18n.js';
 import { configManager } from '../../config.js';
 import { promptHelper } from '../ui/prompt-helper.js';
@@ -69,18 +68,19 @@ export async function showToolMenu(tool: ITool): Promise<void> {
 
     let action: ToolMenuAction;
     try {
-      action = await select<ToolMenuAction>({
-        message: t('menu_select_action'),
-        choices: [
-          { name: `${theme.icon('◆')} ${t('tool_configure_models')}`, value: 'models' as const },
-          { name: `${theme.icon('◇')} ${t('tool_load_config')}`, value: 'load' as const },
-          { name: `${theme.icon('◈')} ${t('tool_unload_config')}`, value: 'unload' as const },
-          { name: `${theme.icon('▸')} ${t('tool_launch')}`, value: 'launch' as const },
-          { name: `${theme.dimIcon('△')} ${t('tool_update')}`, value: 'update' as const },
-          { name: `${theme.dimIcon('▪')} ${t('tool_view_config')}`, value: 'view' as const },
-          { name: `${theme.dimIcon('◁')} ${t('tool_back')}`, value: 'back' as const },
+      action = await promptHelper.select<ToolMenuAction>(
+        t('menu_select_action'),
+        [
+          { name: `${theme.icon('◆')} ${t('tool_configure_models')}`, value: 'models' },
+          { name: `${theme.icon('◇')} ${t('tool_load_config')}`, value: 'load' },
+          { name: `${theme.icon('◈')} ${t('tool_unload_config')}`, value: 'unload' },
+          { name: `${theme.icon('▸')} ${t('tool_launch')}`, value: 'launch' },
+          { name: `${theme.dimIcon('△')} ${t('tool_update')}`, value: 'update' },
+          { name: `${theme.dimIcon('▪')} ${t('tool_view_config')}`, value: 'view' },
+          { name: `${theme.dimIcon('◁')} ${t('tool_back')}`, value: 'back' },
         ],
-      }, { signal: controller.signal });
+        controller.signal,
+      );
     } catch (e: unknown) {
       // 版本查询完成触发的 abort，重新渲染菜单
       if (e instanceof Error && e.name === 'AbortPromptError') {
