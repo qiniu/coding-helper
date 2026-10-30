@@ -1,4 +1,5 @@
 {
+  "tool_update_command_confirm": "是否为 {{tool}} 执行此更新命令？{{command}}",
   "welcome": "欢迎使用 Coding Helper！",
   "welcome_description": "本工具帮助您配置 AI 编程助手的 API 端点和模型。",
   "privacy_notice": "您的 API Key 仅保存在本地 (~/.coding-helper/config.yaml)，不会上传到任何服务器。",
@@ -180,5 +181,6 @@
 
   "auth_reload_usage": "用法: coding-helper auth reload <tool>",
   "auth_reload_tools": "可用工具: {{tools}}",
-  "auth_unknown_tool": "未知工具: {{tool}}"
+  "auth_unknown_tool": "未知工具: {{tool}}",
+  "kimi_legacy_cli": "检测到旧版 kimi-cli {{version}}（读取 ~/.kimi），请改装新版 Kimi Code：{{command}}"
 }

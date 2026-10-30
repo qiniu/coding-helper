@@ -1,4 +1,5 @@
 {
+  "tool_update_command_confirm": "Run this update command for {{tool}}? {{command}}",
   "welcome": "Welcome to Coding Helper!",
   "welcome_description": "This tool helps you configure API endpoints and models for AI coding assistants.",
   "privacy_notice": "Your API Key is stored locally (~/.coding-helper/config.yaml) and never uploaded to any server.",
@@ -167,5 +168,6 @@
 
   "auth_reload_usage": "Usage: coding-helper auth reload <tool>",
   "auth_reload_tools": "Available tools: {{tools}}",
-  "auth_unknown_tool": "Unknown tool: {{tool}}"
+  "auth_unknown_tool": "Unknown tool: {{tool}}",
+  "kimi_legacy_cli": "Found the legacy kimi-cli {{version}} (reads ~/.kimi). Install the new Kimi Code instead: {{command}}"
 }
