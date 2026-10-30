@@ -35,6 +35,7 @@ export interface CodeBuddyModel {
 }
 
 export class CodeBuddyTool implements ITool {
+  requiresModelSelection = true;
   name = 'codebuddy';
   displayName = 'CodeBuddy';
   command = 'codebuddy';

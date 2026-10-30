@@ -34,6 +34,7 @@ export interface WorkBuddyModel {
 }
 
 export class WorkBuddyTool implements ITool {
+  requiresModelSelection = true;
   name = 'workbuddy';
   displayName = 'WorkBuddy';
   command = 'workbuddy';

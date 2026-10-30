@@ -1,4 +1,9 @@
 {
+  "setup_select_tools": "选择要配置的工具",
+  "setup_no_key": "请先设置 API Key，或使用 --key-stdin。",
+  "setup_reason_models_required": "请先为该工具选择模型。",
+  "setup_reason_not_installed": "未安装，已跳过。",
+  "setup_reason_desktop": "无法检测桌面应用，请显式指定工具。",
   "doctor_account": "账户可用性",
   "account_usable": "最小模型请求成功。",
   "account_unknown": "暂时无法判断账户可用性，请检查网络和模型状态。",

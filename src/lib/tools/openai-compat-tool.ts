@@ -54,6 +54,7 @@ export async function fetchModelLimits(baseUrl: string, apiKey: string, model: s
 
 // 通用 OpenAI 兼容客户端的公共部分：命令检测、模型选择与展示
 export abstract class OpenAICompatTool implements ITool {
+  requiresModelSelection = true;
   abstract name: string;
   abstract displayName: string;
   abstract command: string;

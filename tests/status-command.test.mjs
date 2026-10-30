@@ -123,6 +123,19 @@ test('all persistent adapters distinguish malformed files from an unconfigured c
   }
 });
 
+test('corrupt helper settings preserve the status JSON error contract', () => {
+  const file = path.join(home,'.coding-helper/config.yaml');
+  const before = fs.readFileSync(file,'utf8');
+  fs.writeFileSync(file,'api_key: [private-sentinel');
+  try {
+    const result = cli('status','--json');
+    assert.equal(result.code,1);
+    assert.deepEqual(JSON.parse(result.stdout),{error:'status_failed',exitCode:1});
+    assert.equal(result.stdout.includes('private-sentinel'),false);
+    assert.equal(fs.readFileSync(file,'utf8'),'api_key: [private-sentinel');
+  } finally { fs.writeFileSync(file,before); }
+});
+
 test('Qwen credential variable names cannot classify a foreign endpoint as Qiniu',()=>{
   const entry={id:'model',envKey:'QINIU_API_KEY',baseUrl:'https://foreign.example/v1'};
   const save=()=>write('.qwen/settings.json',JSON.stringify({modelProviders:{openai:[entry]}}));

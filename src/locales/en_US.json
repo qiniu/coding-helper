@@ -1,4 +1,9 @@
 {
+  "setup_select_tools": "Select tools to configure",
+  "setup_no_key": "Set an API key first or use --key-stdin.",
+  "setup_reason_models_required": "Select a model before configuring this tool.",
+  "setup_reason_not_installed": "Not installed; skipped.",
+  "setup_reason_desktop": "Desktop installation cannot be detected; select it explicitly.",
   "doctor_account": "Account availability",
   "account_usable": "A minimal model request succeeded.",
   "account_unknown": "Account availability could not be determined; check connectivity and model availability.",
