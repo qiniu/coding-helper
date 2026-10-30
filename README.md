@@ -284,7 +284,7 @@ model:
   api_key: <your-api-key>
 ```
 
-卸载配置会移除 Coding Helper 托管的 `model.provider`、`model.default`、`model.base_url` 和 `model.api_key` 字段，并保留 Hermes 的其他配置。
+卸载配置按记录逐字节还原装载前的整个文件，包括原有 provider、model、端点和 API Key；仅本工具新建的文件会删除。外部编辑会阻止重载和卸载，请先另存这些编辑，再恢复原始备份，成功卸载以清理事务记录，最后重新装载。没有恢复记录时不修改现有文件，并提示手动清理旧凭据。
 
 请将 `~/.hermes/config.yaml` 视为密码文件，因为其中以明文形式保存了 API Key。
 
@@ -372,3 +372,5 @@ pnpm test
 ## 📄 License
 
 本项目基于 [AGPL-3.0](LICENSE) 协议开源。
+
+Hermes 使用共享 YAML 编辑和事务层；恢复原始备份后须先成功卸载清理记录，再重新装载，不能直接重载。

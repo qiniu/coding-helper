@@ -286,7 +286,7 @@ model:
   api_key: <your-api-key>
 ```
 
-Unloading the configuration removes the Coding Helper managed `model.provider`, `model.default`, `model.base_url`, and `model.api_key` fields while preserving other Hermes settings.
+Unloading restores the entire pre-load file byte-for-byte, including its provider, model, endpoint, and API key; only helper-created files are removed. External edits block reload and unload. Save those edits separately, restore the original backup, successfully unload to clear the transaction record, then load again. Without restoration state, existing files remain unchanged and legacy credentials require manual recovery.
 
 Treat `~/.hermes/config.yaml` like a password because the API Key is stored in plaintext.
 
@@ -374,3 +374,5 @@ pnpm test
 ## 📄 License
 
 This project is licensed under the [AGPL-3.0](LICENSE) License.
+
+Hermes uses shared YAML editing and guarded transactions. After restoring the original backup, successfully unload to clear the transaction record before loading again; do not retry reload directly.
