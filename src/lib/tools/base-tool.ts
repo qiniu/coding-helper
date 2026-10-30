@@ -10,6 +10,8 @@ export interface ITool {
   // 只通过启动器使用的工具，不写客户端配置文件
   launchOnly?: boolean;
   requiresModelSelection?: boolean;
+  defaultModel?: string;
+  checkModel?(model: string, connection: { apiKey: string; baseUrl: string }): Promise<string | undefined>;
   // 启动器私有临时设置文件。
   getLaunchSettings?(apiKey: string, baseUrl: string, models: ModelConfig): Record<string, unknown>;
   getLaunchEnv?(apiKey: string, baseUrl: string, models: ModelConfig): Record<string, string | undefined>;

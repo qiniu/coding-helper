@@ -1,5 +1,6 @@
 import { runCommand } from '../commands/run.js';
 import { setupCommand } from '../commands/setup.js';
+import { quickCommand, type QuickOptions } from '../commands/quick.js';
 import { Command } from 'commander';
 import { authCommand, doctorCommand, langShowCommand, langSetCommand, statusCommand, restoreCommand } from '../commands/index.js';
 import { Wizard } from './wizard/wizard.js';
@@ -26,7 +27,14 @@ export function createProgram(): Command {
 
   // 默认行为（无子命令）：首次运行触发向导，否则进入主菜单
   program
-    .action(async () => {
+    .argument('[tool]', 'tool name or alias for quick configuration')
+    .argument('[values...]', 'API key and model ID in either order')
+    .option('--intl', 'prefer the international endpoint')
+    .option('--json', 'print quick configuration results as JSON')
+    .option('--key <key>', 'explicit API key, including non-sk formats')
+    .option('--model <id>', 'explicit model ID to avoid positional ambiguity')
+    .action(async (tool: string | undefined, values: string[], options: QuickOptions) => {
+      if (tool) { await quickCommand(tool, values, options); return; }
       const wizard = new Wizard();
       await wizard.run();
     });

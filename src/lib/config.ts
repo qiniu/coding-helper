@@ -176,6 +176,17 @@ class ConfigManager {
     this.save();
   }
 
+  // 客户端装载成功后一次提交连接与模型，校验失败不覆盖已有设置。
+  saveSettings(apiKey: string, endpoint: string, models: ModelConfig): void {
+    this.load();
+    const next: Config = { ...this.config, ...models, api_key: apiKey, endpoint };
+    if (models.claudeCode) next.claudeCode = { ...this.config.claudeCode, ...models.claudeCode };
+    if (models.toolModels) next.toolModels = { ...this.config.toolModels, ...models.toolModels };
+    this.ensureDir();
+    atomicWriteFile(CONFIG_FILE, yaml.dump(next, { lineWidth: -1 }));
+    this.config = next;
+  }
+
   // 根据当前线路获取 base URL
   get baseUrl(): string {
     return getBaseUrl(this.getEndpoint());

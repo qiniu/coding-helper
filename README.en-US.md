@@ -34,6 +34,8 @@
 
 ## ✨ Features
 
+Quick setup: `coding-helper opencode [API key] [model ID]`; keys can also come from `QINIU_API_KEY` or saved settings. Supports `--intl` and `--json`. Use `--key` for any key format and `--model` to avoid positional ambiguity. Helper settings are saved only after validation and successful client configuration. Codex compatibility is checked using a minimal Responses request.
+
 `coding-helper auth <key> --sync` updates clients still configured for Qiniu and returns nonzero on failures; the same key can be retried. Without `--sync`, non-interactive calls only save the key, while terminals offer a tool selection. Other providers are preserved.
 
 `coding-helper setup --tools claude,codex --yes` configures selected tools using saved models; omit `--tools` to select installed tools. Supports `--json` and `--key-stdin`; a stdin key is saved only after a successful tool configuration. Tools requiring an unselected model are skipped.

@@ -101,6 +101,33 @@ export class CodexTool implements ITool {
 
   async unloadConfig(): Promise<void> { this.clearModelConfig(); }
 
+  async checkModel(model: string, connection: { apiKey: string; baseUrl: string }): Promise<string | undefined> {
+    try {
+      const response = await fetch(`${connection.baseUrl}/bypass/openai/v1/responses`, {
+        method: 'POST', headers: { Authorization: `Bearer ${connection.apiKey}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ model, input: 'hi', max_output_tokens: 16, stream: true }), signal: AbortSignal.timeout(60000),
+      });
+      if (!response.ok || !response.body) {
+        await response.body?.cancel().catch(() => {});
+        return 'quick_model_incompatible';
+      }
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let text = '', size = 0;
+      try {
+        while (size <= 65536) {
+          const chunk = await reader.read();
+          if (chunk.done) break;
+          size += chunk.value.length;
+          if (size > 65536) return 'quick_model_incompatible';
+          text += decoder.decode(chunk.value, { stream: true });
+          if (isCodexCompatibleStream(text)) return undefined;
+        }
+      } finally { await reader.cancel().catch(() => {}); reader.releaseLock(); }
+    } catch { /* 网络和非标准流都不能冒充模型兼容。 */ }
+    return 'quick_model_incompatible';
+  }
+
   async runModelConfigFlow(): Promise<boolean> {
     uiRenderer.renderHeader();
     uiRenderer.renderHint(t('codex_fixed_model_hint', { model: this.defaultModel }));
@@ -112,6 +139,28 @@ export class CodexTool implements ITool {
   renderModelConfigSummary(): void {
     uiRenderer.renderConfigItem(t('config_view_codex_model'), configManager.getModels().codexModel || this.defaultModel);
   }
+}
+
+export function isCodexCompatibleStream(text: string): boolean {
+  let completed = false;
+  for (const line of text.split(/\r?\n/)) {
+    if (!line.startsWith('data:')) continue;
+    const data = line.slice(5).trim();
+    if (!data || data === '[DONE]') continue;
+    try {
+      const event: unknown = JSON.parse(data);
+      if (!isRecord(event) || typeof event.type !== 'string') return false;
+      if (['response.failed', 'error'].includes(event.type)) return false;
+      if (event.type === 'response.incomplete') {
+        const response = isRecord(event.response) ? event.response : undefined;
+        const details = response && isRecord(response.incomplete_details) ? response.incomplete_details : undefined;
+        if (details?.reason !== 'max_output_tokens') return false;
+        completed = true;
+      }
+      if (event.type === 'response.completed') completed = true;
+    } catch { return false; }
+  }
+  return completed;
 }
 
 export function buildCodexConfig(_existing: string, baseUrl?: string, model?: string, catalogPath?: string): string {

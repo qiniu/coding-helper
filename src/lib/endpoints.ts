@@ -35,11 +35,16 @@ export function normalizeEndpointId(endpointId: string): string {
 
 // 根据端点 ID 获取 base URL
 export function getBaseUrl(endpointId: string): string {
-  const endpoint = ENDPOINT_DEFINITIONS[normalizeEndpointId(endpointId)];
+  const id = normalizeEndpointId(endpointId);
+  const endpoint = ENDPOINT_DEFINITIONS[id];
   if (!endpoint) {
     return ENDPOINT_DEFINITIONS[DEFAULT_ENDPOINT].baseUrl;
   }
-  return endpoint.baseUrl;
+  return process.env[`CODING_HELPER_BASE_URL_${id.toUpperCase()}`]?.replace(/\/+$/, '') || endpoint.baseUrl;
+}
+
+export function otherEndpoint(endpointId: string): string {
+  return normalizeEndpointId(endpointId) === 'international' ? 'china' : 'international';
 }
 
 // 判断 URL 是否指向七牛线路（含历史域名），用于识别旧版本写入的配置
@@ -47,6 +52,7 @@ export function isQiniuBaseUrl(url: unknown): boolean {
   if (typeof url !== 'string') return false;
   const known = [
     ...Object.values(ENDPOINT_DEFINITIONS).map((def) => def.baseUrl),
+    ...Object.keys(ENDPOINT_DEFINITIONS).map(getBaseUrl),
     'https://openai.qiniu.com',
   ];
   try {

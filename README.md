@@ -34,6 +34,8 @@
 
 ## ✨ 功能特性
 
+单工具快捷配置：`coding-helper opencode [API Key] [模型 ID]`，Key 也可从 `QINIU_API_KEY` 或已保存配置读取；支持 `--intl`、`--json`。任意前缀的 Key 可用 `--key` 明确指定，`--model` 可消除模型位置参数歧义。所有校验完成且客户端装载成功后才保存 helper 设置。Codex 会用最小 Responses 请求验证协议兼容性。
+
 换 Key 时，`coding-helper auth <key> --sync` 同步仍接入七牛的客户端；失败返回非零，重复同一 Key 可重试。未加 `--sync` 的非交互调用只保存 Key，交互终端允许勾选要更新的工具。切到其他服务商的配置不会被强制改回。
 
 `coding-helper setup --tools claude,codex --yes` 批量装载已保存的模型配置；省略 `--tools` 时选择已安装工具。支持 `--json` 和 `--key-stdin`；stdin Key 仅在有工具成功装载后保存。缺少必选模型的工具会跳过。
