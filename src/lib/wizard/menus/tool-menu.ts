@@ -98,25 +98,9 @@ export async function showToolMenu(tool: ITool): Promise<void> {
         await loadConfig(tool);
         break;
 
-      case 'unload': {
-        // 清屏后二次确认
-        uiRenderer.renderHeader();
-        const confirmed = await promptHelper.confirm(
-          t('tool_config_unload_confirm', { tool: tool.displayName }),
-        );
-        if (confirmed) {
-          try {
-            await tool.unloadConfig();
-            uiRenderer.renderHeader();
-            uiRenderer.renderSuccess(t('tool_config_unloaded', { tool: tool.displayName }));
-          } catch {
-            uiRenderer.renderHeader();
-            uiRenderer.renderError(t('tool_config_unload_failed', { tool: tool.displayName }));
-          }
-          await promptHelper.pressEnter();
-        }
+      case 'unload':
+        await unloadToolConfig(tool);
         break;
-      }
 
       case 'launch':
         await launchTool(tool);
@@ -141,6 +125,22 @@ export async function showToolMenu(tool: ITool): Promise<void> {
         return;
     }
   }
+}
+
+// 卸载错误包含恢复操作指引，必须展示，不能只显示通用失败。
+export async function unloadToolConfig(tool: ITool): Promise<void> {
+  uiRenderer.renderHeader();
+  if (!await promptHelper.confirm(t('tool_config_unload_confirm', { tool: tool.displayName }))) return;
+  try {
+    await tool.unloadConfig();
+    uiRenderer.renderHeader();
+    uiRenderer.renderSuccess(t('tool_config_unloaded', { tool: tool.displayName }));
+  } catch (error: unknown) {
+    uiRenderer.renderHeader();
+    uiRenderer.renderError(t('tool_config_unload_failed', { tool: tool.displayName }));
+    if (error instanceof Error && error.message) uiRenderer.renderError(error.message);
+  }
+  await promptHelper.pressEnter();
 }
 
 export function isLatestVersionFetchPending(state: {

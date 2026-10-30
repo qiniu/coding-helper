@@ -13,18 +13,19 @@ import {
   removeManagedCodexConfig,
 } from '../dist/lib/tools/codex-tool.js';
 
-test('buildCodexModelCatalog contains only GPT models with Codex metadata', () => {
+test('buildCodexModelCatalog contains GPT and explicitly supplied non-GPT models with Codex metadata', () => {
   const catalog = JSON.parse(buildCodexModelCatalog([
     { id: 'openai/gpt-5.4', context_length: 1050000, max_tokens: 128000 },
     { id: 'x-ai/grok-4.6', context_length: 500000, max_tokens: 128000 },
     { id: 'anthropic/claude-sonnet', context_length: 200000, max_tokens: 64000 },
   ]));
 
-  assert.deepEqual(catalog.models.map((model) => model.slug), ['openai/gpt-5.4']);
+  assert.deepEqual(catalog.models.map((model) => model.slug), ['openai/gpt-5.4', 'x-ai/grok-4.6', 'anthropic/claude-sonnet']);
   assert.equal(catalog.models[0].context_window, 1050000);
   assert.equal(catalog.models[0].max_context_window, 1050000);
   assert.equal(catalog.models[0].truncation_policy.limit, 10000);
   assert.equal(catalog.models[0].support_verbosity, false);
+  assert.equal(catalog.models[0].supports_parallel_tool_calls, false);
 });
 
 test('buildCodexConfig replaces existing TOML to avoid configuration conflicts', () => {

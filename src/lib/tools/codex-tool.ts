@@ -1,3 +1,6 @@
+import { applyConfigEdits, restoreConfigEdits, parseConfigObject } from '../core/config-transaction.js';
+import { validateToml, upsertTopLevelTomlKey, removeTopLevelTomlKey, removeTomlTable as removeSharedTomlTable } from '../core/toml-edit.js';
+import { fetchModelLimits } from './openai-compat-tool.js';
 import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
@@ -23,6 +26,8 @@ export interface CodexCatalogModel {
   id: string;
   context_length: number;
   max_tokens: number;
+  plain?: boolean;
+  images?: boolean;
 }
 
 const GPT_MODELS: CodexCatalogModel[] = [
@@ -47,7 +52,6 @@ export class CodexTool implements ITool {
   updateCommand = 'npm install -g @openai/codex@latest';
   npmPackageName = '@openai/codex';
   aliases = ['openai-codex'];
-  private lastBackupPaths: string[] = [];
 
   getVersion(): string | null {
     try {
@@ -79,29 +83,27 @@ export class CodexTool implements ITool {
   }
 
   clearModelConfig(): void {
-    const content = readCodexConfig();
-    writeCodexConfig(removeTomlTable(content, 'profiles.qn-gpt'));
+    const files = [CODEX_CONFIG_FILE, CODEX_AUTH_FILE, CODEX_CATALOG_FILE];
+    if (!restoreConfigEdits(this.name, files) && files.some(file => fs.existsSync(file))) {
+      throw new Error('No restoration record for Codex. Configuration is unchanged; remove legacy credentials manually or recover a known backup.');
+    }
   }
 
   async loadConfig(apiKey: string, baseUrl: string, models: ModelConfig): Promise<void> {
-    this.lastBackupPaths = [
-      backupCodexFile(CODEX_CONFIG_FILE),
-      backupCodexFile(CODEX_CATALOG_FILE),
-    ].filter((backup): backup is string => !!backup);
-    writeCodexAuth(buildCodexAuthJson(readCodexAuth(), apiKey));
-    writeCodexCatalog(buildCodexModelCatalog(GPT_MODELS));
-    writeCodexConfig(buildCodexConfig('', baseUrl, models.codexModel || this.defaultModel, CODEX_CATALOG_FILE));
+    const model = models.codexModel || this.defaultModel;
+    const extra: CodexCatalogModel[] = [];
+    if (!GPT_MODELS.some(entry => entry.id === model)) {
+      const limits = await fetchModelLimits(baseUrl, apiKey, model);
+      extra.push({ id: model, context_length: limits.contextWindow, max_tokens: limits.maxOutputTokens, plain: true, images: limits.modalities?.input.includes('image') ?? false });
+    }
+    applyConfigEdits(this.name, [
+      { file: CODEX_CONFIG_FILE, build: content => mergeCodexConfig(content ?? '', baseUrl, model, CODEX_CATALOG_FILE) },
+      { file: CODEX_AUTH_FILE, build: content => JSON.stringify({ ...parseConfigObject(content), auth_mode: 'apikey', OPENAI_API_KEY: apiKey }, null, 2) + '\n' },
+      { file: CODEX_CATALOG_FILE, build: content => { if (content !== undefined) parseConfigObject(content); return buildCodexModelCatalog([...GPT_MODELS, ...extra]); } },
+    ]);
   }
 
-  getLoadConfigNotes(): string[] {
-    return this.lastBackupPaths.map((path) => formatCodexBackupNote(path));
-  }
-
-  async unloadConfig(): Promise<void> {
-    const content = readCodexConfig();
-    writeCodexConfig(removeManagedCodexConfig(content));
-    if (fs.existsSync(CODEX_CATALOG_FILE)) fs.rmSync(CODEX_CATALOG_FILE);
-  }
+  async unloadConfig(): Promise<void> { this.clearModelConfig(); }
 
   async runModelConfigFlow(): Promise<boolean> {
     uiRenderer.renderHeader();
@@ -205,12 +207,12 @@ export function buildCodexModelCatalog(models: CodexCatalogModel[]): string {
       effort === 'high' ? 'Greater reasoning depth for complex problems' :
       'Extra high reasoning depth for complex problems',
   }));
-  return JSON.stringify({ models: models.filter((model) => model.id.startsWith('openai/gpt')).map((model, index) => ({
+  return JSON.stringify({ models: models.map((model, index) => ({
     slug: model.id,
     display_name: model.id.replace('openai/', '').replace(/(^|[-.])([a-z])/g, (_, prefix, letter) => `${prefix}${letter.toUpperCase()}`),
     description: `${model.id.replace('openai/', '')} coding model.`,
-    default_reasoning_level: 'medium',
-    supported_reasoning_levels: reasoningLevels,
+    default_reasoning_level: model.plain ? null : 'medium',
+    supported_reasoning_levels: model.plain ? [] : reasoningLevels,
     shell_type: 'unified_exec',
     visibility: 'list',
     supported_in_api: true,
@@ -220,9 +222,10 @@ export function buildCodexModelCatalog(models: CodexCatalogModel[]): string {
     context_window: model.context_length,
     max_context_window: model.context_length,
     effective_context_window_percent: 95,
-    input_modalities: ['text', 'image'],
+    input_modalities: model.plain && !model.images ? ['text'] : ['text', 'image'],
     used_fallback_model_metadata: false,
     support_verbosity: false,
+    supports_parallel_tool_calls: false,
     truncation_policy: { mode: 'tokens', limit: 10000 },
     experimental_supported_tools: [],
     base_instructions: 'You are Codex, a coding agent based on GPT-5.',
@@ -238,38 +241,6 @@ function readCodexConfig(): string {
     // 文件不存在或读取失败时按空配置处理
   }
   return '';
-}
-
-function readCodexAuth(): string {
-  try {
-    if (fs.existsSync(CODEX_AUTH_FILE)) {
-      return fs.readFileSync(CODEX_AUTH_FILE, 'utf-8');
-    }
-  } catch {
-    // 文件不存在或读取失败时按空配置处理
-  }
-  return '';
-}
-
-function writeCodexConfig(content: string): void {
-  if (!fs.existsSync(CODEX_DIR)) {
-    fs.mkdirSync(CODEX_DIR, { recursive: true, mode: 0o700 });
-  }
-  fs.writeFileSync(CODEX_CONFIG_FILE, content, { encoding: 'utf-8', mode: 0o600 });
-}
-
-function writeCodexCatalog(content: string): void {
-  if (!fs.existsSync(CODEX_CATALOG_DIR)) {
-    fs.mkdirSync(CODEX_CATALOG_DIR, { recursive: true, mode: 0o700 });
-  }
-  fs.writeFileSync(CODEX_CATALOG_FILE, content, { encoding: 'utf-8', mode: 0o600 });
-}
-
-function writeCodexAuth(content: string): void {
-  if (!fs.existsSync(CODEX_DIR)) {
-    fs.mkdirSync(CODEX_DIR, { recursive: true, mode: 0o700 });
-  }
-  fs.writeFileSync(CODEX_AUTH_FILE, content, { encoding: 'utf-8', mode: 0o600 });
 }
 
 function parseJsonObject(content: string): Record<string, unknown> {
@@ -341,6 +312,20 @@ function normalizeToml(content: string): string {
   return trimmed ? `${trimmed}\n` : '';
 }
 
-function escapeTomlString(value: string): string {
-  return value.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
+function escapeTomlString(value: string): string { return JSON.stringify(value).slice(1, -1); }
+
+export function mergeCodexConfig(existing: string, baseUrl: string, model: string, catalogPath: string): string {
+  const newline = existing.includes('\r\n') ? '\r\n' : '\n';
+  validateToml(existing);
+  let content = removeSharedTomlTable(removeSharedTomlTable(existing, 'model_providers.qnaigc'), 'profiles.qn-gpt');
+  // 新版 Codex 不再接受顶层 profile；直接使用顶层路由并统一文件式 API Key 认证。
+  content = removeTopLevelTomlKey(content, 'profile');
+  for (const [key, value] of Object.entries({ model, model_provider: PROVIDER_NAME, model_catalog_json: catalogPath,
+    cli_auth_credentials_store: 'file', forced_login_method: 'api' })) {
+    content = upsertTopLevelTomlKey(content, key, JSON.stringify(value));
+  }
+  const generated = buildCodexConfig('', baseUrl, model, catalogPath);
+  const next = content.trimEnd() + newline + newline + generated.slice(generated.indexOf('[model_providers.')).replace(/\n/g, newline);
+  validateToml(next);
+  return next;
 }
