@@ -22,6 +22,8 @@ function parseMinimaxConfig(content: string): ReturnType<typeof parseYamlDocumen
 }
 
 export class MinimaxCodeTool extends OpenAICompatTool {
+  // 官方 provider 命令会执行外部写入，不能将空预演误报为成功。
+  supportsPreview = false;
   name = 'minimax-code';
   displayName = 'MiniMax Code';
   command = 'mcode';

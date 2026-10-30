@@ -66,6 +66,7 @@ export function getKimiInstallCommand(platform: NodeJS.Platform = process.platfo
 }
 
 export class KimiCodeTool extends OpenAICompatTool {
+  supportsPreview = true;
   name = 'kimi-code';
   displayName = 'Kimi Code CLI';
   command = 'kimi';

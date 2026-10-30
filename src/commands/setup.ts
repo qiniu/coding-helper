@@ -10,8 +10,9 @@ import { promptHelper } from '../lib/wizard/ui/prompt-helper.js';
 import { uiRenderer } from '../lib/wizard/ui/ui-renderer.js';
 import { jsonToolResults, renderToolResults } from '../lib/wizard/ui/tool-results.js';
 import { withQuietLogs } from '../utils/logger.js';
+import { previewWrites, publicPlannedChanges } from '../lib/core/safe-write.js';
 
-export interface SetupOptions { tools?: string; yes?: boolean; json?: boolean; keyStdin?: boolean; }
+export interface SetupOptions { tools?: string; yes?: boolean; json?: boolean; keyStdin?: boolean; dryRun?: boolean; }
 
 export async function setupCommand(options: SetupOptions): Promise<void> {
   try {
@@ -56,19 +57,28 @@ export async function setupCommand(options: SetupOptions): Promise<void> {
     if (!apiKey) throw new Error(t('setup_no_key'));
     const account = targets.length ? await checkAccountStatus(apiKey, configManager.baseUrl) : undefined;
     if (account && account.usable !== true && !options.json) uiRenderer.renderWarning(describeAccountStatus(account));
-    const results: ToolResult[] = [];
-    for (const tool of targets) {
-      if (interactive && tool.requiresModelSelection && !tool.launchOnly && !hasSavedToolModelConfig(tool, configManager.getModels())) await tool.runModelConfigFlow();
-      const apply = () => applyTool(tool, { apiKey, baseUrl: configManager.baseUrl });
-      results.push(await (options.json ? withQuietLogs(apply) : apply()));
-    }
-    if (options.keyStdin && results.some(result => result.status === 'success')) {
+    const perform = async (): Promise<ToolResult[]> => {
+      const results: ToolResult[] = [];
+      for (const tool of targets) {
+        if (interactive && !options.dryRun && tool.requiresModelSelection && !tool.launchOnly && !hasSavedToolModelConfig(tool, configManager.getModels())) await tool.runModelConfigFlow();
+        const apply = () => applyTool(tool, { apiKey: apiKey!, baseUrl: configManager.baseUrl });
+        results.push(await (options.json || options.dryRun ? withQuietLogs(apply) : apply()));
+      }
+      return results;
+    };
+    const planned = options.dryRun ? await previewWrites(perform) : { value: await perform(), changes: [] };
+    const results = planned.value;
+    if (options.keyStdin && !options.dryRun && results.some(result => result.status === 'success')) {
       configManager.setApiKey(apiKey); modelService.clearCache(); marketModelService.clearCache();
     }
     results.push(...skipped);
     const exitCode = exitCodeFor(results);
-    if (options.json) console.log(JSON.stringify({ results: jsonToolResults(results), account, exitCode }, null, 2));
-    else renderToolResults(results, apiKey);
+    const preview = options.dryRun ? { dryRun: true, changes: publicPlannedChanges(planned.changes) } : {};
+    if (options.json) console.log(JSON.stringify({ results: jsonToolResults(results), account, ...preview, exitCode }, null, 2));
+    else {
+      renderToolResults(results, apiKey, !!options.dryRun);
+      if (options.dryRun) for (const change of publicPlannedChanges(planned.changes)) console.log(JSON.stringify(change));
+    }
     process.exitCode = exitCode;
   } catch (error) {
     if (options.json) console.log(JSON.stringify({ error: 'setup_failed', exitCode: 1 }));

@@ -99,6 +99,7 @@ export function applyQwenSettings(
 }
 
 export class QwenCodeTool extends OpenAICompatTool {
+  supportsPreview = true;
   name = 'qwen-code';
   displayName = 'Qwen Code';
   command = 'qwen';

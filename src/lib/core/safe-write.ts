@@ -2,6 +2,47 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { createHash, randomUUID } from 'node:crypto';
+import { AsyncLocalStorage } from 'node:async_hooks';
+
+export interface PlannedChange { file: string; before: string | undefined; after: string | undefined; }
+interface PreviewState { originals: Map<string, string | undefined>; writes: Map<string, string | undefined>; }
+const previews = new AsyncLocalStorage<PreviewState>();
+export function isPreview(): boolean { return previews.getStore() !== undefined; }
+
+function previewKey(file: string): string {
+  const directory = (dir: string): string => {
+    try { return fs.realpathSync(dir); }
+    catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== 'ENOENT' || path.dirname(dir) === dir) throw error;
+      return path.join(directory(path.dirname(dir)), path.basename(dir));
+    }
+  };
+  return path.join(directory(path.dirname(path.resolve(file))), path.basename(file));
+}
+
+// 一次异步预演共用内存文件视图；重复写入和 journal 读回都能看到前一次变更。
+export function previewWrites<T>(operation: () => Promise<T>): Promise<{ value: T; changes: PlannedChange[] }> {
+  if (isPreview()) throw new Error('Nested configuration previews are not supported');
+  const state: PreviewState = { originals: new Map(), writes: new Map() };
+  return previews.run(state, async () => {
+    const value = await operation();
+    const internal = new Set(['state.json', 'config.yaml'].map(name => previewKey(path.join(helperDir(), name))));
+    const changes = [...state.writes].flatMap(([file, after]) => {
+      const before = state.originals.get(file);
+      return internal.has(file) || before === after ? [] : [{ file, before, after }];
+    });
+    return { value, changes };
+  });
+}
+
+// CLI 只展示路径、动作和行数，不输出原配置正文，避免泄露旧 Key 或其他供应商凭据。
+export function publicPlannedChanges(changes: PlannedChange[]): object[] {
+  return changes.map(({ file, before, after }) => ({ file,
+    operation: after === undefined ? 'delete' : before === undefined ? 'create' : 'modify',
+    beforeLines: before === undefined ? 0 : before.split('\n').length,
+    afterLines: after === undefined ? 0 : after.split('\n').length,
+  }));
+}
 
 // coding-helper 自身目录（惰性计算，便于测试时替换 HOME）
 export function helperDir(): string {
@@ -14,10 +55,16 @@ export function backupsRoot(): string {
 
 // 读取文本文件，不存在时返回 undefined
 export function readTextFile(file: string): string | undefined {
+  const preview = previews.getStore();
+  const key = preview ? previewKey(file) : file;
+  if (preview?.writes.has(key)) return preview.writes.get(key);
+  if (preview?.originals.has(key)) return preview.originals.get(key);
   try {
-    return fs.readFileSync(file, 'utf-8');
+    const content = fs.readFileSync(file, 'utf-8');
+    preview?.originals.set(key, content);
+    return content;
   } catch (err: unknown) {
-    if ((err as NodeJS.ErrnoException).code === 'ENOENT') return undefined;
+    if ((err as NodeJS.ErrnoException).code === 'ENOENT') { preview?.originals.set(key, undefined); return undefined; }
     throw err;
   }
 }
@@ -65,6 +112,13 @@ export function assertNotSymlink(file: string): void {
 // 原子写入：同目录写临时文件后 rename，避免中途失败留下半个文件
 export function atomicWriteFile(file: string, content: string, mode = 0o600, beforeCommit?: () => void): void {
   assertNotSymlink(file);
+  const preview = previews.getStore();
+  if (preview) {
+    readTextFile(file);
+    beforeCommit?.();
+    preview.writes.set(previewKey(file), content);
+    return;
+  }
   const dir = path.dirname(file);
   fs.mkdirSync(dir, { recursive: true, mode: 0o700 });
   const tmp = path.join(dir, '.' + path.basename(file) + '.tmp-' + randomUUID());
@@ -123,6 +177,7 @@ function ensureSessionDir(): string {
 
 // 写入前备份原文件；同一次运行内同一文件只备份一次。文件不存在时返回 undefined
 export function backupFile(file: string): string | undefined {
+  if (isPreview()) return undefined;
   const resolved = path.resolve(file);
   const existing = backedUp.get(resolved);
   if (existing && fs.existsSync(existing)) return existing;
@@ -188,11 +243,13 @@ export function writeJson(file: string, data: unknown, expected?: FileExpectatio
 function removeFile(file: string, expected?: FileExpectation): void {
   assertExpected(file, expected);
   assertNotSymlink(file);
-  if (!fs.existsSync(file)) return;
+  if (readTextFile(file) === undefined) return;
   backupFile(file);
   assertNotSymlink(file);
   assertExpected(file, expected);
-  fs.rmSync(file, { force: true });
+  const preview = previews.getStore();
+  if (preview) preview.writes.set(previewKey(file), undefined);
+  else fs.rmSync(file, { force: true });
 }
 
 // 写回 JSON 对象；还原后为空对象时删除文件（文件本就是我们创建的，或原本为空）

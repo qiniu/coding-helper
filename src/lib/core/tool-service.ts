@@ -1,6 +1,7 @@
 import { configManager, type ModelConfig } from '../config.js';
 import type { ITool } from '../tools/base-tool.js';
 import { stateStore } from './state-store.js';
+import { isPreview } from './safe-write.js';
 
 export interface ToolResult {
   tool: ITool;
@@ -49,6 +50,7 @@ export function hasSavedToolModelConfig(tool: Pick<ITool, 'name'>, models: Model
 // 原值、写入快照和恢复日志仍由各适配器的事务维护，不另写一份按工具名的状态。
 export async function applyTool(tool: ITool, connection?: { apiKey: string; baseUrl: string; models?: ModelConfig }): Promise<ToolResult> {
   if (tool.launchOnly) return { tool, status: 'skipped', reason: 'setup_reason_launch_only' };
+  if (isPreview() && tool.supportsPreview !== true) return { tool, status: 'failed', reason: 'setup_preview_unsupported' };
   try {
     const apiKey = connection?.apiKey ?? configManager.getApiKey();
     if (!apiKey) return { tool, status: 'failed', reason: 'apikey_not_set' };

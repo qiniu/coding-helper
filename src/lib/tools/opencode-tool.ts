@@ -197,6 +197,7 @@ function recoverPending(file: string, saved: ToolState | undefined, content: str
 }
 
 export class OpenCodeTool extends OpenAICompatTool {
+  supportsPreview = true;
   name = 'opencode';
   displayName = 'OpenCode 1.x';
   command = 'opencode';

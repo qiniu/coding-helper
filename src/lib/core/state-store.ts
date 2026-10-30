@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { isDeepStrictEqual } from 'node:util';
-import { atomicWriteFile, ConfigParseError, helperDir, readTextFile } from './safe-write.js';
+import { atomicWriteFile, ConfigParseError, helperDir, readTextFile, isPreview, writeTextOrRemove } from './safe-write.js';
 
 // 被七牛覆盖前的原值；null 表示原本不存在
 export type PriorValues = Record<string, unknown>;
@@ -82,6 +82,10 @@ class StateStore {
   // 跨进程串行化“读取原值—写入客户端—更新状态”；回调必须同步完成
   withLock<T>(operation: () => T): T {
     if (this.lockDepth > 0) return operation();
+    if (isPreview()) {
+      if (fs.existsSync(path.join(helperDir(), 'state.lock'))) throw new Error('Another configuration operation is active; retry preview later.');
+      return operation();
+    }
     fs.mkdirSync(helperDir(), { recursive: true, mode: 0o700 });
     const lock = path.join(helperDir(), 'state.lock');
     let descriptor: number;
@@ -172,7 +176,7 @@ class StateStore {
   }
 
   clear(): void {
-    this.withLock(() => fs.rmSync(this.file(), { force: true }));
+    this.withLock(() => { if (isPreview()) writeTextOrRemove(this.file(), undefined); else fs.rmSync(this.file(), { force: true }); });
   }
 }
 
