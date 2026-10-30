@@ -1,3 +1,5 @@
+import fs from 'node:fs';
+import { restoreConfigEdits } from '../core/config-transaction.js';
 import { execSync } from 'node:child_process';
 import type { ITool } from './base-tool.js';
 import { configManager, type ModelConfig } from '../config.js';
@@ -102,6 +104,16 @@ export abstract class OpenAICompatTool implements ITool {
 
   async clearModelConfig(): Promise<void> {
     await this.unloadConfig();
+  }
+
+  // 无恢复记录时保留旧配置，同时阻止菜单误报凭据已移除。
+  protected restoreManagedConfig(files: string[]): void {
+    if (restoreConfigEdits(this.name, files)) return;
+    const exists = files.some(file => {
+      try { fs.lstatSync(file); return true; }
+      catch (error) { if ((error as NodeJS.ErrnoException).code === 'ENOENT') return false; throw error; }
+    });
+    if (exists) throw new Error('No restoration record for ' + this.displayName + '. Configuration is unchanged; remove legacy credentials manually or recover a known backup.');
   }
 
   abstract getConfig(): Record<string, unknown>;
