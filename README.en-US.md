@@ -261,7 +261,7 @@ The configuration flow lets you multi-select models from the Qiniu model market 
 Behavior worth knowing:
 
 - **Non-Qiniu entries are preserved.** Models with a different `vendor` and any other top-level fields you added manually (e.g. UI preferences) are kept untouched on every load/unload.
-- **Unload only removes Qiniu models.** `auth reload` overwrites the Qiniu entries; the unload action removes them but leaves other vendors intact.
+- **Unload restores the recorded original.** Unchanged configurations return byte-for-byte to their original content, including pre-existing Qiniu models. Without a load record, unload reports an error and leaves the file unchanged; remove legacy credentials manually. Changes to managed arrays block reload/unload rather than overwrite user edits; restore the original arrays from backup, unload to clear the restoration record, then load again. Unrelated top-level edits are preserved.
 - **Stale model IDs are surfaced.** If a previously selected model has been delisted from the Qiniu market, partially missing IDs trigger a warning and only the still-available models are written; if *all* selected IDs have been delisted, the load fails fast and no file changes are made — reconfigure your model selection and retry.
 
 Treat `~/.codebuddy/models.json` like a password because the API Key is stored in plaintext.
@@ -270,7 +270,7 @@ Treat `~/.codebuddy/models.json` like a password because the API Key is stored i
 
 WorkBuddy stores its configuration in `~/.workbuddy/models.json`. It is completely independent from CodeBuddy.
 
-The configuration flow is identical to CodeBuddy — you multi-select models from the Qiniu model market and they are written to the WorkBuddy-specific config file with the same JSON structure. All the same behavior rules apply (non-Qiniu entries preserved, unload only removes Qiniu models, stale model IDs surfaced).
+The configuration flow is identical to CodeBuddy — you multi-select models from the Qiniu model market and they are written to the WorkBuddy-specific config file with the same JSON structure. All the same behavior rules apply (non-Qiniu entries preserved, recorded originals restored on unload, stale model IDs surfaced).
 
 Treat `~/.workbuddy/models.json` like a password because the API Key is stored in plaintext.
 
