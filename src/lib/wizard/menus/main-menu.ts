@@ -1,7 +1,11 @@
 import { t, i18n } from '../../i18n.js';
 import { promptHelper } from '../ui/prompt-helper.js';
 import { uiRenderer, connectedToolNames } from '../ui/ui-renderer.js';
-import { menuPrompt } from '../ui/prompts.js';
+import chalk from 'chalk';
+import { menuPrompt, type MenuEntry } from '../ui/prompts.js';
+import { currentToolModel, detectSorted, formatConfiguredBadge, formatInstallState, toolIcon } from '../ui/tool-view.js';
+import { padVisible, visibleWidth } from '../../../utils/string-width.js';
+import type { ToolDetection } from '../../core/tool-service.js';
 import { runLanguageFlow } from '../flows/language-flow.js';
 import { runEndpointSelectionFlow } from '../flows/endpoint-selection-flow.js';
 import { runApiKeyFlow } from '../flows/api-key-flow.js';
@@ -83,7 +87,7 @@ export async function showMainMenu(): Promise<void> {
 async function showAccountMenu(): Promise<void> {
   let last: string | undefined;
   while (true) {
-    uiRenderer.renderPage(t('menu_account'));
+    uiRenderer.renderPage(t('menu_account'), undefined, t('account_subtitle'));
     const apiKey = configManager.getApiKey();
     const profiles = configManager.listProfiles();
     const active = configManager.getActiveProfile();
@@ -92,8 +96,8 @@ async function showAccountMenu(): Promise<void> {
       default: last as 'apikey' | undefined,
       escape: true,
       items: [
-        { value: 'apikey', label: t('menu_configure_apikey'), hint: apiKey ? uiRenderer.maskApiKey(apiKey) : t('config_view_not_set') },
-        { value: 'endpoint', label: t('menu_configure_endpoint'), hint: uiRenderer.endpointLabel() },
+        { value: 'apikey', label: t('menu_configure_apikey'), hint: apiKey ? uiRenderer.maskApiKey(apiKey) : t('config_view_not_set'), description: theme.subtle(t('account_apikey_desc')) },
+        { value: 'endpoint', label: t('menu_configure_endpoint'), hint: uiRenderer.endpointLabel(), description: theme.subtle(t('account_endpoint_desc')) },
         {
           value: 'profile',
           label: t('menu_profiles'),
@@ -207,23 +211,57 @@ async function handleClearConfig(): Promise<boolean> {
   return true;
 }
 
-// 工具选择器（当有多个工具时选择）
-async function showToolSelector(): Promise<void> {
-  const tools = toolManager.getAll();
-
-  uiRenderer.renderHeader();
-  uiRenderer.renderTitle(t('menu_my_tools'));
-
-  const choices = tools.map((tool) => ({
-    name: tool.displayName,
+// 我的工具一行：色点 · 名称 · 版本 · 接入状态，右侧当前模型；选中时下方显示模型、连接与配置文件
+function toolEntry(detection: ToolDetection, nameWidth: number): MenuEntry<string> {
+  const { tool } = detection;
+  const installed = detection.installed !== false;
+  const model = currentToolModel(detection);
+  const connection = configManager.getConnection(tool.name);
+  // 是否接入以检测结果为准；接入但没有 helper 保存的模型（如使用工具默认模型）时显示「工具默认」
+  const description = !installed
+    ? `${theme.subtle(t('tool_detail_install'))}  ${theme.value(tool.installCommand)}`
+    : !detection.configured
+      ? theme.subtle(t('tool_detail_not_connected'))
+      : [
+          `${theme.subtle(t('tool_detail_model'))}  ${model ? chalk.hex('#8BE9FF')(model) : theme.subtle(t('tool_detail_model_default'))}`,
+          `${theme.subtle(t('tool_detail_connection'))}  ${theme.value(connection.profile ? `${t('profile_label')} ${connection.profile}` : uiRenderer.endpointLabel(connection.endpoint, connection.baseUrl))}`,
+        ].join('\n');
+  return {
     value: tool.name,
-  }));
+    icon: toolIcon(tool.name, !installed),
+    label: `${padVisible(installed ? tool.displayName : theme.subtle(tool.displayName), nameWidth)}  ${padVisible(formatInstallState(detection), 10)}  ${formatConfiguredBadge(detection)}`,
+    hint: model ? theme.subtle(model.split('/').pop() ?? model) : '',
+    description,
+    search: tool.name,
+  };
+}
 
-  choices.push({ name: t('tool_back'), value: '__back__' });
-  const toolName = await promptHelper.select<string>(t('menu_select_action'), choices);
-  const tool = toolManager.get(toolName);
-  if (tool) {
-    await showToolMenu(tool);
+// 我的工具：已安装 / 未安装分组，打字搜索，回车打开工具页，Esc 返回
+async function showToolSelector(): Promise<void> {
+  let last: string | undefined;
+  while (true) {
+    uiRenderer.renderPage(t('menu_my_tools'));
+    const detections = detectSorted(toolManager.getAll());
+    const nameWidth = Math.max(...detections.map(detection => visibleWidth(detection.tool.displayName)));
+    const installed = detections.filter(detection => detection.installed !== false);
+    const missing = detections.filter(detection => detection.installed === false);
+    const { value, action } = await menuPrompt<string>({
+      message: t('menu_select_action'),
+      default: last,
+      escape: true,
+      searchable: true,
+      pageSize: 18,
+      items: [
+        { separator: theme.subtle(t('tool_group_installed', { count: String(installed.length) })) },
+        ...installed.map(detection => toolEntry(detection, nameWidth)),
+        ...(missing.length ? [{ separator: theme.subtle(t('tool_group_missing', { count: String(missing.length) })) }] : []),
+        ...missing.map(detection => toolEntry(detection, nameWidth)),
+      ],
+    });
+    if (action === 'escape') return;
+    last = value;
+    const tool = toolManager.get(value);
+    if (tool) await showToolMenu(tool);
   }
 }
 

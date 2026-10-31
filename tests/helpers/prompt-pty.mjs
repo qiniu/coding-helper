@@ -17,7 +17,12 @@ export async function runPrompt(source, steps, columns = 80, options = {}) {
         const text = clean(transcript); const [expected, keys] = steps[index];
         const match = expected instanceof RegExp ? new RegExp(expected.source, expected.flags.replace(/[gy]/g, '')).exec(text.slice(cursor)) : undefined;
         const found = expected instanceof RegExp ? (match ? cursor + match.index : -1) : text.indexOf(expected, cursor);
-        if (found !== -1) { cursor = found + (match ? match[0].length : expected.length); index++; child.write(keys); }
+        // 按键也可由当前终端内容决定，避免测试依赖会随安装状态变化的固定行号。
+        if (found !== -1) {
+          cursor = found + (match ? match[0].length : expected.length); index++;
+          try { child.write(typeof keys === 'function' ? keys(text) : keys); }
+          catch (error) { clearTimeout(timer); reject(error); }
+        }
       });
       child.onExit(({ exitCode }) => { clearTimeout(timer); try { assert.equal(exitCode, 0, clean(transcript)); assert.equal(index, steps.length, clean(transcript)); resolve(options.raw ? transcript : clean(transcript)); } catch (error) { reject(error); } });
     });

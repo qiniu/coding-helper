@@ -1,6 +1,6 @@
 import { registeredTools } from '../../tool-registry.js';
 import chalk from 'chalk';
-import { stringWidth, padEnd, truncate, visibleWidth } from '../../../utils/string-width.js';
+import { stringWidth, padEnd, truncate, visibleWidth, padVisible, stripAnsi } from '../../../utils/string-width.js';
 import { logger } from '../../../utils/logger.js';
 import { renderLogo as renderLogoArt } from './logo.js';
 import { theme } from './theme.js';
@@ -9,6 +9,11 @@ import { CUSTOM_ENDPOINT, ENDPOINT_DEFINITIONS } from '../../endpoints.js';
 import { t } from '../../i18n.js';
 
 export interface StepInfo { current: number; total: number; keys?: string[]; }
+
+// 首次向导的步骤
+export const WIZARD_STEP_KEYS = ['step_language', 'step_endpoint', 'step_apikey', 'step_tools', 'step_model', 'step_confirm'];
+// 接入 / 切换模型的步骤：选工具 → 选模型 → 确认
+export const FLOW_STEP_KEYS = ['step_tools', 'step_model', 'step_confirm'];
 
 // 配置面板条目
 export interface ConfigPanelItem {
@@ -25,8 +30,25 @@ export function connectedToolNames(): string[] {
 export const uiRenderer = {
   renderPage(title: string, step?: StepInfo, subtitle?: string, connection?: Connection): void {
     this.renderHeader({ connection });
-    this.renderTitle(step ? `${title} (${step.current}/${step.total})` : title);
-    if (subtitle) this.renderHint(subtitle);
+    if (!step) return this.renderTitle(title, subtitle);
+    this.renderSteps(step);
+    this.renderTitle(title, subtitle);
+  },
+
+  // 流程进度：● 语言 ── ● 线路 ── ◉ API Key ── ○ 工具 ── ○ 模型   3 / 6
+  renderSteps(step: StepInfo): void {
+    const labels = (step.keys ?? WIZARD_STEP_KEYS).slice(0, step.total).map(key => t(key));
+    const parts = labels.map((label, i) => {
+      if (i < step.current - 1) return `${theme.success('●')} ${theme.subtle(label)}`;
+      if (i === step.current - 1) return `${theme.brandBold('◉')} ${theme.heading(label)}`;
+      return `${theme.border('○')} ${theme.border(label)}`;
+    });
+    const counter = theme.subtle(`${Math.min(step.current, step.total)} / ${step.total}`);
+    const line = parts.join(theme.border(' ── '));
+    // 窄终端放不下整条进度时只显示当前步
+    const columns = process.stdout.columns || 100;
+    logger.log(visibleWidth(line) + 10 <= columns ? `  ${line}   ${counter}` : `  ${parts[step.current - 1] ?? ''}   ${counter}`);
+    logger.newLine();
   },
   // 清屏 - 清除终端内容和滚动缓冲区
   clearScreen(): void {
@@ -44,7 +66,10 @@ export const uiRenderer = {
     const header = typeof options === 'string' ? { full: (process.stdout.rows || 24) >= 30, crumb: toolName, connection: undefined } : options;
     this.clearScreen();
     if (header.full) this.renderLogo(toolName);
-    else logger.log(`  ${theme.brandBold('QINIU')} ${theme.heading('Coding Helper')}${header.crumb ? '  >  ' + header.crumb : ''}`);
+    else {
+      logger.newLine();
+      logger.log(`  ${theme.brandBold('QINIU')} ${theme.heading('Coding Helper')}${header.crumb ? theme.subtle('  ›  ') + theme.value(header.crumb) : ''}`);
+    }
     this.renderStatusBar(header.connection);
   },
   renderStatusBar(connection?: Connection): void {
@@ -60,7 +85,14 @@ export const uiRenderer = {
     const columns = Math.max(12, process.stdout.columns || 100);
     const line = parts.join(theme.subtle('  ·  '));
     if (visibleWidth(line) + 4 <= columns) logger.log(`  ${line}`);
-    else for (const part of parts) logger.log(`  ${part}`);
+    else {
+      // 放不下时分两行：连接一行，接入与配置档一行；再放不下才逐段换行
+      for (const group of [parts.slice(0, 2), parts.slice(2)]) {
+        const text = group.join(theme.subtle('  ·  '));
+        if (visibleWidth(text) + 4 <= columns) logger.log(`  ${text}`);
+        else for (const part of group) logger.log(`  ${part}`);
+      }
+    }
     logger.log(`  ${theme.border('─'.repeat(Math.max(1, Math.min(columns - 4, 72))))}`);
     logger.newLine();
   },
@@ -69,30 +101,61 @@ export const uiRenderer = {
     return definition ? t(definition.i18nKey) : `${t('endpoint_custom')} ${baseUrl.replace(/^https?:\/\//, '')}`;
   },
 
-  // 渲染欢迎界面
+  // 渲染欢迎界面（圆角卡片）
   renderWelcome(title: string, description: string, privacyNotice: string): void {
-    const line = '─'.repeat(50);
-    logger.newLine();
-    logger.log(chalk.cyan(line));
-    logger.log(chalk.bold.cyan(`  ${title}`));
-    logger.log(chalk.cyan(line));
-    logger.newLine();
-    logger.log(`  ${description}`);
-    logger.newLine();
-    logger.log(chalk.dim(`  ${privacyNotice}`));
+    const lines = [theme.brandBold(title), '', theme.value(description), theme.subtle(privacyNotice)];
+    const inner = Math.min(Math.max(46, ...lines.map(visibleWidth)) + 4, Math.max(20, (process.stdout.columns || 100) - 6));
+    logger.log(`  ${theme.border('╭' + '─'.repeat(inner) + '╮')}`);
+    for (const line of lines) {
+      const text = visibleWidth(line) > inner - 4 ? truncate(line, inner - 4) : line;
+      logger.log(`  ${theme.border('│')}  ${padVisible(text, inner - 2)}${theme.border('│')}`);
+    }
+    logger.log(`  ${theme.border('╰' + '─'.repeat(inner) + '╯')}`);
     logger.newLine();
   },
 
-  // 渲染标题 — 左右等长灰色线条 + 中间亮色标题
-  renderTitle(title: string): void {
-    const titleWidth = stringWidth(title);
-    const totalWidth = 50;
-    const sideLen = Math.max(2, Math.floor((totalWidth - titleWidth - 2) / 2));
-    const leftLine = '─'.repeat(sideLen);
-    const rightLine = '─'.repeat(sideLen);
+  // 页面标题：粗体标题 + 可选的一行说明
+  renderTitle(title: string, subtitle?: string): void {
+    logger.log(`  ${theme.heading(title)}`);
+    if (subtitle) logger.log(`  ${theme.subtle(subtitle)}`);
     logger.newLine();
-    logger.log(`  ${theme.subtle(leftLine)} ${theme.heading(title)} ${theme.subtle(rightLine)}`);
-    logger.newLine();
+  },
+
+  // 圆角表格：表头 + 行，单元格可带颜色
+  renderTable(headers: string[], rows: string[][]): void {
+    const widths = headers.map((header, col) => Math.max(visibleWidth(header), ...rows.map(row => visibleWidth(row[col] ?? ''))));
+    const columns = Math.max(12, process.stdout.columns || 100);
+    // 表格放不下时逐字段展示，按可见列宽换行，保留完整值而不是让边框折行错位。
+    if (3 + widths.reduce((sum, width) => sum + width + 3, 0) > columns) {
+      const wrapped = (text: string, indent: number, style: (value: string) => string): void => {
+        for (const paragraph of stripAnsi(text).split('\n')) {
+          let line = '';
+          for (const char of paragraph) {
+            if (visibleWidth(line + char) > columns - indent) {
+              logger.log(' '.repeat(indent) + style(line));
+              line = '';
+            }
+            line += char;
+          }
+          logger.log(' '.repeat(indent) + style(line));
+        }
+      };
+      for (const cells of rows) {
+        headers.forEach((header, col) => {
+          wrapped(header, 2, theme.label);
+          wrapped(cells[col] ?? '', 4, theme.value);
+        });
+        logger.newLine();
+      }
+      return;
+    }
+    const line = (left: string, mid: string, right: string): string => `  ${theme.border(left + widths.map(w => '─'.repeat(w + 2)).join(mid) + right)}`;
+    const row = (cells: string[]): string => `  ${theme.border('│')}${cells.map((cell, i) => ` ${padVisible(cell, widths[i])} `).join(theme.border('│'))}${theme.border('│')}`;
+    logger.log(line('╭', '┬', '╮'));
+    logger.log(row(headers.map(header => theme.label(header))));
+    logger.log(line('├', '┼', '┤'));
+    for (const cells of rows) logger.log(row(cells));
+    logger.log(line('╰', '┴', '╯'));
   },
 
   // 渲染带边框的配置面板卡片（动态宽度，自适应内容）
