@@ -1,10 +1,15 @@
 import inquirer from 'inquirer';
-import search from '@inquirer/search';
+import { menuPrompt } from './prompts.js';
+import { scoreModel, closestModels, resolveModelId, parseModelQuery, type SearchableModel } from '../../core/model-search.js';
+import { RECOMMENDED_MODELS } from '../../core/quick-args.js';
 import { t } from '../../i18n.js';
 import { theme } from './theme.js';
 
+export interface ModelChoice { name: string; value: string; description?: string; model?: SearchableModel; }
+
 // 搜索选择的跳过标记
 const SKIP_VALUE = '__skip__';
+export const MANUAL_MODEL_VALUE = '__manual_model__';
 
 // inquirer 封装 - 统一交互式 prompt
 export const promptHelper = {
@@ -98,59 +103,33 @@ export const promptHelper = {
   // 搜索+自动补全选择（同时展示输入框和可滚动列表，支持自定义输入和跳过）
   async searchSelect(
     message: string,
-    items: { name: string; value: string; description?: string }[],
+    items: ModelChoice[],
     allowSkip = false,
   ): Promise<string | undefined> {
-    const answer = await search({
-      message,
-      pageSize: 10,
-      source: async (term) => {
-        const results: { name: string; value: string; description?: string }[] = [];
-
-        // 始终在顶部添加跳过选项
-        if (allowSkip) {
-          results.push({
-            name: `⊘ ${t('model_skip_option')}`,
-            value: SKIP_VALUE,
-          });
-        }
-
-        const keyword = (term || '').trim().toLowerCase();
-
-        if (!keyword) {
-          // 无输入时显示完整列表
-          results.push(...items);
-          return results;
-        }
-
-        // 根据输入过滤列表
-        const filtered = items.filter(
-          (item) =>
-            item.name.toLowerCase().includes(keyword) ||
-            item.value.toLowerCase().includes(keyword),
-        );
-
-        // 如果用户输入的值不匹配任何现有项，在列表头部注入自定义值选项
-        const exactMatch = items.some(
-          (item) => item.value.toLowerCase() === keyword,
-        );
-        if (!exactMatch) {
-          results.push({
-            name: `✎ ${t('model_custom_value', { value: term || '' })}`,
-            value: (term || '').trim(),
-          });
-        }
-
-        results.push(...filtered);
-        return results;
+    const byId = new Map(items.map(item => [item.value, item]));
+    const controls = new Set([MANUAL_MODEL_VALUE, ...(allowSkip ? [SKIP_VALUE] : [])]);
+    const controlLabels = [...(byId.get(MANUAL_MODEL_VALUE) ? [byId.get(MANUAL_MODEL_VALUE)!.name] : []), ...(allowSkip ? [t('model_skip_option')] : [])];
+    const modelOf = (value: string): SearchableModel => ({ ...(byId.get(value)?.model ?? { id: value, context: 0, toolCall: false, vision: false }), name: byId.get(value)?.name });
+    const rows = items.map(item => ({ value: item.value, label: item.name, description: item.description }));
+    const { value, action, query } = await menuPrompt({
+      message, escape: true, searchable: true, customFirst: true, pageSize: 10,
+      items: [...(allowSkip ? [{ value: SKIP_VALUE, label: `⊘ ${t('model_skip_option')}` }] : []), ...rows],
+      filter: (item, q) => controls.has(item.value)
+        ? item.label.toLowerCase().includes(q.trim().toLowerCase()) ? 50 : undefined
+        : scoreModel(modelOf(item.value), q, { recommended: RECOMMENDED_MODELS.includes(item.value) }),
+      suggest: q => {
+        const parsed = parseModelQuery(q);
+        const candidates = items.filter(item => !controls.has(item.value) && scoreModel(modelOf(item.value), [parsed.toolCall ? 'tools' : '', parsed.reasoning ? 'thinking' : '', parsed.vision ? 'vision' : '', parsed.minContext ? `${parsed.minContext / 1000}k` : ''].join(' ')) !== undefined);
+        return closestModels(candidates.map(item => item.value), q).map(id => rows.find(row => row.value === id)!);
+      },
+      highlight: q => parseModelQuery(q).words.join(''),
+      customLabel: q => {
+        const parsed = parseModelQuery(q);
+        return /^[\w.\-/:]+$/.test(q.trim()) && !parsed.minContext && !parsed.vision && !parsed.toolCall && !parsed.reasoning && !byId.has(q.trim()) && !controlLabels.some(label => label.toLowerCase().includes(q.trim().toLowerCase()))
+          ? t('model_custom_value', { value: resolveModelId(q, items.map(item => item.value)) }) : undefined;
       },
     });
-
-    // 跳过时返回 undefined
-    if (answer === SKIP_VALUE) {
-      return undefined;
-    }
-
-    return (answer as string).trim() || undefined;
+    if (action === 'escape' || (allowSkip && value === SKIP_VALUE)) return undefined;
+    return (action === 'custom' ? resolveModelId(query ?? '', items.map(item => item.value)) : value).trim() || undefined;
   },
 };

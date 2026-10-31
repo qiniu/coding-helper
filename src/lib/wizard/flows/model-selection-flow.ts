@@ -1,6 +1,8 @@
 import ora from 'ora';
 import { t } from '../../i18n.js';
 import { configManager } from '../../config.js';
+import { marketModelService, getModelCapabilities } from '../../market-model-service.js';
+import type { SearchableModel } from '../../core/model-search.js';
 import { modelService, type ModelInfo } from '../../model-service.js';
 import { promptHelper } from '../ui/prompt-helper.js';
 import { uiRenderer } from '../ui/ui-renderer.js';
@@ -10,10 +12,12 @@ async function selectModel(
   models: ModelInfo[],
   promptKey: string,
   currentValue?: string,
+  metadata = new Map<string, SearchableModel>(),
 ): Promise<string | undefined> {
   const choices = models.map((m) => ({
     name: m.id + (currentValue === m.id ? ' (current)' : ''),
     value: m.id,
+    model: metadata.get(m.id),
   }));
 
   return promptHelper.searchSelect(t(promptKey), choices, true);
@@ -55,8 +59,14 @@ export async function runModelSelectionFlow(): Promise<boolean> {
   const spinner = ora(t('model_fetching')).start();
 
   let models: ModelInfo[];
+  let metadata = new Map<string, SearchableModel>();
   try {
     models = await modelService.fetchModels(baseUrl, apiKey);
+    if (models.length) try {
+      const market = await marketModelService.fetchModels(baseUrl, apiKey);
+      metadata = new Map(market.map(model => { const caps = getModelCapabilities(model); return [model.id,
+        { id: model.id, name: model.name, context: caps.maxInputTokens, toolCall: caps.toolCall, vision: caps.images, reasoning: caps.reasoning }]; }));
+    } catch { /* 市场能力不可用时仍允许按标准目录或手动 ID 选择。 */ }
     spinner.succeed();
   } catch (error: unknown) {
     const msg = error instanceof Error ? error.message : t('error_unknown');
@@ -76,10 +86,10 @@ export async function runModelSelectionFlow(): Promise<boolean> {
   const currentClaudeCode = currentModels.claudeCode || {};
 
   // 四步选择: Haiku → Sonnet → Opus → Subagent
-  const haikuModel = await selectModel(models, 'model_select_haiku', currentClaudeCode.haikuModel);
-  const sonnetModel = await selectModel(models, 'model_select_sonnet', currentClaudeCode.sonnetModel);
-  const opusModel = await selectModel(models, 'model_select_opus', currentClaudeCode.opusModel);
-  const subagentModel = await selectModel(models, 'model_select_subagent', currentClaudeCode.subagentModel);
+  const haikuModel = await selectModel(models, 'model_select_haiku', currentClaudeCode.haikuModel, metadata);
+  const sonnetModel = await selectModel(models, 'model_select_sonnet', currentClaudeCode.sonnetModel, metadata);
+  const opusModel = await selectModel(models, 'model_select_opus', currentClaudeCode.opusModel, metadata);
+  const subagentModel = await selectModel(models, 'model_select_subagent', currentClaudeCode.subagentModel, metadata);
 
   // 展示配置摘要面板，等待用户确认
   uiRenderer.renderHeader();

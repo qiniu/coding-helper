@@ -133,6 +133,7 @@ export interface MenuTab<T> {
 }
 
 export interface MenuConfig<T> {
+  customFirst?: boolean | ((query: string) => boolean);
   message: string;
   items: MenuEntry<T>[];
   default?: T;
@@ -206,7 +207,8 @@ const menuView = createPrompt(<T,>(config: MenuConfig<T>, done: (result: MenuRes
       const customText = config.customLabel?.(query);
       const custom: MenuItem<typeof CUSTOM>[] = customText ? [{ value: CUSTOM, label: customText }] : [];
       const suggested = scored.length ? [] : config.suggest?.(query) ?? [];
-      if (!scored.length && custom.length) return [...custom, ...(suggested.length ? [{ separator: '' }, ...suggested] : [])];
+      const preferCustom = typeof config.customFirst === 'function' ? config.customFirst(query) : config.customFirst;
+      if (custom.length && (preferCustom || !scored.length)) return [...custom, ...((scored.length || suggested.length) ? [{ separator: '' }, ...scored, ...suggested] : [])];
       return [...scored, ...suggested, ...(custom.length ? [{ separator: '' }, ...custom] : [])];
     }
     const current = config.tabs?.[tab];

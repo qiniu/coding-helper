@@ -15,8 +15,9 @@ export async function runPrompt(source, steps, columns = 80, options = {}) {
         transcript += data;
         if (index >= steps.length) return;
         const text = clean(transcript); const [expected, keys] = steps[index];
-        const found = text.indexOf(expected, cursor);
-        if (found !== -1) { cursor = found + expected.length; index++; child.write(keys); }
+        const match = expected instanceof RegExp ? new RegExp(expected.source, expected.flags.replace(/[gy]/g, '')).exec(text.slice(cursor)) : undefined;
+        const found = expected instanceof RegExp ? (match ? cursor + match.index : -1) : text.indexOf(expected, cursor);
+        if (found !== -1) { cursor = found + (match ? match[0].length : expected.length); index++; child.write(keys); }
       });
       child.onExit(({ exitCode }) => { clearTimeout(timer); try { assert.equal(exitCode, 0, clean(transcript)); assert.equal(index, steps.length, clean(transcript)); resolve(options.raw ? transcript : clean(transcript)); } catch (error) { reject(error); } });
     });

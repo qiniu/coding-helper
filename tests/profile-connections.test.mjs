@@ -69,7 +69,7 @@ test('all credential-dependent model flows use the bound connection without a gl
   const module=await import(`../dist/lib/wizard/flows/${name}-model-selection-flow.js`);assert.ok(await module[fn]());
  }
  const {runModelSelectionFlow}=await import('../dist/lib/wizard/flows/model-selection-flow.js');assert.equal(await runModelSelectionFlow(),true);
- assert.equal(received.length,5);for(const connection of received)assert.deepEqual(connection,['https://models.example/proxy','bound-only']);
+ assert.equal(received.length,6);for(const connection of received)assert.deepEqual(connection,['https://models.example/proxy','bound-only']);
 });
 test('explicit quick-save clears successful bindings and active profile; revoke removes active stored key',()=>{
  configManager.clearConfig();configManager.saveProfile('work','old','china');configManager.saveProfile('home','bound','custom','https://bound.example');
