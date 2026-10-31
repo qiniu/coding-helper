@@ -225,6 +225,26 @@ test('context CLI is scoped to selected tools and only persists after success', 
   }
 });
 
+test('profile CLI and @profile use the validated connection and redact keys', async () => {
+ const r = await runQuick(['opencode', '@home', '--context', '32k', '--json'], {}, home => {
+  fs.writeFileSync(path.join(home, '.coding-helper/config.yaml'), 'lang: en_US\nendpoint: china\napi_key: sk-cn\nprofile: work\nprofiles:\n  work:\n    api_key: sk-cn\n    endpoint: china\n  home:\n    api_key: sk-intl\n    endpoint: international\n');
+ });
+ assert.equal(r.code, 0, r.stdout + r.stderr); assert.equal(JSON.parse(r.stdout).profile, 'home');
+ const config = JSON.parse(fs.readFileSync(path.join(r.home, '.config/opencode/opencode.json'), 'utf8'));
+ assert.equal(config.provider.qiniu.options.apiKey, 'sk-intl'); assert.match(config.provider.qiniu.options.baseURL, /intl/);
+ assert.match(fs.readFileSync(r.helper, 'utf8'), /profile: work/); assert.match(fs.readFileSync(r.helper, 'utf8'), /opencode: home/);
+ assert.equal(r.stdout.includes('sk-intl'), false);
+ const bad = await runQuick(['opencode', '@missing', '--json']); assert.equal(bad.code, 1); assert.equal(fs.readFileSync(bad.helper, 'utf8'), bad.before);
+});
+test('explicit quick key overrides a prior binding and unbinds only successful targets', async () => {
+ const r = await runQuick(['opencode', 'sk-cn', '--json'], {}, home => {
+  fs.appendFileSync(path.join(home, '.coding-helper/config.yaml'), 'profiles:\n  home:\n    api_key: sk-intl\n    endpoint: international\ntool_profiles:\n  opencode: home\n  grok: home\n');
+ });
+ assert.equal(r.code, 0, r.stdout + r.stderr);
+ const config = JSON.parse(fs.readFileSync(path.join(r.home, '.config/opencode/opencode.json'), 'utf8')); assert.equal(config.provider.qiniu.options.apiKey, 'sk-cn');
+ const helper = fs.readFileSync(r.helper, 'utf8'); assert.doesNotMatch(helper, /opencode: home/); assert.match(helper, /grok: home/);
+});
+
 test('invalid context returns a specific error with usable examples before writing files',async()=>{
  for(const json of [true,false]){
   const result=await runQuick(['opencode','sk-cn','--context','invalid',...(json?['--json']:[])]);

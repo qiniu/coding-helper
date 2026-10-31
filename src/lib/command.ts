@@ -1,3 +1,4 @@
+import { profileListCommand, profileAddCommand, profileUseCommand, profileRemoveCommand } from '../commands/profile.js';
 import { runCommand } from '../commands/run.js';
 import { setupCommand } from '../commands/setup.js';
 import { quickCommand, type QuickOptions } from '../commands/quick.js';
@@ -138,5 +139,10 @@ export function createProgram(): Command {
       }
     });
 
+  const profile = program.command('profile').description('Manage named connections');
+  profile.command('list').option('--json', 'print profiles without credentials').action(profileListCommand);
+  profile.command('add <name> [key]').option('--intl', 'international endpoint').option('--base-url <url>', 'custom gateway root URL').option('--key-stdin', 'read key from stdin').option('--use', 'activate the profile').action(profileAddCommand);
+  profile.command('use <name> [tools]').option('--sync', 'update configured clients').action(profileUseCommand);
+  profile.command('remove <name>').action(profileRemoveCommand);
   return program;
 }

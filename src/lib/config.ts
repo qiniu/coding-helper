@@ -220,11 +220,14 @@ class ConfigManager {
   }
 
   // 客户端装载成功后一次提交连接与模型，校验失败不覆盖已有设置。
-  saveSettings(apiKey: string, endpoint: string, models: ModelConfig, settings: { contexts?: Record<string, number>; toolNames?: string[]; profile?: string } = {}): void {
+  saveSettings(apiKey: string, endpoint: string, models: ModelConfig, settings: { contexts?: Record<string, number>; toolNames?: string[]; profile?: string; baseUrl?: string } = {}): void {
     this.load();
-    const next: Config = { ...this.config, ...models, api_key: apiKey, endpoint };
+    const savesCurrent = !settings.profile || settings.profile === this.config.profile;
+    const next: Config = { ...this.config, ...models, ...(savesCurrent ? { api_key: apiKey, endpoint } : {}) };
     if (models.claudeCode) next.claudeCode = { ...this.config.claudeCode, ...models.claudeCode };
     if (models.toolModels) next.toolModels = { ...this.config.toolModels, ...models.toolModels };
+    if (savesCurrent && endpoint === CUSTOM_ENDPOINT) next.base_url = getBaseUrl(endpoint, settings.baseUrl ?? next.base_url);
+    else if (savesCurrent && endpoint !== CUSTOM_ENDPOINT) delete next.base_url;
     if (settings.toolNames) {
       const bindings = { ...next.tool_profiles };
       for (const tool of settings.toolNames) {
@@ -235,8 +238,6 @@ class ConfigManager {
       if (!settings.profile) delete next.profile;
     }
     if (settings.contexts) next.context_windows = { ...next.context_windows, ...settings.contexts };
-    if (endpoint === CUSTOM_ENDPOINT) next.base_url = getBaseUrl(endpoint, next.base_url);
-    else delete next.base_url;
     this.ensureDir();
     atomicWriteFile(CONFIG_FILE, yaml.dump(next, { lineWidth: -1 }));
     this.config = next;
