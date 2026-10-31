@@ -50,8 +50,6 @@ export async function quickCommand(target: string, rest: string[], options: Quic
     }
     if (!validation.valid) throw new QuickError('key_invalid');
     const baseUrl = getBaseUrl(endpoint);
-    const account = await checkAccountStatus(apiKey, baseUrl);
-    if (account.usable === false) throw new Error(describeAccountStatus(account));
     const available = (await modelService.fetchModels(baseUrl, apiKey)).map(model => model.id);
     let capable: Set<string> | undefined;
     try {
@@ -80,6 +78,8 @@ export async function quickCommand(target: string, rest: string[], options: Quic
       if (!model) { results.push({ tool, status: 'skipped', reason: 'quick_model_incompatible' }); continue; }
       plans.push({ tool, model, models: modelConfigFor(tool, model) });
     }
+    const account = await checkAccountStatus(apiKey, baseUrl, plans.map(plan => plan.model));
+    if (account.usable === false) throw new Error(describeAccountStatus(account));
     const perform = async (): Promise<ToolResult[]> => {
       const applied: ToolResult[] = [];
       for (const { tool, models } of plans) {

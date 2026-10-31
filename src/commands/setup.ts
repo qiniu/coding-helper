@@ -5,6 +5,7 @@ import { toolManager } from '../lib/tool-manager.js';
 import { modelService } from '../lib/model-service.js';
 import { marketModelService } from '../lib/market-model-service.js';
 import { applyTool, exitCodeFor, hasSavedToolModelConfig, type ToolResult } from '../lib/core/tool-service.js';
+import { savedModelFor } from '../lib/core/model-mapping.js';
 import type { ITool } from '../lib/tools/base-tool.js';
 import { promptHelper } from '../lib/wizard/ui/prompt-helper.js';
 import { uiRenderer } from '../lib/wizard/ui/ui-renderer.js';
@@ -55,7 +56,9 @@ export async function setupCommand(options: SetupOptions): Promise<void> {
       if (!validation.valid) throw new Error(validation.error ?? 'Invalid API key');
     }
     if (!apiKey) throw new Error(t('setup_no_key'));
-    const account = targets.length ? await checkAccountStatus(apiKey, configManager.baseUrl) : undefined;
+    const models = configManager.getModels();
+    const preferredModels = targets.map(tool => savedModelFor(tool, models)).filter((id): id is string => !!id);
+    const account = targets.length ? await checkAccountStatus(apiKey, configManager.baseUrl, preferredModels) : undefined;
     if (account && account.usable !== true && !options.json) uiRenderer.renderWarning(describeAccountStatus(account));
     const perform = async (): Promise<ToolResult[]> => {
       const results: ToolResult[] = [];

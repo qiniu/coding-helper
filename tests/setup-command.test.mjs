@@ -117,3 +117,26 @@ test('setup JSON remains machine-readable when helper configuration is corrupt',
     assert.equal(fs.readFileSync(file,'utf8'),'api_key: [private-sentinel');
   } finally {fs.rmSync(isolated,{recursive:true,force:true});}
 });
+
+test('setup probes the selected tool model before stale models in the server list', async () => {
+  const previous = fs.readFileSync(configManager.configFile, 'utf8');
+  const fetch = globalThis.fetch;
+  const probed = [];
+  configManager.setModels({ toolModels: { 'account-probe-test': 'vendor/configured' } });
+  toolManager.register({ name: 'account-probe-test', async loadConfig() {} });
+  globalThis.fetch = async (url, options) => {
+    if (url.endsWith('/v1/models')) return new Response(JSON.stringify({ data: [{ id: 'qwen-turbo' }, { id: 'vendor/configured' }] }));
+    probed.push(JSON.parse(options.body).model);
+    return new Response(JSON.stringify({ choices: [] }));
+  };
+  try {
+    const report = await run({ tools: 'account-probe-test' });
+    assert.deepEqual(report.account, { usable: true });
+    assert.deepEqual(probed, ['vendor/configured']);
+    assert.equal(report.exitCode, 0);
+  } finally {
+    globalThis.fetch = fetch;
+    fs.writeFileSync(configManager.configFile, previous);
+    configManager.reload();
+  }
+});
