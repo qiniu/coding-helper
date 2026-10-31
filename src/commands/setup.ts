@@ -55,16 +55,32 @@ export async function setupCommand(options: SetupOptions): Promise<void> {
       const validation = await validateApiKey(apiKey, configManager.baseUrl);
       if (!validation.valid) throw new Error(validation.error ?? 'Invalid API key');
     }
-    if (!apiKey) throw new Error(t('setup_no_key'));
+    // 账号探测和适配器写入共用同一个完整连接，不能混用全局地址与绑定 Key。
+    const connections = new Map(targets.map(tool => [tool.name, options.keyStdin
+      ? { apiKey: apiKey!, baseUrl: configManager.baseUrl }
+      : configManager.getConnection(tool.name)]));
+    if ([...connections.values()].some(connection => !connection.apiKey)) throw new Error(t('setup_no_key'));
     const models = configManager.getModels();
-    const preferredModels = targets.map(tool => savedModelFor(tool, models)).filter((id): id is string => !!id);
-    const account = targets.length ? await checkAccountStatus(apiKey, configManager.baseUrl, preferredModels) : undefined;
-    if (account && account.usable !== true && !options.json) uiRenderer.renderWarning(describeAccountStatus(account));
+    const groups: { apiKey: string; baseUrl: string; tools: ITool[] }[] = [];
+    for (const tool of targets) {
+      const connection = connections.get(tool.name)!;
+      let group = groups.find(group => group.apiKey === connection.apiKey && group.baseUrl === connection.baseUrl);
+      if (!group) { group = { apiKey: connection.apiKey!, baseUrl: connection.baseUrl, tools: [] }; groups.push(group); }
+      group.tools.push(tool);
+    }
+    const accounts = [];
+    for (const group of groups) {
+      const preferredModels = group.tools.map(tool => savedModelFor(tool, models)).filter((id): id is string => !!id);
+      const status = await checkAccountStatus(group.apiKey, group.baseUrl, preferredModels);
+      accounts.push({ tools: group.tools.map(tool => tool.name), baseUrl: group.baseUrl, account: status });
+      if (status.usable !== true && !options.json) uiRenderer.renderWarning(describeAccountStatus(status));
+    }
+    const account = accounts.length === 1 ? accounts[0].account : undefined;
     const perform = async (): Promise<ToolResult[]> => {
       const results: ToolResult[] = [];
       for (const tool of targets) {
         if (interactive && !options.dryRun && tool.requiresModelSelection && !tool.launchOnly && !hasSavedToolModelConfig(tool, configManager.getModels())) await tool.runModelConfigFlow();
-        const apply = () => applyTool(tool, { apiKey: apiKey!, baseUrl: configManager.baseUrl });
+        const apply = () => { const connection = connections.get(tool.name)!; return applyTool(tool, { apiKey: connection.apiKey!, baseUrl: connection.baseUrl }); };
         results.push(await (options.json || options.dryRun ? withQuietLogs(apply) : apply()));
       }
       return results;
@@ -72,12 +88,14 @@ export async function setupCommand(options: SetupOptions): Promise<void> {
     const planned = options.dryRun ? await previewWrites(perform) : { value: await perform(), changes: [] };
     const results = planned.value;
     if (options.keyStdin && !options.dryRun && results.some(result => result.status === 'success')) {
-      configManager.setApiKey(apiKey); modelService.clearCache(); marketModelService.clearCache();
+      configManager.setApiKey(apiKey!);
+      for (const result of results) if (result.status === 'success') configManager.setToolProfile(result.tool.name, undefined);
+      modelService.clearCache(); marketModelService.clearCache();
     }
     results.push(...skipped);
     const exitCode = exitCodeFor(results);
     const preview = options.dryRun ? { dryRun: true, changes: publicPlannedChanges(planned.changes) } : {};
-    if (options.json) console.log(JSON.stringify({ results: jsonToolResults(results), account, ...preview, exitCode }, null, 2));
+    if (options.json) console.log(JSON.stringify({ results: jsonToolResults(results), account, ...(accounts.length > 1 ? { accounts } : {}), ...preview, exitCode }, null, 2));
     else {
       renderToolResults(results, apiKey, !!options.dryRun);
       if (options.dryRun) for (const change of publicPlannedChanges(planned.changes)) console.log(JSON.stringify(change));

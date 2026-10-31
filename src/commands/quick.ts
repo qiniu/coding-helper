@@ -105,7 +105,7 @@ export async function quickCommand(target: string, rest: string[], options: Quic
     let helperSaved = false, saveFailed = false;
     if (successful.length && !options.dryRun && options.save !== false) {
       try {
-        configManager.saveSettings(apiKey, endpoint, mergeModelConfigs(...successful.map(plan => plan.models)), { contexts: context === undefined ? undefined : Object.fromEntries(successful.map(plan => [plan.tool.name, context])) });
+        configManager.saveSettings(apiKey, endpoint, mergeModelConfigs(...successful.map(plan => plan.models)), { toolNames: successful.map(plan => plan.tool.name), contexts: context === undefined ? undefined : Object.fromEntries(successful.map(plan => [plan.tool.name, context])) });
         modelService.clearCache(); marketModelService.clearCache(); helperSaved = true;
       } catch { saveFailed = true; }
     }

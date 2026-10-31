@@ -9,7 +9,7 @@ import { HERMES_MANUAL_MODEL_VALUE, buildHermesModelChoices } from './hermes-mod
 // 通用客户端（OpenCode、Qwen Code 等）的模型选择：选一个模型，保存到 toolModels[toolName]
 // 首次选择时同时设为 defaultModel，供其他通用客户端在 --yes 模式下复用
 export async function runGenericModelSelectionFlow(toolName: string, displayName: string): Promise<string | null> {
-  const apiKey = configManager.getApiKey();
+  const { apiKey, baseUrl } = configManager.getConnection(toolName);
   if (!apiKey) {
     uiRenderer.renderError(t('apikey_not_set'));
     return null;
@@ -30,7 +30,7 @@ export async function runGenericModelSelectionFlow(toolName: string, displayName
   const spinner = ora(t('hermes_fetching_models')).start();
   let models: MarketModelInfo[];
   try {
-    models = await marketModelService.fetchModels(configManager.baseUrl, apiKey);
+    models = await marketModelService.fetchModels(baseUrl, apiKey);
     spinner.succeed();
   } catch (error: unknown) {
     spinner.fail(t('hermes_fetch_models_failed', { error: error instanceof Error ? error.message : t('error_unknown') }));
