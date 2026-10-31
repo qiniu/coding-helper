@@ -16,6 +16,10 @@ export function getDroidInstallCommand(platform: NodeJS.Platform = process.platf
 function droidSettingsFile(): string { return path.join(os.homedir(), '.factory', 'settings.json'); }
 function isQiniuModel(entry: unknown): boolean { return isRecord(entry) && typeof entry.displayName === 'string' && entry.displayName.startsWith(DISPLAY_PREFIX); }
 function upsertDroidModel(settings: Record<string, unknown>, baseUrl: string, apiKey: string, model: string, limits?: ModelLimits): Record<string, unknown> {
+  // 目录的最大输出可能等于上下文容量；为 Droid 的输入预算至少留出一半。
+  if (limits && Number.isFinite(limits.contextWindow) && Number.isFinite(limits.maxOutputTokens) && limits.contextWindow > 1 && limits.maxOutputTokens >= limits.contextWindow) {
+    limits = { ...limits, maxOutputTokens: Math.floor(limits.contextWindow / 2) };
+  }
   if (Object.hasOwn(settings, 'customModels') && (!Array.isArray(settings.customModels) || !settings.customModels.every(isRecord))) throw new Error('Invalid Droid customModels array.');
   const existing = Array.isArray(settings.customModels) ? settings.customModels : [];
   const index = existing.findIndex(entry => isQiniuModel(entry) && entry.model === model && entry.baseUrl === openAIBaseUrl(baseUrl));

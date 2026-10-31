@@ -4,7 +4,8 @@ import { isPreview, readTextFile } from '../core/safe-write.js';
 import { isQiniuBaseUrl } from '../endpoints.js';
 import { findCommand, commandVersion } from '../../utils/find-command.js';
 import { applyConfigEdits, restoreConfigEdits } from '../core/config-transaction.js';
-import { parseYamlDocument, setYamlValue, stringifyYamlDocument, deleteYamlValue } from '../core/yaml-edit.js';
+import { migrateLegacyText } from '../core/legacy-state.js';
+import { parseYamlDocument, getYamlValue, setYamlValue, stringifyYamlDocument, deleteYamlValue } from '../core/yaml-edit.js';
 import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
@@ -19,6 +20,23 @@ import { promptHelper } from '../wizard/ui/prompt-helper.js';
 const HERMES_DIR = path.join(os.homedir(), '.hermes');
 const HERMES_CONFIG_FILE = path.join(HERMES_DIR, 'config.yaml');
 const MANAGED_MODEL_KEYS = ['provider', 'default', 'base_url', 'api_key'] as const;
+
+function migrateHermesState(): void {
+  const keys = [...MANAGED_MODEL_KEYS.map(key => 'model.' + key), ...['provider', 'model', 'base_url', 'api_key'].map(key => 'auxiliary.vision.' + key)];
+  migrateLegacyText('hermes', HERMES_CONFIG_FILE, keys, (content, priors) => {
+    const doc = parseYamlDocument(content), current: unknown = doc.toJS();
+    if (!isRecord(current) || !isRecord(current.model) || !isQiniuBaseUrl(current.model.base_url) || MANAGED_MODEL_KEYS.some(key => !Object.hasOwn(priors, 'model.' + key))) throw new Error('Legacy Hermes configuration is incomplete or ownership changed. Recover before retrying.');
+    const visionKeys = Object.keys(priors).filter(key => key.startsWith('auxiliary.vision.'));
+    if (visionKeys.length && !isQiniuBaseUrl(getYamlValue(doc, ['auxiliary', 'vision', 'base_url'])) &&
+        visionKeys.some(key => (getYamlValue(doc, key.split('.')) ?? null) !== priors[key])) throw new Error('Legacy Hermes vision ownership changed. Recover before retrying.');
+    for (const [key, value] of Object.entries(priors)) {
+      if (value !== null && typeof value !== 'string') throw new Error('Invalid legacy Hermes field. Recover before retrying.');
+      const parts = key.split('.');
+      if (value === null) deleteYamlValue(doc, parts); else setYamlValue(doc, parts, value);
+    }
+    return stringifyYamlDocument(doc);
+  });
+}
 
 // Hermes Agent 工具实现
 export class HermesTool implements ITool {
@@ -40,6 +58,7 @@ export class HermesTool implements ITool {
   }
 
   clearModelConfig(): void {
+    migrateHermesState();
     if (!restoreConfigEdits(this.name, [HERMES_CONFIG_FILE]) && fs.existsSync(HERMES_CONFIG_FILE)) {
       throw new Error('No restoration record for Hermes. Configuration is unchanged; remove legacy credentials manually or recover a known backup.');
     }
@@ -53,6 +72,7 @@ export class HermesTool implements ITool {
   async loadConfig(apiKey: string, baseUrl: string, models: ModelConfig): Promise<void> {
     if (!models.hermesModel) throw new Error(t('hermes_model_not_configured'));
     stateStore.withLock(() => {
+      migrateHermesState();
       const canonical = fs.existsSync(HERMES_DIR) ? path.join(fs.realpathSync(HERMES_DIR), 'config.yaml') : HERMES_CONFIG_FILE;
       applyConfigEdits(this.name, [{ file: HERMES_CONFIG_FILE,
         build: (current) => {

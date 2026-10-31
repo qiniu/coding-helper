@@ -167,6 +167,25 @@ class StateStore {
     return Object.hasOwn(tools, tool) ? tools[tool]?.priors : undefined;
   }
 
+  // 一次性迁移旧工具记录，完整保留旧数据供审计；不允许与文件记录混用。
+  migrateLegacy(tool: string, expected: ToolState, records: { file: string; state: ToolState }[]): void {
+    this.withLock(() => {
+      const state = this.read();
+      if (!Object.hasOwn(state.tools, tool) || !isDeepStrictEqual(state.tools[tool], expected) || !records.length || this.getFileStates(tool).length) {
+        throw new Error('Legacy restoration state changed or conflicts with file records. Recover before retrying.');
+      }
+      const keys = records.map(entry => this.key(tool, entry.file));
+      if (new Set(keys).size !== keys.length || keys.some(key => Object.hasOwn(state.tools, key))) throw new Error('Conflicting legacy migration targets.');
+      records.forEach((entry, index) => {
+        const next = structuredClone(entry.state);
+        if (index === 0) next.priors = { ...next.priors, legacy: structuredClone(expected) };
+        Object.defineProperty(state.tools, keys[index], { value: next, enumerable: true, configurable: true, writable: true });
+      });
+      delete state.tools[tool];
+      this.write(state);
+    });
+  }
+
   // 只记录第一次看到的原值，重复装载时不会被七牛自己写入的值覆盖
   recordPriors(tool: string, priors: PriorValues, file?: string): void {
     this.withLock(() => {

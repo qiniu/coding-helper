@@ -471,3 +471,9 @@ When model metadata is offline, context caps only narrow already verified client
 
 The six-entry main menu follows the released fork v0.6.5: configure tools, switch models, my tools, account/endpoint, doctor, and more. Account settings contain profiles; more contains context, restore, language and maintenance. The upstream package keeps its own release version.
 Claude slot configuration also updates the legacy fast-model alias and the Fable entry in /model, including model descriptions. The launcher uses the same aliases, and unload restores the exact previous values.
+
+### 旧版还原记录升级
+
+Claude Code、Grok 和 Hermes 的旧版按工具名保存的字段原值，在首次重载或还原时自动迁移为文件级记录。迁移保留已知原值、当前非托管字段及原始旧记录；预演不改写文件。旧版本没有完整文件快照，因此旧配置按已记录字段恢复，不能承诺恢复旧版本未记录的字节格式。未知字段、损坏记录、配置路径变化及服务商归属变化仍会停止写入；不要删除 `state.json` 来绕过保护。
+
+Droid 遇到最大输出达到上下文容量的模型时，为输入和输出各分配一半容量，保持正的输入预算；已有合理的输出预算保持不变。
