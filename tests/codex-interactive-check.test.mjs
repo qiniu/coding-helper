@@ -99,6 +99,7 @@ test('createHomeFixtureConfig includes model state for every current tool config
   assert.match(config, /codeBuddyModels:/);
   assert.match(config, /workbuddyModels:/);
   assert.match(config, /hermesModel:/);
+  assert.match(config, /defaultModel: deepseek-v3/);
 });
 
 test('updateTranscriptCursor only matches output appended after the previous cursor', () => {

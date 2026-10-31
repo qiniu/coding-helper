@@ -59,6 +59,7 @@ test('all credential-dependent model flows use the bound connection without a gl
  for(const method of ['renderHeader','renderHint','renderSuccess','renderWarning'])t.mock.method(uiRenderer,method,()=>{});
  t.mock.method(promptHelper,'confirm',async()=>true);
  t.mock.method(promptHelper,'searchSelect',async()=> 'model');
+ t.mock.method(promptHelper,'pickModel',async options=>{received.push([options.connection.baseUrl,options.connection.apiKey]);return {model:'model'};});
  t.mock.method(promptHelper,'checkbox',async()=> ['model']);
  const received=[];
  const fetch=async(url,key)=>{received.push([url,key]);return [{id:'model',name:'Model',features:[]}];};
@@ -69,7 +70,7 @@ test('all credential-dependent model flows use the bound connection without a gl
   const module=await import(`../dist/lib/wizard/flows/${name}-model-selection-flow.js`);assert.ok(await module[fn]());
  }
  const {runModelSelectionFlow}=await import('../dist/lib/wizard/flows/model-selection-flow.js');assert.equal(await runModelSelectionFlow(),true);
- assert.equal(received.length,6);for(const connection of received)assert.deepEqual(connection,['https://models.example/proxy','bound-only']);
+ assert.equal(received.length,8);for(const connection of received)assert.deepEqual(connection,['https://models.example/proxy','bound-only']);
 });
 test('explicit quick-save clears successful bindings and active profile; revoke removes active stored key',()=>{
  configManager.clearConfig();configManager.saveProfile('work','old','china');configManager.saveProfile('home','bound','custom','https://bound.example');

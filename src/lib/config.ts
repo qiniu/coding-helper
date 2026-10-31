@@ -22,6 +22,7 @@ export interface ModelConfig {
   // 通用客户端未单独选择时使用的默认模型
   defaultModel?: string;
   slotModels?: Record<string, Record<string, string>>;
+  recentModels?: string[];
 }
 
 export interface ClaudeCodeConfig {
@@ -72,6 +73,7 @@ interface Config {
   toolModels?: Record<string, string>;
   defaultModel?: string;
   slotModels?: Record<string, Record<string, string>>;
+  recentModels?: string[];
 }
 
 // 配置管理器单例
@@ -197,6 +199,7 @@ class ConfigManager {
       codexModel: this.config.codexModel,
       toolModels: this.config.toolModels ? { ...this.config.toolModels } : undefined,
       defaultModel: this.config.defaultModel,
+      recentModels: this.config.recentModels ? [...this.config.recentModels] : undefined,
       slotModels: this.config.slotModels ? structuredClone(this.config.slotModels) : undefined,
     };
   }
@@ -219,6 +222,7 @@ class ConfigManager {
         : undefined;
     }
     if ('defaultModel' in models) this.config.defaultModel = models.defaultModel;
+    if ('recentModels' in models) this.config.recentModels = models.recentModels ? [...new Set(models.recentModels)].slice(0, 3) : undefined;
     if ('slotModels' in models) this.config.slotModels = mergeSlotSettings(this.config.slotModels, models.slotModels);
     this.save();
   }
@@ -256,6 +260,10 @@ class ConfigManager {
     if (toolName && scope && Object.hasOwn(scope, toolName)) return scope[toolName] || undefined;
     const own = toolName ? this.config.context_windows?.[toolName] : undefined;
     return (own ?? this.config.context_window) || undefined;
+  }
+
+  rememberModel(model: string): void {
+    this.setModels({ recentModels: [model, ...(this.getModels().recentModels ?? []).filter(value => value !== model)].slice(0, 3) });
   }
 
   withContextWindows<T>(values: Record<string, number>, operation: () => Promise<T>): Promise<T> {

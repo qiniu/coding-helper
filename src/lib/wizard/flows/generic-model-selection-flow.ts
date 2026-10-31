@@ -1,10 +1,7 @@
-import ora from 'ora';
 import { t } from '../../i18n.js';
 import { configManager } from '../../config.js';
-import { marketModelService, type MarketModelInfo } from '../../market-model-service.js';
 import { promptHelper } from '../ui/prompt-helper.js';
 import { uiRenderer } from '../ui/ui-renderer.js';
-import { HERMES_MANUAL_MODEL_VALUE, buildHermesModelChoices } from './hermes-model-selection-flow.js';
 
 // 通用客户端（OpenCode、Qwen Code 等）的模型选择：选一个模型，保存到 toolModels[toolName]
 // 首次选择时同时设为 defaultModel，供其他通用客户端在 --yes 模式下复用
@@ -26,29 +23,11 @@ export async function runGenericModelSelectionFlow(toolName: string, displayName
     }
   }
 
-  uiRenderer.renderHeader();
-  const spinner = ora(t('hermes_fetching_models')).start();
-  let models: MarketModelInfo[];
-  try {
-    models = await marketModelService.fetchModels(baseUrl, apiKey);
-    spinner.succeed();
-  } catch (error: unknown) {
-    spinner.fail(t('hermes_fetch_models_failed', { error: error instanceof Error ? error.message : t('error_unknown') }));
-    return null;
-  }
-
-  uiRenderer.renderHeader();
-  let selected = await promptHelper.searchSelect(
-    t('generic_select_model', { tool: displayName }),
-    buildHermesModelChoices(models),
-  );
-  if (selected === HERMES_MANUAL_MODEL_VALUE) {
-    selected = (await promptHelper.input(t('model_manual_prompt'))).trim() || undefined;
-  }
-  if (!selected) {
-    uiRenderer.renderWarning(t('hermes_no_model_selected'));
-    return null;
-  }
+  const { toolManager } = await import('../../tool-manager.js');
+  const tool = toolManager.get(toolName);
+  const picked = await promptHelper.pickModel({ tools: tool ? [tool] : [], connection: configManager.getConnection(toolName), title: t('generic_select_model', { tool: displayName }) });
+  if (picked === 'back' || !('model' in picked)) return null;
+  const selected = picked.model;
   save(toolName, selected);
   return selected;
 }
@@ -59,4 +38,5 @@ function save(toolName: string, model: string): void {
     toolModels: { [toolName]: model },
     ...(models.defaultModel ? {} : { defaultModel: model }),
   });
+  configManager.rememberModel(model);
 }
