@@ -19,4 +19,7 @@ export const theme = {
   icon:      chalk.hex('#60A5FA'),
   dimIcon:   chalk.hex('#6B7280'),
   muted:     chalk.dim,
+  success:   chalk.hex('#00E5A0'),
+  warning:   chalk.hex('#FBBF24'),
+  danger:    chalk.hex('#F87171'),
 } as const;

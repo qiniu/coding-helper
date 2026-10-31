@@ -60,3 +60,13 @@ export function padEnd(str: string, targetWidth: number): string {
   if (currentWidth >= targetWidth) return str;
   return str + ' '.repeat(targetWidth - currentWidth);
 }
+
+// 含 ANSI 颜色的字符串的可见宽度
+export function visibleWidth(str: string): number {
+  return stringWidth(stripAnsi(str));
+}
+
+// 按可见宽度右补空格（支持带颜色的字符串）
+export function padVisible(str: string, width: number): string {
+  return str + ' '.repeat(Math.max(0, width - visibleWidth(str)));
+}
