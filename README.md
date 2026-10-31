@@ -433,3 +433,7 @@ Hermes 使用共享 YAML 编辑和事务层；恢复原始备份后须先成功�
 ### 自定义线路
 
 线路菜单可保存 HTTP(S) 网关根地址（可带路径），不接受 URL 内嵌凭据、查询参数或片段。自定义线路校验失败时不会自动切换国内或海外线路；已登记地址参与 status、同步与恢复识别，恢复仍以事务记录为准。
+
+上下文上限按工具保存，只能收窄模型上限。未设置时兼容旧全局值；工具显式选择 auto 后跟随模型上限，不影响其他工具。
+
+When model metadata is offline, context caps only narrow already verified client limits and retain known modality metadata. A 64k cap cannot expand a client limit already known to be 32k.

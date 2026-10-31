@@ -3,7 +3,7 @@ import { parse } from 'smol-toml';
 import { readTextFile } from '../core/safe-write.js';
 import { applyConfigEdits, restoreConfigEdits, parseConfigObject } from '../core/config-transaction.js';
 import { validateToml, upsertTopLevelTomlKey, removeTopLevelTomlKey, removeTomlTable as removeSharedTomlTable } from '../core/toml-edit.js';
-import { fetchModelLimits, isRecord } from './openai-compat-tool.js';
+import { capContextWindow, fetchModelLimits, isRecord } from './openai-compat-tool.js';
 import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
@@ -90,13 +90,13 @@ export class CodexTool implements ITool {
     const model = models.codexModel || this.defaultModel;
     const extra: CodexCatalogModel[] = [];
     if (!GPT_MODELS.some(entry => entry.id === model)) {
-      const limits = await fetchModelLimits(baseUrl, apiKey, model);
+      const limits = await fetchModelLimits(baseUrl, apiKey, model, this.name);
       extra.push({ id: model, context_length: limits.contextWindow, max_tokens: limits.maxOutputTokens, plain: true, images: limits.modalities?.input.includes('image') ?? false });
     }
     applyConfigEdits(this.name, [
       { file: CODEX_CONFIG_FILE, build: content => mergeCodexConfig(content ?? '', baseUrl, model, CODEX_CATALOG_FILE) },
       { file: CODEX_AUTH_FILE, build: content => JSON.stringify({ ...parseConfigObject(content), auth_mode: 'apikey', OPENAI_API_KEY: apiKey }, null, 2) + '\n' },
-      { file: CODEX_CATALOG_FILE, build: content => { if (content !== undefined) parseConfigObject(content); return buildCodexModelCatalog([...GPT_MODELS, ...extra]); } },
+      { file: CODEX_CATALOG_FILE, build: content => { if (content !== undefined) parseConfigObject(content); return buildCodexModelCatalog([...GPT_MODELS, ...extra].map(entry => ({ ...entry, context_length: capContextWindow(entry.context_length, this.name) }))); } },
     ]);
   }
 

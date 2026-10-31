@@ -5,7 +5,7 @@ import { t } from '../i18n.js';
 import { isQiniuBaseUrl } from '../endpoints.js';
 import { readJsonObjectStrict, formatJsonLike } from '../core/safe-write.js';
 import { applyConfigEdits, parseConfigObject } from '../core/config-transaction.js';
-import { OpenAICompatTool, fetchModelLimits, isRecord, openAIBaseUrl, type ModelLimits } from './openai-compat-tool.js';
+import { OpenAICompatTool, fetchModelLimits, effectiveContextLimit, effectiveOutputLimit, isRecord, openAIBaseUrl, type ModelLimits } from './openai-compat-tool.js';
 const DISPLAY_PREFIX = 'Qiniu: ';
 export function getDroidInstallCommand(platform: NodeJS.Platform = process.platform): string {
   return platform === 'win32'
@@ -22,11 +22,15 @@ export function applyDroidSettings(settings: Record<string, unknown>, baseUrl: s
   if (limits && (!Number.isFinite(limits.contextWindow) || !Number.isFinite(limits.maxOutputTokens) || limits.maxOutputTokens <= 0 || limits.contextWindow <= limits.maxOutputTokens)) {
     throw new Error('Droid requires a positive input allowance after reserving output tokens.');
   }
+  const knownContext = previous && typeof previous.maxContextLimit === 'number' && typeof previous.maxOutputTokens === 'number' ? previous.maxContextLimit + previous.maxOutputTokens : undefined;
+  const context = limits ? effectiveContextLimit(limits, knownContext) : undefined;
+  const output = limits ? effectiveOutputLimit(limits, previous?.maxOutputTokens, context!) : undefined;
   const next = {
     ...(previous ?? {}),
     model, displayName: DISPLAY_PREFIX + model, baseUrl: openAIBaseUrl(baseUrl), apiKey, provider: 'generic-chat-completion-api',
     ...(limits && !(limits.verified === false && previous) ? { maxOutputTokens: limits.maxOutputTokens, maxContextLimit: limits.contextWindow - limits.maxOutputTokens,
       noImageSupport: !limits.modalities?.input.includes('image') } : {}),
+    ...(limits?.contextOverride && limits.verified === false && previous ? { maxOutputTokens: output!, maxContextLimit: context! - output! } : {}),
   };
   // 自定义模型ID包含数组索引；不得删掉旧条目导致其他模型索引改变。
   const customModels = [...existing];
@@ -59,7 +63,7 @@ export class DroidTool extends OpenAICompatTool {
   }
 
   async loadConfig(apiKey: string, baseUrl: string, models: ModelConfig): Promise<void> {
-    const model = this.resolveModel(models); const limits = await fetchModelLimits(baseUrl, apiKey, model);
+    const model = this.resolveModel(models); const limits = await fetchModelLimits(baseUrl, apiKey, model, this.name);
     applyConfigEdits(this.name, [{ file: droidSettingsFile(), build: content => formatJsonLike(content, applyDroidSettings(parseConfigObject(content), baseUrl, apiKey, model, limits)) }]);
   }
   unloadConfig(): void { this.restoreManagedConfig([droidSettingsFile()]); }

@@ -35,6 +35,8 @@ interface Config {
   lang?: string;
   endpoint?: string;
   base_url?: string;
+  context_windows?: Record<string, number>;
+  context_window?: number;
   api_key?: string;
   claudeCode?: ClaudeCodeConfig;
   codeBuddyModels?: string[];
@@ -194,6 +196,22 @@ class ConfigManager {
     atomicWriteFile(CONFIG_FILE, yaml.dump(next, { lineWidth: -1 }));
     this.config = next;
     registerCustomBaseUrls(next.base_url ? [next.base_url] : []);
+  }
+
+  // 旧全局值只作兜底；显式 auto 用 0 遮蔽旧值，不影响其他工具。
+  getContextWindow(toolName?: string): number | undefined {
+    this.load();
+    const own = toolName ? this.config.context_windows?.[toolName] : undefined;
+    return (own ?? this.config.context_window) || undefined;
+  }
+
+  setContextWindow(tokens: number | undefined, toolNames: string[]): void {
+    this.load();
+    if (tokens !== undefined && (!Number.isSafeInteger(tokens) || tokens < 1000)) throw new Error('invalid_context');
+    const values = { ...this.config.context_windows };
+    for (const name of toolNames) Object.defineProperty(values, name, { value: tokens ?? 0, writable: true, configurable: true, enumerable: true });
+    this.config.context_windows = values;
+    this.save();
   }
 
   // 根据当前线路获取 base URL

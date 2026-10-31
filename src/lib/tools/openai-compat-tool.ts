@@ -18,6 +18,7 @@ export function openAIBaseUrl(baseUrl: string): string {
 export interface ModelLimits {
   // false 表示离线回退，不能覆盖已知限额。
   verified?: boolean;
+  contextOverride?: boolean;
   contextWindow: number;
   maxOutputTokens: number;
   reasoning?: boolean;
@@ -27,7 +28,29 @@ export interface ModelLimits {
 const FALLBACK_LIMITS: ModelLimits = { contextWindow: 128000, maxOutputTokens: 8192, verified: false };
 
 // 尽力从模型市场获取上下文与输出上限，失败时使用保守的默认值
-export async function fetchModelLimits(baseUrl: string, apiKey: string, model: string): Promise<ModelLimits> {
+export function capContextWindow(modelMax: number, toolName?: string, override = configManager.getContextWindow(toolName)): number {
+  return override === undefined ? modelMax : Math.min(modelMax, override);
+}
+
+// 离线时沿用客户端已经验证过的限额；用户上限只能继续收窄。
+export function effectiveContextLimit(limits: ModelLimits, known: unknown): number {
+  const inherited = limits.verified === false && typeof known === 'number' && Number.isFinite(known) && known > 0 ? known : limits.contextWindow;
+  return limits.contextOverride ? Math.min(inherited, limits.contextWindow) : inherited;
+}
+export function effectiveOutputLimit(limits: ModelLimits, known: unknown, context: number): number {
+  const inherited = limits.verified === false && typeof known === 'number' && Number.isFinite(known) && known > 0 ? known : limits.maxOutputTokens;
+  return limits.contextOverride ? Math.min(inherited, Math.floor(context / 2)) : inherited;
+}
+
+export async function fetchModelLimits(baseUrl: string, apiKey: string, model: string, toolName?: string): Promise<ModelLimits> {
+  const limits = await fetchUncappedModelLimits(baseUrl, apiKey, model);
+  const cap = configManager.getContextWindow(toolName);
+  if (cap === undefined) return limits;
+  const contextWindow = capContextWindow(limits.contextWindow, toolName, cap);
+  return { ...limits, contextWindow, maxOutputTokens: Math.min(limits.maxOutputTokens, Math.floor(contextWindow / 2)), contextOverride: true };
+}
+
+async function fetchUncappedModelLimits(baseUrl: string, apiKey: string, model: string): Promise<ModelLimits> {
   try {
     const models = await marketModelService.fetchModels(baseUrl.replace(/\/+$/, ''), apiKey);
     const info = models.find((m) => m.id === model);
