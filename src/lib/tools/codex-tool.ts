@@ -1,7 +1,8 @@
+import { stateStore } from '../core/state-store.js';
 import { findCommand, commandVersion } from '../../utils/find-command.js';
 import { parse } from 'smol-toml';
 import { readTextFile } from '../core/safe-write.js';
-import { applyConfigEdits, restoreConfigEdits, parseConfigObject } from '../core/config-transaction.js';
+import { applyConfigEdits, restoreConfigEdits, parseConfigObject, canonicalConfigPath } from '../core/config-transaction.js';
 import { validateToml, upsertTopLevelTomlKey, removeTopLevelTomlKey, removeTomlTable as removeSharedTomlTable } from '../core/toml-edit.js';
 import { capContextWindow, fetchModelLimits, isRecord } from './openai-compat-tool.js';
 import fs from 'node:fs';
@@ -80,7 +81,7 @@ export class CodexTool implements ITool {
   }
 
   clearModelConfig(): void {
-    const files = [CODEX_CONFIG_FILE, CODEX_AUTH_FILE, CODEX_CATALOG_FILE];
+    const files = codexTransactionFiles();
     if (!restoreConfigEdits(this.name, files) && files.some(file => fs.existsSync(file))) {
       throw new Error('No restoration record for Codex. Configuration is unchanged; remove legacy credentials manually or recover a known backup.');
     }
@@ -93,11 +94,30 @@ export class CodexTool implements ITool {
       const limits = await fetchModelLimits(baseUrl, apiKey, model, this.name);
       extra.push({ id: model, context_length: limits.contextWindow, max_tokens: limits.maxOutputTokens, plain: true, images: limits.modalities?.input.includes('image') ?? false });
     }
+    const profiles = configManager.listProfiles().filter(profile => !!profile.apiKey);
+    const generated = new Map(profiles.map(profile => [path.join(CODEX_DIR, codexProfileName(profile.name) + '.config.toml'), buildCodexProfileFile(profile.name, model, CODEX_CATALOG_FILE)]));
+    const recordedFiles = codexTransactionFiles();
+    const recorded = new Set(recordedFiles.map(canonicalConfigPath));
+    // 只有事务记录中的配置档文件能证明同名 provider 由 helper 管理。
+    const managedProviders = new Set(recordedFiles.filter(file => file.endsWith('.config.toml')).map(file => codexProviderName(path.basename(file).slice(3, -'.config.toml'.length))));
+    const profileFiles = [...new Set([...recordedFiles.filter(file => file.endsWith('.config.toml')), ...generated.keys()])];
+    // macOS/Windows 上文件名可能不区分大小写；先拒绝冲突再启动事务。
+    if (new Set(profileFiles.map(file => path.basename(file).toLowerCase())).size !== profileFiles.length) throw new Error('Codex profile filenames conflict ignoring case.');
+    for (const file of generated.keys()) {
+      if (!recorded.has(canonicalConfigPath(file)) && readTextFile(file) !== undefined) throw new Error('Codex profile file already exists. Choose another profile name.');
+    }
     applyConfigEdits(this.name, [
-      { file: CODEX_CONFIG_FILE, build: content => mergeCodexConfig(content ?? '', baseUrl, model, CODEX_CATALOG_FILE) },
+      { file: CODEX_CONFIG_FILE, build: content => mergeCodexProfiles(mergeCodexConfig(content ?? '', baseUrl, model, CODEX_CATALOG_FILE), profiles, managedProviders) },
       { file: CODEX_AUTH_FILE, build: content => JSON.stringify({ ...parseConfigObject(content), auth_mode: 'apikey', OPENAI_API_KEY: apiKey }, null, 2) + '\n' },
       { file: CODEX_CATALOG_FILE, build: content => { if (content !== undefined) parseConfigObject(content); return buildCodexModelCatalog([...GPT_MODELS, ...extra].map(entry => ({ ...entry, context_length: capContextWindow(entry.context_length, this.name) }))); } },
-    ]);
+      ...profileFiles.map(file => ({ file, build: (content: string | undefined) => {
+        // 用事务内快照确认新文件仍未被外部创建，禁止接管用户文件。
+        if (!recorded.has(canonicalConfigPath(file)) && content !== undefined) throw new Error('Codex profile file already exists. Choose another profile name.');
+        const next = generated.get(file) ?? content;
+        if (next === undefined) throw new Error('Recorded Codex profile file is missing. Restore before retrying.');
+        return next;
+      } })),
+    ], { extend: true });
   }
 
   async unloadConfig(): Promise<void> { this.clearModelConfig(); }
@@ -363,4 +383,44 @@ export function mergeCodexConfig(existing: string, baseUrl: string, model: strin
   const next = content.trimEnd() + newline + newline + generated.slice(generated.indexOf('[model_providers.')).replace(/\n/g, newline);
   validateToml(next);
   return next;
+}
+
+export function codexProfileName(name: string): string {
+  if (!/^[A-Za-z0-9_-]{1,32}$/.test(name) || ['__proto__', 'constructor', 'prototype'].includes(name)) throw new Error('Invalid profile name');
+  return 'qn-' + name;
+}
+export function codexProviderName(name: string): string { return 'qnaigc-' + codexProfileName(name).slice(3); }
+export function buildCodexProfileFile(name: string, model: string, catalogPath?: string): string {
+  return 'model_provider = ' + JSON.stringify(codexProviderName(name)) + '\nmodel = ' + JSON.stringify(model) + '\n' + (catalogPath ? 'model_catalog_json = ' + JSON.stringify(catalogPath) + '\n' : '');
+}
+export function mergeCodexProfiles(content: string, profiles: { name: string; apiKey: string; baseUrl: string }[], managedProviders: ReadonlySet<string> = new Set()): string {
+  validateToml(content);
+  let next = content;
+  const parsed = parse(content);
+  const existing = isRecord(parsed.model_providers) ? parsed.model_providers : {};
+  for (const profile of profiles) {
+    const id = codexProviderName(profile.name);
+    const entry = existing[id];
+    if (Object.hasOwn(existing, id) && (!managedProviders.has(id) || !isRecord(entry) || entry.name !== 'Qiniu (' + profile.name + ')')) throw new Error('Codex profile provider name conflicts with an existing provider.');
+    next = removeSharedTomlTable(next, 'model_providers.' + id);
+    next += '\n[model_providers.' + id + ']\nname = ' + JSON.stringify('Qiniu (' + profile.name + ')') + '\nbase_url = ' + JSON.stringify(profile.baseUrl.replace(/\/+$/, '') + '/bypass/openai/v1') + '\nexperimental_bearer_token = ' + JSON.stringify(profile.apiKey) + '\nwire_api = "responses"\n';
+  }
+  validateToml(next); return next;
+}
+function codexTransactionFiles(): string[] {
+  const base = [CODEX_CONFIG_FILE, CODEX_AUTH_FILE, CODEX_CATALOG_FILE];
+  const canonicalDir = path.dirname(canonicalConfigPath(CODEX_CONFIG_FILE));
+  const canonicalBase = new Set(base.map(canonicalConfigPath));
+  for (const { state } of stateStore.getFileStates('codex')) {
+    const entries = state.priors?.files;
+    if (!Array.isArray(entries) || !entries.some(entry => isRecord(entry) && entry.file === path.join(canonicalDir, 'config.toml'))) continue;
+    for (const entry of entries) {
+      if (!isRecord(entry) || typeof entry.file !== 'string') throw new Error('Invalid Codex transaction');
+      if (canonicalBase.has(entry.file)) continue;
+      if (path.dirname(entry.file) !== canonicalDir || !/^qn-[A-Za-z0-9_-]{1,32}\.config\.toml$/.test(path.basename(entry.file))) throw new Error('Invalid Codex profile transaction target');
+      const logical = path.join(CODEX_DIR, path.basename(entry.file));
+      if (!base.includes(logical)) base.push(logical);
+    }
+  }
+  return base;
 }

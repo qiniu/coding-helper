@@ -8,7 +8,7 @@ interface Entry { file: string; original: string | null; applied: string; before
 const record = (value: unknown): value is Record<string, unknown> => value !== null && typeof value === 'object' && !Array.isArray(value);
 
 // 父目录解析别名，文件自身的链接仍拒绝；同一配置只有一份还原记录
-function canonical(file: string): string {
+export function canonicalConfigPath(file: string): string {
   const dir = (value: string): string => {
     try { return fs.realpathSync(value); }
     catch (err) {
@@ -47,19 +47,23 @@ function write(file: string, value: string | undefined, expected: string | undef
 }
 
 // 整组文件校验完成后才写入。文本修改无法可靠推断所有权时停止，绝不覆盖外部编辑。
-export function applyConfigEdits(tool: string, edits: ConfigEdit[]): void {
+export function applyConfigEdits(tool: string, edits: ConfigEdit[], options: { extend?: boolean } = {}): void {
   stateStore.withLock(() => {
     if (!edits.length) throw new Error('Configuration transaction requires files.');
-    const files = edits.map(edit => canonical(edit.file));
+    const files = edits.map(edit => canonicalConfigPath(edit.file));
     if (new Set(files).size !== files.length) throw new Error('Duplicate configuration target.');
     files.forEach(assertNotSymlink);
     const { key, saved: previous } = transaction(tool, files);
-    const old = entries(previous, files);
+    const recorded = previous?.priors?.files;
+    const previousFiles = options.extend && Array.isArray(recorded) ? recorded.map(entry => record(entry) && typeof entry.file === 'string' ? entry.file : '') : files;
+    if (previousFiles.some(file => !files.includes(file))) throw new Error('Configuration transaction targets cannot be removed during extension.');
+    const old = entries(previous, previousFiles);
+    const prior = new Map(old?.map(entry => [entry.file, entry]));
     if (!previous && stateStore.getState(tool)) throw new Error('Legacy state requires recovery before configuration.');
     const before = files.map(readTextFile);
-    if (old?.some((entry, i) => before[i] !== entry.applied && !(Object.hasOwn(entry, 'before') && (before[i] ?? null) === entry.before))) throw new Error('Configuration changed since loading. Restore from backup before retrying.');
+    if (old?.some(entry => { const current = before[files.indexOf(entry.file)]; return current !== entry.applied && !(Object.hasOwn(entry, 'before') && (current ?? null) === entry.before); })) throw new Error('Configuration changed since loading. Restore from backup before retrying.');
     const after = edits.map((edit, i) => edit.build(before[i]));
-    const next: Entry[] = files.map((file, i) => ({ file, original: old ? old[i].original : before[i] ?? null, applied: after[i], before: before[i] ?? null }));
+    const next: Entry[] = files.map((file, i) => ({ file, original: prior.has(file) ? prior.get(file)!.original : before[i] ?? null, applied: after[i], before: before[i] ?? null }));
     // 日志先落盘，异常退出仍保留原值；普通写入失败回滚本轮
     stateStore.setState(tool, { priors: { files: next } }, key);
     let completed = 0;
@@ -90,7 +94,7 @@ export function applyConfigEdits(tool: string, edits: ConfigEdit[]): void {
 export function restoreConfigEdits(tool: string, targets: string[]): boolean {
   return stateStore.withLock(() => {
     if (!targets.length) return false;
-    const files = targets.map(canonical);
+    const files = targets.map(canonicalConfigPath);
     const { key, saved } = transaction(tool, files);
     const old = entries(saved, files);
     if (!old) return false;
