@@ -262,6 +262,20 @@ class ConfigManager {
     return (own ?? this.config.context_window) || undefined;
   }
 
+  // 客户端成功后保存完整计划；目标工具的槽位映射整体替换，允许恢复跟随主模型。
+  saveToolSettings(models: ModelConfig, contexts: Record<string, number> = {}, recent?: string): void {
+    this.load();
+    const next: Config = { ...this.config, ...models };
+    if (models.toolModels) next.toolModels = { ...this.config.toolModels, ...models.toolModels };
+    if (models.claudeCode) next.claudeCode = { ...this.config.claudeCode, ...models.claudeCode };
+    if (models.slotModels) next.slotModels = mergeSlotSettings(this.config.slotModels, models.slotModels, true);
+    next.context_windows = { ...this.config.context_windows, ...contexts };
+    if (recent) next.recentModels = [recent, ...(this.config.recentModels ?? []).filter(model => model !== recent)].slice(0, 3);
+    this.ensureDir();
+    atomicWriteFile(CONFIG_FILE, yaml.dump(next, { lineWidth: -1 }));
+    this.config = next;
+  }
+
   rememberModel(model: string): void {
     this.setModels({ recentModels: [model, ...(this.getModels().recentModels ?? []).filter(value => value !== model)].slice(0, 3) });
   }
@@ -400,11 +414,11 @@ function toProfile(name: string, entry: ProfileEntry): Profile {
   return { name, apiKey: entry.api_key, endpoint, baseUrl };
 }
 
-function mergeSlotSettings(previous: ModelConfig['slotModels'], update: ModelConfig['slotModels']): ModelConfig['slotModels'] {
+function mergeSlotSettings(previous: ModelConfig['slotModels'], update: ModelConfig['slotModels'], replace = false): ModelConfig['slotModels'] {
   if (update === undefined) return undefined;
   const next = { ...previous };
   for (const [tool, slots] of Object.entries(update)) {
-    if (Object.keys(slots).length) next[tool] = { ...next[tool], ...slots };
+    if (Object.keys(slots).length) next[tool] = { ...(replace ? {} : next[tool]), ...slots };
     else delete next[tool];
   }
   return Object.keys(next).length ? next : undefined;
