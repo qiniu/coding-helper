@@ -1,3 +1,4 @@
+import { slotModel } from '../core/model-slots.js';
 import os from 'node:os';
 import path from 'node:path';
 import type { ModelConfig } from '../config.js';
@@ -14,7 +15,7 @@ export function getDroidInstallCommand(platform: NodeJS.Platform = process.platf
 }
 function droidSettingsFile(): string { return path.join(os.homedir(), '.factory', 'settings.json'); }
 function isQiniuModel(entry: unknown): boolean { return isRecord(entry) && typeof entry.displayName === 'string' && entry.displayName.startsWith(DISPLAY_PREFIX); }
-export function applyDroidSettings(settings: Record<string, unknown>, baseUrl: string, apiKey: string, model: string, limits?: ModelLimits): Record<string, unknown> {
+function upsertDroidModel(settings: Record<string, unknown>, baseUrl: string, apiKey: string, model: string, limits?: ModelLimits): Record<string, unknown> {
   if (Object.hasOwn(settings, 'customModels') && (!Array.isArray(settings.customModels) || !settings.customModels.every(isRecord))) throw new Error('Invalid Droid customModels array.');
   const existing = Array.isArray(settings.customModels) ? settings.customModels : [];
   const index = existing.findIndex(entry => isQiniuModel(entry) && entry.model === model && entry.baseUrl === openAIBaseUrl(baseUrl));
@@ -37,6 +38,18 @@ export function applyDroidSettings(settings: Record<string, unknown>, baseUrl: s
   if (index >= 0) customModels[index] = next;
   else customModels.push(next);
   return { ...settings, customModels };
+}
+
+export function applyDroidSettings(settings: Record<string, unknown>, baseUrl: string, apiKey: string, model: string, limits?: ModelLimits, spec = model, specLimits?: ModelLimits): Record<string, unknown> {
+  if (Object.hasOwn(settings, 'sessionDefaultSettings') && !isRecord(settings.sessionDefaultSettings)) throw new Error('Invalid Droid session settings');
+  let next = upsertDroidModel(settings, baseUrl, apiKey, model, limits);
+  if (spec !== model) next = upsertDroidModel(next, baseUrl, apiKey, spec, specLimits);
+  const entries = next.customModels as Record<string, unknown>[];
+  const ref = (id: string): string => {
+    const index = entries.findIndex(entry => isQiniuModel(entry) && entry.model === id && entry.baseUrl === openAIBaseUrl(baseUrl));
+    return 'custom:' + (DISPLAY_PREFIX + id).trim().replace(/\s+/g, '-') + '-' + index;
+  };
+  return { ...next, sessionDefaultSettings: { ...(isRecord(settings.sessionDefaultSettings) ? settings.sessionDefaultSettings : {}), model: ref(model), specModeModel: ref(spec) } };
 }
 
 export class DroidTool extends OpenAICompatTool {
@@ -64,7 +77,9 @@ export class DroidTool extends OpenAICompatTool {
 
   async loadConfig(apiKey: string, baseUrl: string, models: ModelConfig): Promise<void> {
     const model = this.resolveModel(models); const limits = await fetchModelLimits(baseUrl, apiKey, model, this.name);
-    applyConfigEdits(this.name, [{ file: droidSettingsFile(), build: content => formatJsonLike(content, applyDroidSettings(parseConfigObject(content), baseUrl, apiKey, model, limits)) }]);
+    const spec = slotModel(this.name, 'spec', model, models);
+    const specLimits = spec === model ? limits : await fetchModelLimits(baseUrl, apiKey, spec, this.name);
+    applyConfigEdits(this.name, [{ file: droidSettingsFile(), build: content => formatJsonLike(content, applyDroidSettings(parseConfigObject(content), baseUrl, apiKey, model, limits, spec, specLimits)) }]);
   }
   unloadConfig(): void { this.restoreManagedConfig([droidSettingsFile()]); }
 }

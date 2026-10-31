@@ -310,3 +310,11 @@ test('Claude missing restoration state for one existing target blocks partial un
   assert.equal(read(settings),before);assert.equal(read(onboarding),other);assert.ok(stateStore.getState(tool.name,settings));
   reset();assert.doesNotThrow(()=>tool.unloadConfig());
 });
+for(const reload of [false,true]) test('Claude upgrades legacy key snapshots before '+(reload?'reload':'unload'),async()=>{
+ const added=['ANTHROPIC_DEFAULT_FABLE_MODEL','ANTHROPIC_SMALL_FAST_MODEL','ANTHROPIC_DEFAULT_HAIKU_MODEL_DESCRIPTION','ANTHROPIC_DEFAULT_SONNET_MODEL_DESCRIPTION','ANTHROPIC_DEFAULT_OPUS_MODEL_DESCRIPTION','ANTHROPIC_DEFAULT_FABLE_MODEL_DESCRIPTION'];
+ const original=JSON.stringify({env:Object.fromEntries(added.map((key,i)=>[key,'original-'+i])),keep:true});reset(original,'{}');await load();
+ const journal=stateStore.getState(tool.name,settings);const current=JSON.parse(read(settings));
+ for(const key of added){delete journal.priors.snapshot.env[key];delete journal.applied.env[key];current.env[key]=JSON.parse(original).env[key];}
+ write(settings,JSON.stringify(current));stateStore.setState(tool.name,journal,settings);
+ if(reload)await load();tool.unloadConfig();assert.equal(read(settings),original);
+});

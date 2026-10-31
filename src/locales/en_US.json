@@ -205,7 +205,7 @@
   "run_unsupported": "{{tool}} does not support launcher mode",
   "run_supported_tools": "Supported tools: {{tools}}",
   "setup_reason_launch_only": "Copilot uses session environment variables. Run coding-helper run copilot instead of loading a configuration file.",
-  "droid_select_loaded_model": "Model registered. Start Droid, run /model, and select Qiniu: <your selected model> to activate it. The current session default has not changed.",
+  "droid_select_loaded_model": "Main and Spec-mode defaults now select Qiniu: <selected model> automatically. Use /model to inspect or change them; a separate Spec slot overrides the main model.",
   "endpoint_custom": "Custom",
   "endpoint_custom_option": "Custom URL",
   "endpoint_custom_hint": "self-hosted or proxy gateway",
@@ -299,5 +299,9 @@
   "ui_check_all": "Select all",
   "ui_check_all_installed": "Select all installed",
   "ui_check_next": "Continue",
-  "ui_check_empty": "Select at least one (Space to check)"
+  "ui_check_empty": "Select at least one (Space to check)",
+  "claude_slot_desc_sonnet": "Qiniu · main model",
+  "claude_slot_desc_opus": "Qiniu · Opus slot",
+  "claude_slot_desc_haiku": "Qiniu · fallback model",
+  "claude_slot_desc_fable": "Qiniu · Fable slot (same as Opus)"
 }

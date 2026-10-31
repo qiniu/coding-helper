@@ -11,7 +11,7 @@ test('Droid preserves unrelated custom IDs and same-route known metadata offline
  const {applyDroidSettings}=await import('../dist/lib/tools/droid-tool.js');
  const original={customModels:[{model:'vision',displayName:'Qiniu: vision',baseUrl:'https://api.qnaigc.com/v1',apiKey:'old',maxContextLimit:11904,maxOutputTokens:4096,noImageSupport:false},{model:'personal',displayName:'Personal',baseUrl:'https://other.test'}],sessionDefaultSettings:{model:'custom:Personal-1'}};
  const next=applyDroidSettings(original,'https://api.qnaigc.com','new','vision',{contextWindow:128000,maxOutputTokens:8192,verified:false});
- assert.equal(next.customModels[0].apiKey,'new');assert.equal(next.customModels[0].maxContextLimit,11904);assert.equal(next.customModels[0].maxOutputTokens,4096);assert.equal(next.customModels[0].noImageSupport,false);assert.deepEqual(next.customModels[1],original.customModels[1]);assert.deepEqual(next.sessionDefaultSettings,original.sessionDefaultSettings);
+ assert.equal(next.customModels[0].apiKey,'new');assert.equal(next.customModels[0].maxContextLimit,11904);assert.equal(next.customModels[0].maxOutputTokens,4096);assert.equal(next.customModels[0].noImageSupport,false);assert.deepEqual(next.customModels[1],original.customModels[1]);assert.deepEqual(next.sessionDefaultSettings,{model:'custom:Qiniu:-vision-0',specModeModel:'custom:Qiniu:-vision-0'});
  const added=applyDroidSettings(next,'https://api.qnaigc.com','new','another');assert.deepEqual(added.customModels.slice(0,2),next.customModels);assert.equal(added.customModels.length,3);
 });
 test('Droid platform installers and load notes match user actions',async()=>{
@@ -19,10 +19,10 @@ test('Droid platform installers and load notes match user actions',async()=>{
  assert.match(getDroidInstallCommand('win32'),/powershell.*cli\/windows/);assert.match(getDroidInstallCommand('linux'),/pipefail/);
  for(const locale of ['zh_CN','en_US']){i18n.init(locale);const notes=new DroidTool().getLoadConfigNotes();assert.equal(notes.length,1);assert.match(notes[0],/\/model/);assert.match(notes[0],/Qiniu:/);}
 });
-test('Droid reserves output capacity and carries image support without changing defaults',async()=>{
+test('Droid reserves output capacity and carries image support while selecting Qiniu session defaults',async()=>{
  const {applyDroidSettings}=await import('../dist/lib/tools/droid-tool.js');
  const original={sessionDefaultSettings:{model:'existing'}};
- for(const image of [true,false]){const next=applyDroidSettings(original,'https://api.qnaigc.com','key','test/model',{contextWindow:32768,maxOutputTokens:8192,modalities:{input:image?['text','image']:['text'],output:['text']}});assert.equal(next.customModels[0].maxContextLimit,24576);assert.equal(next.customModels[0].maxOutputTokens,8192);assert.equal(next.customModels[0].noImageSupport,!image);assert.deepEqual(next.sessionDefaultSettings,original.sessionDefaultSettings);}
+ for(const image of [true,false]){const next=applyDroidSettings(original,'https://api.qnaigc.com','key','test/model',{contextWindow:32768,maxOutputTokens:8192,modalities:{input:image?['text','image']:['text'],output:['text']}});assert.equal(next.customModels[0].maxContextLimit,24576);assert.equal(next.customModels[0].maxOutputTokens,8192);assert.equal(next.customModels[0].noImageSupport,!image);assert.deepEqual(next.sessionDefaultSettings,{model:'custom:Qiniu:-test/model-0',specModeModel:'custom:Qiniu:-test/model-0'});}
  assert.throws(()=>applyDroidSettings(original,'https://api.qnaigc.com','key','test/model',{contextWindow:8192,maxOutputTokens:8192}),/positive input/);
 });
 const { marketModelService } = await import('../dist/lib/market-model-service.js');
@@ -42,7 +42,7 @@ test('droid is registered and recognizes saved generic model selection', () => {
 test('droid restores bytes and refuses corrupt or changed config', async () => {
   files.forEach((file, i) => write(file, originals[i]));
   await load(); await load('second-key');
-  assert.equal(JSON.parse(read(files[0])).customModels[0].displayName, 'Mine'); assert.equal(JSON.parse(read(files[0])).sessionDefaultSettings, undefined);
+  assert.equal(JSON.parse(read(files[0])).customModels[0].displayName, 'Mine'); assert.equal(JSON.parse(read(files[0])).sessionDefaultSettings.model, 'custom:Qiniu:-test/model-1');
   await tool.unloadConfig(); files.forEach((file, i) => assert.equal(read(file), originals[i]));
   write(files[0], "{broken");
   await assert.rejects(load()); assert.equal(read(files[0]), "{broken");

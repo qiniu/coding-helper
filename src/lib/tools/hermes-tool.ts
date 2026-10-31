@@ -1,3 +1,4 @@
+import { slotModel } from '../core/model-slots.js';
 import { stateStore } from '../core/state-store.js';
 import { isPreview, readTextFile } from '../core/safe-write.js';
 import { isQiniuBaseUrl } from '../endpoints.js';
@@ -61,7 +62,11 @@ export class HermesTool implements ITool {
           if (!stateStore.getState(this.name, canonical) && model && isQiniuBaseUrl(model.base_url) && typeof model.api_key === 'string' && model.api_key) {
             throw new Error('Legacy Hermes credentials have no restoration record. Configuration is unchanged; remove legacy credentials manually or recover a known backup before loading.');
           }
-          return buildHermesConfig(current ?? '', baseUrl, apiKey, models.hermesModel!);
+          const next = buildHermesConfig(current ?? '', baseUrl, apiKey, models.hermesModel!);
+          const recorded = stateStore.getState(this.name, canonical)?.priors?.files;
+          const entry = Array.isArray(recorded) ? recorded.find(entry => isRecord(entry) && entry.file === canonical) : undefined;
+          const original = isRecord(entry) ? typeof entry.original === 'string' ? entry.original : '' : undefined;
+          return applyHermesVision(next, slotModel(this.name, 'vision', models.hermesModel!, models), baseUrl, apiKey, original);
         } }]);
     });
     applyHermesConfigPermissions(HERMES_DIR, HERMES_CONFIG_FILE);
@@ -131,4 +136,18 @@ function dumpYaml(config: Record<string, unknown>): string {
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return value !== null && typeof value === 'object' && !Array.isArray(value);
+}
+
+export function applyHermesVision(content: string, vision: string | undefined, baseUrl: string, apiKey: string, original?: string): string {
+  if (!vision && original === undefined) return content;
+  const doc = parseYamlDocument(content);
+  const before = parseYamlDocument(original ?? '').toJS() as unknown;
+  const auxiliary = isRecord(before) && isRecord(before.auxiliary) ? before.auxiliary : undefined;
+  const prior = auxiliary && isRecord(auxiliary.vision) ? auxiliary.vision : {};
+  const values: Record<string, unknown> = vision ? { provider: 'custom', model: vision, base_url: baseUrl.replace(/\/+$/, '') + '/v1', api_key: apiKey } : prior;
+  for (const key of ['provider', 'model', 'base_url', 'api_key', 'api_mode']) {
+    if (values[key] === undefined) deleteYamlValue(doc, ['auxiliary', 'vision', key]);
+    else setYamlValue(doc, ['auxiliary', 'vision', key], values[key]);
+  }
+  return stringifyYamlDocument(doc);
 }
