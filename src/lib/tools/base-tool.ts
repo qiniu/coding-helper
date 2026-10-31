@@ -5,6 +5,8 @@ export interface ITool {
   name: string;
   displayName: string;
   command: string;
+  // 未提供启动参数时使用，例如 dsh 的 web profile。
+  launchArgs?: string[];
   installCommand: string;
 
   // 只通过启动器使用的工具，不写客户端配置文件

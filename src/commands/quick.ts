@@ -123,7 +123,7 @@ export async function quickCommand(target: string, rest: string[], options: Quic
       renderToolResults(results, apiKey, !!options.dryRun);
       if (saveFailed) uiRenderer.renderError(t('quick_save_failed'));
       if (options.dryRun) for (const change of publicPlannedChanges(planned.changes)) console.log(JSON.stringify(change));
-      else if (!saveFailed) for (const { tool } of successful) uiRenderer.renderHint(`${t('quick_start')}: ${tool.launchOnly ? `coding-helper run ${tool.name}` : tool.command}`);
+      else if (!saveFailed) for (const { tool } of successful) uiRenderer.renderHint(`${t('quick_start')}: ${tool.launchOnly ? `coding-helper run ${tool.name}` : [tool.command, ...(tool.launchArgs ?? [])].join(' ')}`);
     }
     process.exitCode = exitCode;
   } catch (error) {

@@ -15,6 +15,7 @@ import { MinimaxCodeTool } from './tools/minimax-code-tool.js';
 
 import { CopilotTool } from './tools/copilot-tool.js';
 import { OpenCodeTool } from './tools/opencode-tool.js';
+import { DshTool } from './tools/dsh-tool.js';
 
 // 工具注册中心
 class ToolManager {
@@ -35,6 +36,7 @@ class ToolManager {
     this.register(new HermesTool());
     this.register(new DroidTool());
     this.register(new OpenCodeTool());
+    this.register(new DshTool());
   }
 
   // 注册工具

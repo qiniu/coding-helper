@@ -89,7 +89,8 @@ function installState(tool: ITool): boolean | null {
 
 function launchHint(tool: ITool): string {
   if (installState(tool) === null) return t('result_restart_app', { tool: tool.displayName });
-  return tool.command;
+  // 需要默认参数才能启动的工具（如 dsh web）与快捷配置的提示保持一致
+  return [tool.command, ...(tool.launchArgs ?? [])].join(' ');
 }
 
 // 写入结果：标题 + 圆角结果表（工具 / 结果 / 模型 / 启动）+ 下一步与撤销提示

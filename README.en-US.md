@@ -31,6 +31,7 @@
 | Hermes Agent | CLI | `~/.hermes/config.yaml` |
 | Factory Droid | CLI | [配置说明 / Configuration](docs/tools/droid.md) |
 | OpenCode | CLI | `~/.config/opencode/opencode.json` |
+| DeepSeek Harness (dsh) | CLI | [配置说明 / Configuration](docs/tools/dsh.md) |
 
 ## ✨ Features
 
