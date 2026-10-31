@@ -4,6 +4,7 @@ import { uiRenderer, connectedToolNames } from '../ui/ui-renderer.js';
 import chalk from 'chalk';
 import { menuPrompt, type MenuEntry } from '../ui/prompts.js';
 import { currentToolModel, detectSorted, formatConfiguredBadge, formatInstallState, toolIcon } from '../ui/tool-view.js';
+import { isExternallyModified } from '../../core/rebaseline.js';
 import { padVisible, visibleWidth } from '../../../utils/string-width.js';
 import type { ToolDetection } from '../../core/tool-service.js';
 import { runLanguageFlow } from '../flows/language-flow.js';
@@ -11,7 +12,7 @@ import { runEndpointSelectionFlow } from '../flows/endpoint-selection-flow.js';
 import { runApiKeyFlow } from '../flows/api-key-flow.js';
 import { runContextFlow, contextMenuHint } from '../flows/context-flow.js';
 import { runProfileFlow } from '../flows/profile-flow.js';
-import { showToolMenu } from './tool-menu.js';
+import { showToolMenu, installTool } from './tool-menu.js';
 import { toolManager } from '../../tool-manager.js';
 import { configManager, type ModelConfig } from '../../config.js';
 import { getRestoreTargets } from '../../core/tool-service.js';
@@ -219,7 +220,9 @@ function toolEntry(detection: ToolDetection, nameWidth: number): MenuEntry<strin
   const connection = configManager.getConnection(tool.name);
   // 是否接入以检测结果为准；接入但没有 helper 保存的模型（如使用工具默认模型）时显示「工具默认」
   const description = !installed
-    ? `${theme.subtle(t('tool_detail_install'))}  ${theme.value(tool.installCommand)}`
+    ? `${theme.brand(t('tool_detail_install_enter'))}\n${theme.subtle(t('tool_detail_install'))}  ${theme.value(tool.installCommand)}`
+    : isExternallyModified(tool)
+      ? theme.warning(t('tool_detail_external'))
     : !detection.configured
       ? theme.subtle(t('tool_detail_not_connected'))
       : [
@@ -261,7 +264,10 @@ async function showToolSelector(): Promise<void> {
     if (action === 'escape') return;
     last = value;
     const tool = toolManager.get(value);
-    if (tool) await showToolMenu(tool);
+    if (!tool) continue;
+    // 未安装的命令行工具：回车先安装，装好后可直接进入配置
+    if (tool.isInstalled() === false) { if (await installTool(tool)) await showToolMenu(tool); continue; }
+    await showToolMenu(tool);
   }
 }
 

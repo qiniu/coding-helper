@@ -3,7 +3,7 @@ import { t } from '../../i18n.js';
 import { uiRenderer } from './ui-renderer.js';
 
 const SAFE_REASON_KEYS = new Set(['apikey_not_set', 'setup_preview_unsupported', 'quick_save_failed', 'tool_config_load_failed',
-  'plan_write_failed', 'plan_validation_failed', 'helper_settings_failed', 'context_invalid',
+  'plan_write_failed', 'plan_validation_failed', 'rebaseline_failed', 'helper_settings_failed', 'context_invalid',
   'tool_failure_unrecorded', 'tool_failure_recovery', 'tool_failure_path', 'tool_failure_changed',
   'tool_failure_retry', 'tool_failure_conflict', 'tool_failure_protected', 'tool_failure_permissions']);
 

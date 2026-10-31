@@ -7,6 +7,11 @@ import { toolManager } from '../../tool-manager.js';
 import { promptHelper } from '../ui/prompt-helper.js';
 import { uiRenderer, FLOW_STEP_KEYS, type StepInfo } from '../ui/ui-renderer.js';
 import type { ITool } from '../../tools/base-tool.js';
+import { installTool } from '../menus/tool-menu.js';
+
+function installState(tool: ITool): boolean | null {
+  try { return tool.isInstalled(); } catch { return null; }
+}
 
 export async function setupTool(tool: ITool): Promise<boolean> {
   // 用户取消模型配置时跳过后续装载与就绪提示，避免误报"配置成功"
@@ -51,9 +56,20 @@ export async function setupTool(tool: ITool): Promise<boolean> {
 export async function runToolSetupFlow(candidates?: ITool[], steps: { first: number; total: number; keys: string[] } = { first: 1, total: FLOW_STEP_KEYS.length, keys: FLOW_STEP_KEYS }): Promise<boolean> {
   const tools = candidates ?? toolManager.getAll();
   const step = (offset: number): StepInfo => ({ current: steps.first + offset, total: steps.total, keys: steps.keys });
-  uiRenderer.renderPage(t('page_tools'), step(0), t('page_tools_hint'));
-  const targets = await selectTargets(t('setup_select_tools'), tools);
-  if (!targets?.length) return false;
+  let targets: ITool[] | undefined;
+  let cursor: string | undefined;
+  while (true) {
+    uiRenderer.renderPage(t('page_tools'), step(0), t('page_tools_hint'));
+    let entered: ITool | undefined;
+    targets = await selectTargets(t('setup_select_tools'), tools, { installable: true, default: cursor, onEnter: tool => { entered = tool; } });
+    if (!targets?.length) return false;
+    // 在未安装的命令行工具上直接回车：先进安装页；可安装、跳过安装直接配置，或返回重选。勾选后继续则直接配置
+    const only = entered;
+    if (!only || installState(only) !== false || !only.installCommand) break;
+    const installed = await installTool(only, { allowSkip: true });
+    if (installed) break;
+    cursor = only.name;
+  }
   const previewable = targets.filter(tool => !tool.launchOnly && tool.supportsPreview === true);
   if (previewable.length) while (true) {
     const picked = await pickModel({ tools: previewable, step: step(1) });

@@ -15,3 +15,8 @@ export function executeToolUpdate(tool: Pick<ITool, 'command' | 'searchPaths' | 
     if (result.status !== 0) throw new Error('Tool update failed with exit status ' + result.status);
   } else execSync(command, { stdio: 'inherit' });
 }
+
+// 安装命令来自适配器的固定字符串（如 npm install -g ...），展示并经用户确认后执行
+export function executeToolInstall(tool: Pick<ITool, 'installCommand'>): void {
+  execSync(tool.installCommand, { stdio: 'inherit' });
+}

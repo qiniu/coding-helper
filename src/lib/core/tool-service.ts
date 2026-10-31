@@ -1,4 +1,5 @@
 import { configManager, type ModelConfig } from '../config.js';
+import { isExternallyModified, rebaselineTool } from './rebaseline.js';
 import type { ITool } from '../tools/base-tool.js';
 import { stateStore } from './state-store.js';
 import { isPreview } from './safe-write.js';
@@ -58,6 +59,10 @@ export async function applyTool(tool: ITool, connection?: { apiKey: string; base
     if (!apiKey) return { tool, status: 'failed', reason: 'apikey_not_set' };
     const models = connection?.models ?? configManager.getModels();
     if (tool.requiresModelSelection && !hasSavedToolModelConfig(tool, models)) return { tool, status: 'skipped', reason: 'setup_reason_models_required' };
+    // 外部已切到其他服务：直接以当前配置为还原基线（旧记录与当前文件先归档到 backups/），再接入七牛
+    if (isExternallyModified(tool)) {
+      try { rebaselineTool(tool); } catch { return { tool, status: 'failed', reason: 'rebaseline_failed' }; }
+    }
     await tool.loadConfig(apiKey, resolved.baseUrl, models);
     return { tool, status: 'success' };
   } catch (error) {

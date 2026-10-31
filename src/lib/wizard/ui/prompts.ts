@@ -375,6 +375,10 @@ export interface CheckItem<T> {
   checked?: boolean;
   // 「全选」时选中的项（如已安装的工具）
   preferred?: boolean;
+  // 光标停在该行时显示在列表下方
+  description?: string;
+  // 没勾选任何项时，回车处理该行的说明（如「安装」）
+  enterLabel?: string;
 }
 
 export interface CheckConfig<T> {
@@ -388,13 +392,17 @@ export interface CheckConfig<T> {
   allowEmpty?: boolean;
   // 根据当前勾选生成底部提示
   summary?: (values: T[]) => string;
+  // 初始光标所在项
+  default?: T;
+  // 没勾选时回车直接处理当前行（区别于勾选后继续），调用方据此决定是否走单项动作（如安装）
+  onEnterSingle?: (value: T) => void;
 }
 
 const checkView = createPrompt(<T,>(config: CheckConfig<T>, done: (values: T[] | undefined) => void) => {
   const { items } = config;
   const [checked, setChecked] = useState<boolean[]>(items.map((i) => !!i.checked));
   // 行号：0 = 全选，1..n = 工具，n + 1 = 继续
-  const [active, setActive] = useState(1);
+  const [active, setActive] = useState(Math.max(1, items.findIndex((i) => config.default !== undefined && i.value === config.default) + 1));
   const [status, setStatus] = useState<'idle' | 'done' | 'cancel'>('idle');
   const [warning, setWarning] = useState('');
 
@@ -438,7 +446,7 @@ const checkView = createPrompt(<T,>(config: CheckConfig<T>, done: (values: T[] |
       if (active === 0) return toggleAll();
       // 工具行：没勾选任何项时直接处理当前行，否则按已勾选的继续；
       // allowEmpty 时「不勾选」本身有含义（如只保存），回车按当前勾选继续
-      if (active !== nextRow && count === 0 && !config.allowEmpty) return finish([items[active - 1].value]);
+      if (active !== nextRow && count === 0 && !config.allowEmpty) { config.onEnterSingle?.(items[active - 1].value); return finish([items[active - 1].value]); }
       return proceed();
     }
     // 兼容老习惯的隐藏加速键
@@ -450,7 +458,8 @@ const checkView = createPrompt(<T,>(config: CheckConfig<T>, done: (values: T[] |
   const rowWidth = terminalWidth() - 2;
   const row = (index: number, text: string): string =>
     index === active ? highlightRow(` ${theme.brandBold('❯')} ${text}`, rowWidth) : `   ${text}`;
-  const enterText = active !== 0 && active !== nextRow && count === 0 && !config.allowEmpty ? t('ui_key_this_one') : t('ui_key_next');
+  const single = active !== 0 && active !== nextRow && count === 0 && !config.allowEmpty;
+  const enterText = single ? items[active - 1].enterLabel ?? t('ui_key_this_one') : t('ui_key_next');
   const footer = renderKeyHints([['↑↓', t('ui_key_move')], [t('ui_key_space'), t('ui_key_toggle')], [t('ui_key_enter'), enterText], ['Esc', t('ui_key_back')]]);
   const summary = config.summary?.(items.filter((_, i) => checked[i]).map((i) => i.value));
   const extraRows = warning || summary ? 2 + (warning || summary || '').split('\n').length - 1 : 0;
@@ -481,7 +490,9 @@ const checkView = createPrompt(<T,>(config: CheckConfig<T>, done: (values: T[] |
   const nextText = `${config.nextLabel ?? t('ui_check_next')}${theme.subtle(`（${t('ui_selected_count', { count: String(count) })}）`)}  →`;
   lines.push(row(nextRow, active === nextRow ? chalk.bold.hex('#E8F6FF')(nextText) : theme.brand(nextText)));
 
+  const description = active !== 0 && active !== nextRow ? items[active - 1].description : undefined;
   if (warning) lines.push('', `  ${theme.warning(warning)}`);
+  else if (description && count === 0) lines.push('', `  ${description}`);
   else if (summary) lines.push('', `  ${summary}`);
   lines.push('', `  ${footer}`);
   return `${lines.join('\n')}${CURSOR_HIDE}`;

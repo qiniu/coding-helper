@@ -8,6 +8,7 @@ import { configManager } from '../../config.js';
 import { savedModelFor } from '../../core/model-mapping.js';
 import { backupsRoot, type PlannedChange } from '../../core/safe-write.js';
 import type { ToolDetection, ToolResult } from '../../core/tool-service.js';
+import { isExternallyModified } from '../../core/rebaseline.js';
 import type { ITool } from '../../tools/base-tool.js';
 import { logger } from '../../../utils/logger.js';
 import { truncate, visibleWidth } from '../../../utils/string-width.js';
@@ -44,9 +45,10 @@ export function formatInstallState(detection: ToolDetection): string {
 
 // 接入状态徽标：● 已接入七牛 / ○ 未接入
 export function formatConfiguredBadge(detection: ToolDetection): string {
-  return detection.configured
-    ? theme.success(`● ${t('tool_badge_configured')}`)
-    : theme.border(`○ ${t('tool_badge_not_configured')}`);
+  if (detection.configured) return theme.success(`● ${t('tool_badge_configured')}`);
+  // 有还原记录但当前不指向七牛：外部已切到其他服务，需要用户确认基线后才能接入
+  if (isExternallyModified(detection.tool)) return theme.warning(`⚠ ${t('tool_badge_external')}`);
+  return theme.border(`○ ${t('tool_badge_not_configured')}`);
 }
 
 // 列表用的轻量检测：只查是否安装、是否接入，不运行 --version（启动客户端可能很慢或卡住）
