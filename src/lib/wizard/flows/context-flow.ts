@@ -7,7 +7,7 @@ import { t } from '../../i18n.js';
 import { promptHelper } from '../ui/prompt-helper.js';
 import { uiRenderer } from '../ui/ui-renderer.js';
 import { menuPrompt } from '../ui/prompts.js';
-import { renderToolResults } from '../ui/tool-results.js';
+import { renderResultSummary } from '../ui/tool-view.js';
 export const CONTEXT_UNSUPPORTED_TOOLS = ['claude-code', 'hermes', 'copilot'];
 export function contextLabel(tokens?: number): string { return tokens ? formatContextSize(tokens) : t('context_auto'); }
 export async function runContextFlow(): Promise<void> {
@@ -45,7 +45,7 @@ export async function runContextFlow(): Promise<void> {
     if (confirmation.action === 'escape' || !confirmation.value) return;
     const written = await commitWritePlan(normal);
     results.push(...written);
-    renderToolResults(written);
+    renderResultSummary(written);
     process.exitCode = exitCodeFor(results);
     await promptHelper.pressEnter();
   }

@@ -5,7 +5,7 @@ import { t } from '../../i18n.js';
 import { applyTool } from '../../core/tool-service.js';
 import { toolManager } from '../../tool-manager.js';
 import { promptHelper } from '../ui/prompt-helper.js';
-import { uiRenderer } from '../ui/ui-renderer.js';
+import { uiRenderer, FLOW_STEP_KEYS, type StepInfo } from '../ui/ui-renderer.js';
 import type { ITool } from '../../tools/base-tool.js';
 
 export async function setupTool(tool: ITool): Promise<boolean> {
@@ -46,17 +46,20 @@ export async function setupTool(tool: ITool): Promise<boolean> {
   return true;
 }
 
-// 初始化向导专用：选择工具 → 引导配置；取消或失败返回 false。
-export async function runToolSetupFlow(candidates?: ITool[]): Promise<boolean> {
+// 选择工具 → 选模型 → 确认写入；取消或失败返回 false。
+// first：「选工具」在整个流程中的步序（首次向导为第 4 步，菜单里为第 1 步）
+export async function runToolSetupFlow(candidates?: ITool[], steps: { first: number; total: number; keys: string[] } = { first: 1, total: FLOW_STEP_KEYS.length, keys: FLOW_STEP_KEYS }): Promise<boolean> {
   const tools = candidates ?? toolManager.getAll();
+  const step = (offset: number): StepInfo => ({ current: steps.first + offset, total: steps.total, keys: steps.keys });
+  uiRenderer.renderPage(t('page_tools'), step(0), t('page_tools_hint'));
   const targets = await selectTargets(t('setup_select_tools'), tools);
   if (!targets?.length) return false;
   const previewable = targets.filter(tool => !tool.launchOnly && tool.supportsPreview === true);
   if (previewable.length) while (true) {
-    const picked = await pickModel({ tools: previewable });
+    const picked = await pickModel({ tools: previewable, step: step(1) });
     if (picked === 'back' || !('model' in picked)) return false;
     const plans = previewable.map(tool => planForTool(tool, picked.model));
-    const results = await confirmAndWrite(t('menu_configure_tools'), plans, [], { edit: item => editToolModels(item.tool, item) });
+    const results = await confirmAndWrite(t('page_confirm'), plans, [], { step: step(2), edit: item => editToolModels(item.tool, item) });
     if (results !== 'back') { await promptHelper.pressEnter(); if (results.some(result => result.status === 'failed')) return false; break; }
   }
   // 启动器只配置模型；外部 writer 使用原有的单工具配置流程单独处理。

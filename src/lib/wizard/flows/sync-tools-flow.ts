@@ -6,6 +6,7 @@ import { exitCodeFor, getSyncTargets, syncConfiguredTools, type ToolResult } fro
 import { promptHelper } from '../ui/prompt-helper.js';
 import { uiRenderer } from '../ui/ui-renderer.js';
 import { renderToolResults } from '../ui/tool-results.js';
+import { renderResultSummary, withProgress } from '../ui/tool-view.js';
 
 export async function syncAfterChange(force = false, targets: ITool[] = getSyncTargets(toolManager.getAll())): Promise<ToolResult[]> {
   // 首次初始化先选线路再输入 Key，此阶段不应弹同步选择或留下失败退出码。
@@ -17,8 +18,17 @@ export async function syncAfterChange(force = false, targets: ITool[] = getSyncT
   }
   const names = force ? targets.map(tool => tool.name) : await promptHelper.checkbox(t('sync_select_tools'),
     targets.map(tool => ({ name: tool.displayName, value: tool.name })));
-  const results = await syncConfiguredTools(targets.filter(tool => names.includes(tool.name)));
-  renderToolResults(results, configManager.getApiKey());
+  const selected = targets.filter(tool => names.includes(tool.name));
+  const interactive = !!process.stdin.isTTY && !!process.stdout.isTTY;
+  if (!interactive) {
+    const results = await syncConfiguredTools(selected);
+    renderToolResults(results, configManager.getApiKey());
+    process.exitCode = exitCodeFor(results);
+    return results;
+  }
+  const results: ToolResult[] = [];
+  for (const tool of selected) results.push(...await withProgress(tool, () => syncConfiguredTools([tool])));
+  renderResultSummary(results);
   process.exitCode = exitCodeFor(results);
   return results;
 }

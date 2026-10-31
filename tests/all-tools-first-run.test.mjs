@@ -4,9 +4,18 @@ const model='z-ai/glm-5.2';const server=http.createServer((req,res)=>{if(req.url
 test.after(()=>{server.closeAllConnections();server.close();fs.rmSync(home,{recursive:true,force:true});});
 // MiniMax 的持久写入必须经过外部 provider 命令；契约替身也只能写 staging，不能访问真实 HOME。
 const providerScript=`#!/usr/bin/env node\nconst fs=require('node:fs'),path=require('node:path'),args=process.argv.slice(2),get=k=>args[args.indexOf(k)+1];fs.writeFileSync(path.join(process.env.MINIMAX_DATA_DIR,'config.yaml'),JSON.stringify({custom_provider:{qiniu:{api:'openai-completions',options:{baseURL:get('--base-url'),apiKey:process.env.QINIU_API_KEY},models:{[get('--model')]:{}}}},defaultModel:'qiniu/'+get('--model')}));`;
-for(const [index,tool] of tools.entries())test('empty HOME first-run model configuration: '+tool.name,{skip:process.platform==='win32'},async()=>{
+for(const tool of tools)test('empty HOME first-run model configuration: '+tool.name,{skip:process.platform==='win32'},async()=>{
  const source=`import fs from 'node:fs';import path from 'node:path';import assert from 'node:assert/strict';import {Wizard} from './dist/lib/wizard/wizard.js';import {configManager} from './dist/lib/config.js';import {toolManager} from './dist/lib/tool-manager.js';import {savedModelFor} from './dist/lib/core/model-mapping.js';const bin=path.join(process.env.HOME,'bin');fs.mkdirSync(bin);fs.writeFileSync(path.join(bin,'mcode'),${JSON.stringify(providerScript)},{mode:0o700});process.env.PATH=bin+path.delimiter+process.env.PATH;assert.equal(fs.existsSync(configManager.configFile),false);const done=await new Wizard().runInitWizard();assert.equal(done,true);configManager.reload();const tool=toolManager.get(${JSON.stringify(tool.name)});assert.equal(savedModelFor(tool,configManager.getModels()),${JSON.stringify(model)});assert.equal(configManager.getApiKey(),'fixture-key');if(tool.launchOnly){assert.equal(tool.getLaunchEnv('fixture-key',configManager.baseUrl,configManager.getModels()).COPILOT_MODEL,${JSON.stringify(model)});}else{assert.equal(tool.isConfigured(),true);await tool.unloadConfig();assert.equal(tool.isConfigured(),false);}console.log('FIRST_RUN_VERIFIED',tool.name);`;
- const steps=[[/请选择语言[\s\S]*?Esc 返回/,'\x1b[B\r'],[/Select API endpoint[\s\S]*?Esc back/,'\x1b[B\x1b[B\r'],[/https:\/\/[\s\S]*?Esc back/,base+'\r'],[/Enter your API Key[\s\S]*?Esc back/,'fixture-key\r'],[/Select tools[\s\S]*?Esc back/,'\x1b[B'.repeat(index)+' '+'\x1b[C'],[/Type to search[\s\S]*?Type search/,'z-ai/glm-5.2\r']];
+ // 按实际显示的工具行定位，兼容「已安装优先」排序及隔离 HOME 内的 MiniMax 替身。
+ const selectTool=text=>{
+  const screen=text.slice(text.lastIndexOf('? Select tools'));
+  const rows=screen.split('\n').filter(line=>/[☐☑]/.test(line)&&tools.some(candidate=>line.includes(candidate.displayName)));
+  assert.equal(rows.length,tools.length,'all registered tools must be visible');
+  const index=rows.findIndex(line=>line.includes(tool.displayName));
+  assert.ok(index>=0,'target tool must be visible');
+  return '\x1b[B'.repeat(index)+' '+'\x1b[C';
+ };
+ const steps=[[/请选择语言[\s\S]*?Esc 返回/,'\x1b[B\r'],[/Select API endpoint[\s\S]*?Esc back/,'\x1b[B\x1b[B\r'],[/https:\/\/[\s\S]*?Esc back/,base+'\r'],[/Enter your API Key[\s\S]*?Esc back/,'fixture-key\r'],[/Select tools[\s\S]*?Esc back/,selectTool],[/Type to search[\s\S]*?Type search/,'z-ai/glm-5.2\r']];
  if(tool.supportsPreview===true)steps.push([/\? Confirm[\s\S]*?Esc back/,'\x1b[A\x1b[A\r']);else steps.push([/Press Enter/,'\r']);steps.push([/Press Enter/,'\r']);
  const out=await runPrompt(source,steps,110,{rows:40});assert.match(out,new RegExp('FIRST_RUN_VERIFIED '+tool.name));
 });
