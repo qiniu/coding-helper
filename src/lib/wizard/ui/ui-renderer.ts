@@ -34,16 +34,18 @@ export const uiRenderer = {
   },
 
   // 渲染七牛 Logo
-  renderLogo(): void {
-    renderLogoArt();
+  renderLogo(toolName?: string): void {
+    renderLogoArt(toolName);
   },
 
   // 统一页面头部：清屏 + Logo + 配置面板（线路 + API Key）
-  renderHeader(options: { full?: boolean; crumb?: string; connection?: Connection } = {}): void {
+  renderHeader(options: string | { full?: boolean; crumb?: string; connection?: Connection } = {}): void {
+    const toolName = typeof options === 'string' ? options : undefined;
+    const header = typeof options === 'string' ? { full: (process.stdout.rows || 24) >= 30, crumb: toolName, connection: undefined } : options;
     this.clearScreen();
-    if (options.full) this.renderLogo();
-    else logger.log(`  ${theme.brandBold('QINIU')} ${theme.heading('Coding Helper')}${options.crumb ? '  >  ' + options.crumb : ''}`);
-    this.renderStatusBar(options.connection);
+    if (header.full) this.renderLogo(toolName);
+    else logger.log(`  ${theme.brandBold('QINIU')} ${theme.heading('Coding Helper')}${header.crumb ? '  >  ' + header.crumb : ''}`);
+    this.renderStatusBar(header.connection);
   },
   renderStatusBar(connection?: Connection): void {
     const apiKey = connection ? connection.apiKey : configManager.getApiKey();
