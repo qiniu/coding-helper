@@ -50,8 +50,7 @@ export function createProgram(): Command {
     .action(async () => {
       const wizard = new Wizard();
       i18n.init();
-      await wizard.runInitWizard();
-      await wizard.runMainMenu();
+      if (await wizard.runInitWizard()) await wizard.runMainMenu();
     });
 
   // auth - API Key 管理

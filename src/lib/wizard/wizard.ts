@@ -10,7 +10,7 @@ import { runToolSetupFlow } from './flows/tool-setup-flow.js';
 // Wizard 协调器 - 管理首次运行向导和主菜单
 export class Wizard {
   // 运行首次初始化向导
-  async runInitWizard(): Promise<void> {
+  async runInitWizard(): Promise<boolean> {
     // 清屏后显示欢迎界面（首次使用固定中文提示选择语言）
     uiRenderer.renderHeader();
     uiRenderer.renderWelcome(
@@ -26,13 +26,14 @@ export class Wizard {
     await runEndpointSelectionFlow();
 
     // 3. 输入 API Key
-    await runApiKeyFlow();
+    if (!await runApiKeyFlow()) return false;
 
     // 4. 选择工具并引导配置（配置模型 → 装载配置 → 提示就绪）
-    await runToolSetupFlow();
+    if (!await runToolSetupFlow()) return false;
 
     // 初始化完成
     uiRenderer.renderSuccess(t('init_complete'));
+    return true;
   }
 
   // 进入主菜单
@@ -46,7 +47,7 @@ export class Wizard {
     i18n.init();
 
     if (configManager.isFirstRun()) {
-      await this.runInitWizard();
+      if (!await this.runInitWizard()) return;
     }
 
     // 向导完成后或非首次运行，直接进入主菜单（内部已包含 renderHeader）
