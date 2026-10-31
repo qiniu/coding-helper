@@ -1,3 +1,4 @@
+import { registerToolProvider } from './tool-registry.js';
 import type { ITool } from './tools/base-tool.js';
 import { ClaudeCodeTool } from './tools/claude-code-tool.js';
 import { QwenCodeTool } from './tools/qwen-code-tool.js';
@@ -64,3 +65,5 @@ class ToolManager {
 
 // 导出单例
 export const toolManager = new ToolManager();
+
+registerToolProvider(() => toolManager.getAll());

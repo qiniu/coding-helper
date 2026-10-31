@@ -133,6 +133,8 @@ export interface MenuTab<T> {
 }
 
 export interface MenuConfig<T> {
+  statusText?: string;
+  statusUpdate?: Promise<string>;
   customFirst?: boolean | ((query: string) => boolean);
   message: string;
   items: MenuEntry<T>[];
@@ -189,7 +191,14 @@ function defaultFilter<T>(item: MenuItem<T>, query: string): number | undefined 
 const menuView = createPrompt(<T,>(config: MenuConfig<T>, done: (result: MenuResult<T>) => void) => {
   const [query, setQuery] = useState('');
   const [tab, setTab] = useState(0);
-  const [status, setStatus] = useState<'idle' | 'done'>('idle');
+  const [status, setStatus] = useState<'idle' | 'done' | 'cancel'>('idle');
+  const [statusText, setStatusText] = useState(config.statusText ?? '');
+  useEffect(() => {
+    if (!config.statusUpdate) return;
+    let active = true;
+    config.statusUpdate.then(text => { if (active) setStatusText(text); }).catch(() => {});
+    return () => { active = false; };
+  }, [config.statusUpdate]);
   const [details] = useState(new Map<T, string | undefined>());
   const [, refreshDetails] = useState({});
 
@@ -237,7 +246,7 @@ const menuView = createPrompt(<T,>(config: MenuConfig<T>, done: (result: MenuRes
   }, [detailKey]);
 
   const finish = (result: MenuResult<T>): void => {
-    setStatus('done');
+    setStatus(result.action === 'escape' ? 'cancel' : 'done');
     done(result);
   };
 
@@ -318,10 +327,11 @@ const menuView = createPrompt(<T,>(config: MenuConfig<T>, done: (result: MenuRes
     },
   });
 
+  if (status === 'cancel') return '';
   if (status === 'done') {
     return `${theme.success('✔')} ${theme.heading(config.message)} ${theme.brand(current?.value === CUSTOM ? query : current?.label ?? '')}`;
   }
-  const lines = [`${theme.brand('?')} ${theme.heading(config.message)}`];
+  const lines = [...(statusText ? [statusText] : []), `${theme.brand('?')} ${theme.heading(config.message)}`];
   if (config.searchable) {
     const matches = !query ? 0 : config.items.filter((e) => selectable(e) && !e.pinned && (config.filter ?? defaultFilter)(e, query) !== undefined).length;
     lines.push(query

@@ -1,0 +1,5 @@
+import assert from 'node:assert/strict';import test from 'node:test';import {runPrompt} from './helpers/prompt-pty.mjs';
+test('asynchronous version updates retain navigation and never echo arrow sequences',{skip:process.platform==='win32'},async()=>{
+ const source=`import {i18n} from './dist/lib/i18n.js';import {toolManager} from './dist/lib/tool-manager.js';import {showToolMenu} from './dist/lib/wizard/menus/tool-menu.js';i18n.init('en_US');let resolveVersion;let released=false;globalThis.fetch=()=>new Promise(resolve=>{resolveVersion=resolve});process.stdin.on('data',chunk=>{if(!released&&chunk.toString().includes(String.fromCharCode(27)+'[B')){released=true;setTimeout(()=>resolveVersion(new Response(JSON.stringify({version:'1.1.0'}))),1);}});const tool=toolManager.get('codex');tool.getVersion=()=> '1.0.0';tool.isInstalled=()=>true;await showToolMenu(tool);console.log('RESULT done');`;
+ const out=await runPrompt(source,[[/Select action[\s\S]*?Esc back/,'\x1b[B'],[/Latest[\s\S]*?1\.1\.0[\s\S]*?Esc back/,'\x1b[B'],[/❯\s+Unload Config[\s\S]*?Esc back/,'\x1b']]);assert.match(out,/RESULT done/);assert.doesNotMatch(out,/\^\[/);
+});

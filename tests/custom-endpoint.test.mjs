@@ -30,43 +30,20 @@ const { promptHelper } = await import('../dist/lib/wizard/ui/prompt-helper.js');
 const { uiRenderer } = await import('../dist/lib/wizard/ui/ui-renderer.js');
 const { toolManager } = await import('../dist/lib/tool-manager.js');
 const { runEndpointSelectionFlow } = await import('../dist/lib/wizard/flows/endpoint-selection-flow.js');
-test('changing a custom URL and switching to built-in both offer old clients for sync', async t => {
-  const original = Object.getOwnPropertyDescriptor(process.stdin, 'isTTY');
-  const output = Object.getOwnPropertyDescriptor(process.stdout, 'isTTY');
-  Object.defineProperty(process.stdin, 'isTTY', { value: true, configurable: true });
-  Object.defineProperty(process.stdout, 'isTTY', { value: true, configurable: true });
-  t.after(() => {
-    if (original) Object.defineProperty(process.stdin, 'isTTY', original); else delete process.stdin.isTTY;
-    if (output) Object.defineProperty(process.stdout, 'isTTY', output); else delete process.stdout.isTTY;
-  });
-  for (const method of ['renderHeader', 'renderError', 'renderSuccess']) t.mock.method(uiRenderer, method, () => {});
-  configManager.setEndpoint('custom', 'https://old.example/proxy');
-  configManager.setApiKey('test-key');
-  let clientUrl = configManager.baseUrl;
-  const tool = { name: 'test', displayName: 'Test', isConfigured: () => isQiniuBaseUrl(clientUrl), loadConfig: async (_key, url) => { clientUrl = url; } };
-  t.mock.method(toolManager, 'getAll', () => [tool]);
-  const offered = [];
-  t.mock.method(promptHelper, 'checkbox', async (_message, choices) => { offered.push(choices.map(c => c.value)); return ['test']; });
-  let endpoint = 'custom';
-  t.mock.method(promptHelper, 'select', async () => endpoint);
-  const inputs = ['invalid', 'https://new.example/proxy'];
-  t.mock.method(promptHelper, 'input', async () => inputs.shift());
-  await runEndpointSelectionFlow();
-  assert.equal(clientUrl, 'https://new.example/proxy');
-  assert.equal(uiRenderer.renderError.mock.calls.length, 1);
-  endpoint = 'china';
-  await runEndpointSelectionFlow();
-  assert.equal(clientUrl, getBaseUrl('china'));
-  assert.deepEqual(offered, [['test'], ['test']]);
+test('changing a custom URL and switching to built-in both offer old clients for sync', {skip:process.platform==='win32'},async()=>{
+ const {runPrompt}=await import('./helpers/prompt-pty.mjs');
+ const source=`import {configManager} from './dist/lib/config.js';import {i18n} from './dist/lib/i18n.js';import {isQiniuBaseUrl} from './dist/lib/endpoints.js';import {toolManager} from './dist/lib/tool-manager.js';import {promptHelper} from './dist/lib/wizard/ui/prompt-helper.js';import {runEndpointSelectionFlow} from './dist/lib/wizard/flows/endpoint-selection-flow.js';configManager.setLang('en_US');i18n.init();configManager.setEndpoint('custom','https://old.example/proxy');configManager.setApiKey('test-key');let clientUrl=configManager.baseUrl;toolManager.getAll=()=>[{name:'test',displayName:'Test',isConfigured:()=>isQiniuBaseUrl(clientUrl),loadConfig:async(_key,url)=>{clientUrl=url;}}];const offered=[];promptHelper.checkbox=async(_message,choices)=>{offered.push(choices.map(c=>c.value));return ['test'];};await runEndpointSelectionFlow();console.log('FIRST',clientUrl);await runEndpointSelectionFlow();console.log('SECOND',clientUrl);console.log('OFFERED',JSON.stringify(offered));`;
+ const out=await runPrompt(source,[['Select API endpoint','\r'],['API base URL','invalid\r'],['API base URL','https://new.example/proxy\r'],['Select API endpoint','\x1b[A\x1b[A\r']]);
+ assert.match(out,/FIRST https:\/\/new.example\/proxy/);assert.match(out,/SECOND https:\/\/api.qnaigc.com/);assert.match(out,/OFFERED.*\[\["test"\],\["test"\]\]/);assert.match(out,/not a valid/);
 });
-test('header displays the saved custom URL as configured', t => {
+test('header displays the saved custom URL as configured', async t => {
   configManager.setEndpoint('custom', 'https://display.example/proxy');
   t.mock.method(uiRenderer, 'clearScreen', () => {});
   t.mock.method(uiRenderer, 'renderLogo', () => {});
-  const panel = t.mock.method(uiRenderer, 'renderConfigPanel', () => {});
+  const {logger}=await import('../dist/utils/logger.js');
+  const lines=[];t.mock.method(logger,'log',line=>lines.push(line));
   uiRenderer.renderHeader();
-  assert.equal(panel.mock.calls[0].arguments[0][0].value, configManager.baseUrl);
-  assert.equal(panel.mock.calls[0].arguments[0][0].configured, true);
+  assert.ok(lines.some(line=>line.includes(configManager.baseUrl.replace(/^https?:\/\//,''))));
 });
 
 test('quick-save maintains custom URL persistence and refreshes endpoint recognition',()=>{

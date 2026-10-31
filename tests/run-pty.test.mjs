@@ -104,7 +104,7 @@ for (const code of [0, 7]) {
       client.child.write('\r');
     }
     await client.expect('Select action');
-    client.child.write('\x1b[A\r');
+    client.child.write('\x1b');
     await client.expect('PTY_MENU_RETURNED');
     await client.expectExit(0);
   });

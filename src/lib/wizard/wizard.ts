@@ -20,10 +20,10 @@ export class Wizard {
     );
 
     // 1. 选择语言
-    await runLanguageFlow();
+    if (!await runLanguageFlow()) return false;
 
     // 2. 选择线路
-    await runEndpointSelectionFlow();
+    if (!await runEndpointSelectionFlow()) return false;
 
     // 3. 输入 API Key
     if (!await runApiKeyFlow()) return false;
