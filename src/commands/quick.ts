@@ -1,6 +1,6 @@
 import { configManager, type ModelConfig } from '../lib/config.js';
 import { i18n, t } from '../lib/i18n.js';
-import { DEFAULT_ENDPOINT, ENDPOINT_DEFINITIONS, getBaseUrl, otherEndpoint } from '../lib/endpoints.js';
+import { CUSTOM_ENDPOINT, DEFAULT_ENDPOINT, ENDPOINT_DEFINITIONS, getBaseUrl, otherEndpoint } from '../lib/endpoints.js';
 import { validateApiKey, checkAccountStatus, describeAccountStatus } from '../lib/api-validator.js';
 import { toolManager } from '../lib/tool-manager.js';
 import { modelService } from '../lib/model-service.js';
@@ -41,15 +41,16 @@ export async function quickCommand(target: string, rest: string[], options: Quic
     if (!picked) throw new QuickError('key_missing');
     const apiKey = picked.key;
     let endpoint = options.intl ? 'international' : configManager.getEndpoint();
-    if (!Object.hasOwn(ENDPOINT_DEFINITIONS, endpoint)) endpoint = DEFAULT_ENDPOINT;
-    let validation = await validateApiKey(apiKey, getBaseUrl(endpoint));
-    if (!validation.valid && validation.error === 'Invalid API Key') {
+    if (endpoint !== CUSTOM_ENDPOINT && !Object.hasOwn(ENDPOINT_DEFINITIONS, endpoint)) endpoint = DEFAULT_ENDPOINT;
+    const customUrl = endpoint === CUSTOM_ENDPOINT ? configManager.baseUrl : undefined;
+    let validation = await validateApiKey(apiKey, getBaseUrl(endpoint, customUrl));
+    if (endpoint !== CUSTOM_ENDPOINT && !validation.valid && validation.error === 'Invalid API Key') {
       const alternate = otherEndpoint(endpoint);
       const retry = await validateApiKey(apiKey, getBaseUrl(alternate));
       if (retry.valid) { endpoint = alternate; validation = retry; }
     }
     if (!validation.valid) throw new QuickError('key_invalid');
-    const baseUrl = getBaseUrl(endpoint);
+    const baseUrl = getBaseUrl(endpoint, customUrl);
     const available = (await modelService.fetchModels(baseUrl, apiKey)).map(model => model.id);
     let capable: Set<string> | undefined;
     try {

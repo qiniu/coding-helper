@@ -1,3 +1,4 @@
+import type { ITool } from '../../tools/base-tool.js';
 import { configManager } from '../../config.js';
 import { toolManager } from '../../tool-manager.js';
 import { t } from '../../i18n.js';
@@ -6,10 +7,9 @@ import { promptHelper } from '../ui/prompt-helper.js';
 import { uiRenderer } from '../ui/ui-renderer.js';
 import { renderToolResults } from '../ui/tool-results.js';
 
-export async function syncAfterChange(force = false): Promise<ToolResult[]> {
+export async function syncAfterChange(force = false, targets: ITool[] = getSyncTargets(toolManager.getAll())): Promise<ToolResult[]> {
   // 首次初始化先选线路再输入 Key，此阶段不应弹同步选择或留下失败退出码。
   if (!configManager.getApiKey()) return [];
-  const targets = getSyncTargets(toolManager.getAll());
   if (!targets.length) return [];
   if (!force && (!process.stdin.isTTY || !process.stdout.isTTY)) {
     uiRenderer.renderHint(t('sync_cli_hint'));

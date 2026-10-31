@@ -4,7 +4,7 @@ import { logger } from '../../../utils/logger.js';
 import { renderLogo as renderLogoArt } from './logo.js';
 import { theme } from './theme.js';
 import { configManager } from '../../config.js';
-import { ENDPOINT_DEFINITIONS } from '../../endpoints.js';
+import { CUSTOM_ENDPOINT, ENDPOINT_DEFINITIONS } from '../../endpoints.js';
 import { t } from '../../i18n.js';
 
 // 配置面板条目
@@ -35,7 +35,7 @@ export const uiRenderer = {
     const endpointDef = endpointId ? ENDPOINT_DEFINITIONS[endpointId] : undefined;
     const endpointDisplay = endpointDef
       ? t(endpointDef.i18nKey)
-      : t('config_view_not_set');
+      : endpointId === CUSTOM_ENDPOINT ? configManager.baseUrl : t('config_view_not_set');
 
     const apiKey = configManager.getApiKey();
     const apiKeyDisplay = apiKey
@@ -43,7 +43,7 @@ export const uiRenderer = {
       : t('config_view_not_set');
 
     this.renderConfigPanel([
-      { label: t('config_view_endpoint'), value: endpointDisplay, configured: !!endpointDef },
+      { label: t('config_view_endpoint'), value: endpointDisplay, configured: !!endpointDef || endpointId === CUSTOM_ENDPOINT },
       { label: t('config_view_apikey'), value: apiKeyDisplay, configured: !!apiKey },
     ]);
   },

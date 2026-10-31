@@ -40,16 +40,13 @@
   "welcome": "欢迎使用 Coding Helper！",
   "welcome_description": "本工具帮助您配置 AI 编程助手的 API 端点和模型。",
   "privacy_notice": "您的 API Key 仅保存在本地 (~/.coding-helper/config.yaml)，不会上传到任何服务器。",
-
   "language_prompt": "请选择语言",
   "language_set": "语言已设置为: {{lang}}",
   "language_current": "当前语言: {{lang}}",
-
   "endpoint_prompt": "请选择 API 线路",
   "endpoint_china": "国内线路 (api.qnaigc.com)",
   "endpoint_international": "海外线路 (api.modelink.ai)",
   "endpoint_set": "线路已设置为: {{endpoint}}",
-
   "apikey_hint": "如需获取 API Key，请访问: https://portal.qiniu.com/ai-inference/api-key",
   "apikey_prompt": "请输入您的 API Key",
   "apikey_validating": "正在验证 API Key...",
@@ -61,7 +58,6 @@
   "apikey_empty": "API Key 不能为空",
   "apikey_current": "当前 API Key: {{key}}",
   "apikey_retry": "是否重新输入？",
-
   "model_fetching": "正在获取可用模型列表...",
   "model_fetch_failed": "获取模型列表失败: {{error}}",
   "model_select_haiku": "请选择 Haiku 模型（快速/轻量）（可输入搜索或自定义模型 ID）：",
@@ -80,7 +76,6 @@
   "model_confirm_title": "模型配置确认",
   "model_confirm_prompt": "确认保存以上模型配置？",
   "model_confirm_not_set": "未设置（使用 Claude Code 默认配置）",
-
   "menu_main_title": "主菜单",
   "menu_configure_language": "配置语言",
   "menu_configure_endpoint": "配置线路",
@@ -92,7 +87,6 @@
   "clear_config_success": "配置已清除",
   "menu_exit": "退出",
   "menu_select_action": "请选择操作",
-
   "tool_menu_title": "{{tool}} 配置",
   "tool_configure_models": "配置模型",
   "tool_load_config": "配置装载（写入工具配置）",
@@ -101,7 +95,6 @@
   "tool_update": "更新工具",
   "tool_view_config": "查看当前配置",
   "tool_back": "返回",
-
   "tool_config_loaded": "配置已写入 {{tool}}",
   "tool_config_load_failed": "配置写入 {{tool}} 失败",
   "tool_config_load_confirm": "确定要将配置写入 {{tool}} 吗？",
@@ -122,7 +115,6 @@
   "tool_update_skipped": "已是最新版本，无需更新",
   "tool_update_success": "{{tool}} 已更新到 {{version}}",
   "tool_setup_ready": "{{tool}} 配置完成，可以开始使用了！",
-
   "doctor_title": "健康检查",
   "doctor_checking": "正在进行健康检查...",
   "doctor_config_file": "配置文件",
@@ -138,22 +130,17 @@
   "doctor_found": "已找到",
   "doctor_connected": "连接正常",
   "doctor_connect_failed": "连接失败",
-
   "error_unknown": "未知错误",
   "error_network": "网络错误: {{error}}",
   "error_timeout": "请求超时",
-
   "confirm_yes": "是",
   "confirm_no": "否",
-
   "update_checking": "正在检查更新...",
   "update_available": "发现新版本: {{version}}",
   "update_latest": "已是最新版本",
   "update_running": "正在更新...",
-
   "init_complete": "初始化完成！",
   "init_rerun": "重新运行初始化向导",
-
   "config_view_title": "当前配置",
   "config_view_lang": "语言",
   "config_view_endpoint": "线路",
@@ -165,7 +152,6 @@
   "config_view_not_set": "未设置",
   "press_enter_to_continue": "按回车键继续",
   "company_announcement": "您正在使用七牛云 AI 大模型推理服务 🚀",
-
   "codebuddy_select_models": "选择要配置的模型（空格选择，回车确认）",
   "codebuddy_no_models_selected": "未选择任何模型，配置已取消",
   "codebuddy_config_success": "已配置 {{count}} 个模型到 CodeBuddy",
@@ -179,7 +165,6 @@
   "codebuddy_models_not_configured": "尚未配置 CodeBuddy 的模型，请先选择「配置模型」选择要使用的模型",
   "codebuddy_models_unavailable": "以下已配置的模型在七牛模型市场中不存在（可能已下架），将被跳过：{{models}}",
   "codebuddy_all_models_unavailable": "已配置的模型在七牛模型市场中均不存在（可能已下架）：{{models}}。请重新配置模型后再试。",
-
   "workbuddy_select_models": "选择要配置的模型（空格选择，回车确认）",
   "workbuddy_no_models_selected": "未选择任何模型，配置已取消",
   "workbuddy_config_success": "已配置 {{count}} 个模型到 WorkBuddy",
@@ -190,7 +175,6 @@
   "workbuddy_models_not_configured": "尚未配置 WorkBuddy 的模型，请先选择「配置模型」选择要使用的模型",
   "workbuddy_models_unavailable": "以下已配置的模型在七牛模型市场中不存在（可能已下架），将被跳过：{{models}}",
   "workbuddy_all_models_unavailable": "已配置的模型在七牛模型市场中均不存在（可能已下架）：{{models}}。请重新配置模型后再试。",
-
   "hermes_select_model": "请选择 Hermes Agent 默认模型（可输入搜索或自定义模型 ID）：",
   "hermes_no_model_selected": "未选择模型，配置已取消",
   "generic_current_model": "{{tool}} 当前使用的模型：{{model}}",
@@ -204,18 +188,15 @@
   "hermes_fetch_models_failed": "获取模型列表失败：{{error}}",
   "hermes_current_model": "当前已配置的模型：{{model}}",
   "hermes_model_not_configured": "尚未配置 Hermes Agent 的模型，请先选择「配置模型」选择要使用的模型",
-
   "config_view_codebuddy_models": "CodeBuddy 模型",
   "config_view_workbuddy_models": "WorkBuddy 模型",
   "config_view_hermes_model": "Hermes Agent 模型",
   "config_view_codex_model": "模型",
   "codex_fixed_model_hint": "Codex 通过七牛代理固定使用模型「{{model}}」，无需选择",
   "codex_backup_created": "Codex 原配置已备份到：{{path}}",
-
   "tool_desktop_launch_hint": "{{tool}} 是桌面应用，请手动启动应用程序。",
   "tool_desktop_update_hint": "{{tool}} 是桌面应用，请访问官方网站下载最新版本。",
   "tool_status_unknown": "无法检测（桌面应用）",
-
   "auth_reload_usage": "用法: coding-helper auth reload <tool>",
   "auth_reload_tools": "可用工具: {{tools}}",
   "auth_unknown_tool": "未知工具: {{tool}}",
@@ -224,5 +205,10 @@
   "run_unsupported": "{{tool}} 不支持启动器模式",
   "run_supported_tools": "支持的工具：{{tools}}",
   "setup_reason_launch_only": "Copilot 使用会话环境变量，请运行 coding-helper run copilot，无需装载配置文件。",
-  "droid_select_loaded_model": "模型已注册。启动 Droid 后运行 /model，选择 Qiniu: <所选模型> 才会生效；当前会话默认模型尚未改变。"
+  "droid_select_loaded_model": "模型已注册。启动 Droid 后运行 /model，选择 Qiniu: <所选模型> 才会生效；当前会话默认模型尚未改变。",
+  "endpoint_custom": "自定义",
+  "endpoint_custom_option": "自定义地址",
+  "endpoint_custom_hint": "私有化部署、代理网关",
+  "endpoint_custom_prompt": "输入 API 地址（如 https://llm.example.com，需兼容七牛接口）",
+  "endpoint_custom_invalid": "「{{value}}」不是有效的 http(s) 地址"
 }

@@ -20,6 +20,20 @@ export const ENDPOINT_DEFINITIONS: Record<string, EndpointDefinition> = {
 };
 
 export const DEFAULT_ENDPOINT = 'china';
+export const CUSTOM_ENDPOINT = 'custom';
+let customBaseUrls: string[] = [];
+
+// 自定义线路只接受不含凭据、查询串和片段的 HTTP(S) 根地址。
+export function normalizeCustomBaseUrl(input: string): string {
+  let parsed: URL;
+  try { parsed = new URL(input.trim()); } catch { throw new Error('Invalid custom base URL'); }
+  if (!['https:', 'http:'].includes(parsed.protocol) || parsed.username || parsed.password || parsed.search || parsed.hash || /[?#]/.test(input.trim())) throw new Error('Invalid custom base URL');
+  return parsed.toString().replace(/\/+$/, '');
+}
+
+export function registerCustomBaseUrls(urls: string[]): void {
+  customBaseUrls = urls.map(normalizeCustomBaseUrl);
+}
 
 // 旧线路 id 到新线路 id 的兼容映射（历史配置迁移）
 // 老用户 config.yaml 里可能存有已移除的 id，读取时规范化到对应新线路
@@ -34,8 +48,12 @@ export function normalizeEndpointId(endpointId: string): string {
 }
 
 // 根据端点 ID 获取 base URL
-export function getBaseUrl(endpointId: string): string {
+export function getBaseUrl(endpointId: string, customBaseUrl?: string): string {
   const id = normalizeEndpointId(endpointId);
+  if (id === CUSTOM_ENDPOINT) {
+    if (!customBaseUrl) throw new Error('Custom endpoint requires a base URL');
+    return normalizeCustomBaseUrl(customBaseUrl);
+  }
   const endpoint = ENDPOINT_DEFINITIONS[id];
   if (!endpoint) {
     return ENDPOINT_DEFINITIONS[DEFAULT_ENDPOINT].baseUrl;
@@ -52,12 +70,16 @@ export function isQiniuBaseUrl(url: unknown): boolean {
   if (typeof url !== 'string') return false;
   const known = [
     ...Object.values(ENDPOINT_DEFINITIONS).map((def) => def.baseUrl),
-    ...Object.keys(ENDPOINT_DEFINITIONS).map(getBaseUrl),
+    ...Object.keys(ENDPOINT_DEFINITIONS).map(id => getBaseUrl(id)),
     'https://openai.qiniu.com',
   ];
   try {
     const parsed = new URL(url);
-    return !parsed.username && !parsed.password && known.some((base) => parsed.origin === new URL(base).origin);
+    return !parsed.username && !parsed.password && (known.some((base) => parsed.origin === new URL(base).origin) || customBaseUrls.some(base => {
+      const custom = new URL(base);
+      const prefix = custom.pathname.replace(/\/+$/, '');
+      return parsed.origin === custom.origin && (parsed.pathname === prefix || parsed.pathname.startsWith(prefix + '/'));
+    }));
   } catch {
     return false;
   }

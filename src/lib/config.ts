@@ -3,7 +3,7 @@ import path from 'node:path';
 import os from 'node:os';
 import yaml from 'js-yaml';
 import { atomicWriteFile } from './core/safe-write.js';
-import { DEFAULT_ENDPOINT, getBaseUrl, normalizeEndpointId } from './endpoints.js';
+import { CUSTOM_ENDPOINT, DEFAULT_ENDPOINT, getBaseUrl, normalizeEndpointId, registerCustomBaseUrls } from './endpoints.js';
 
 // 配置文件路径
 const CONFIG_DIR = path.join(os.homedir(), '.coding-helper');
@@ -34,6 +34,7 @@ export interface ClaudeCodeConfig {
 interface Config {
   lang?: string;
   endpoint?: string;
+  base_url?: string;
   api_key?: string;
   claudeCode?: ClaudeCodeConfig;
   codeBuddyModels?: string[];
@@ -70,6 +71,7 @@ class ConfigManager {
       throw new Error('Cannot parse helper configuration. Repair config.yaml before retrying.');
     }
     this.loaded = true;
+    registerCustomBaseUrls(this.config.base_url ? [this.config.base_url] : []);
   }
 
   // 保存配置
@@ -109,9 +111,13 @@ class ConfigManager {
     return normalizeEndpointId(this.config.endpoint || DEFAULT_ENDPOINT);
   }
 
-  setEndpoint(endpoint: string): void {
+  setEndpoint(endpoint: string, baseUrl?: string): void {
     this.load();
+    const url = getBaseUrl(endpoint, baseUrl);
     this.config.endpoint = endpoint;
+    if (endpoint === CUSTOM_ENDPOINT) this.config.base_url = url;
+    else delete this.config.base_url;
+    registerCustomBaseUrls(this.config.base_url ? [this.config.base_url] : []);
     this.save();
   }
 
@@ -182,14 +188,17 @@ class ConfigManager {
     const next: Config = { ...this.config, ...models, api_key: apiKey, endpoint };
     if (models.claudeCode) next.claudeCode = { ...this.config.claudeCode, ...models.claudeCode };
     if (models.toolModels) next.toolModels = { ...this.config.toolModels, ...models.toolModels };
+    if (endpoint === CUSTOM_ENDPOINT) next.base_url = getBaseUrl(endpoint, next.base_url);
+    else delete next.base_url;
     this.ensureDir();
     atomicWriteFile(CONFIG_FILE, yaml.dump(next, { lineWidth: -1 }));
     this.config = next;
+    registerCustomBaseUrls(next.base_url ? [next.base_url] : []);
   }
 
   // 根据当前线路获取 base URL
   get baseUrl(): string {
-    return getBaseUrl(this.getEndpoint());
+    return getBaseUrl(this.getEndpoint(), this.config.base_url);
   }
 
   // 获取配置目录路径
