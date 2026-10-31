@@ -83,6 +83,7 @@ test('buildScenarios covers dynamically discovered tools', () => {
     buildScenarios(tools).map((scenario) => scenario.name),
     [
       'main menu keyboard navigation',
+      'context menu without configured targets',
       'tool selector keyboard navigation',
       'Alpha Tool tool menu keyboard navigation',
       'Beta Tool tool menu keyboard navigation',
@@ -146,7 +147,7 @@ test('buildScenarios keeps an exit path when no tools are registered', () => {
   assert.equal(scenarios.every(hasScenarioExitStep), true);
   assert.deepEqual(
     scenarios.map((scenario) => scenario.name),
-    ['main menu keyboard navigation', 'tool selector keyboard navigation'],
+    ['main menu keyboard navigation', 'context menu without configured targets', 'tool selector keyboard navigation'],
   );
 });
 
@@ -171,7 +172,7 @@ test('interactive fixture saves the OpenCode model to exercise menu navigation',
 
 test('selector visits every tool beyond the visible page and supports launch-only tools',()=>{
   const tools=Array.from({length:13},(_,i)=>({name:'tool-'+i,displayName:'Tool '+i,launchOnly:i===12}));
-  const scenarios=buildScenarios(tools);const selector=scenarios[1];
+  const scenarios=buildScenarios(tools);const selector=scenarios.find(scenario=>scenario.name==='tool selector keyboard navigation');
   for(const tool of tools)assert.ok(selector.steps.some(step=>step.expectSelected===tool.displayName));
   const launch=scenarios.at(-1);assert.equal(launch.steps[0].expectSelected,'启动工具');assert.equal(launch.steps[2].input,'\u001b[B'.repeat(4));
 });

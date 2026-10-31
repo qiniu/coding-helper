@@ -4,6 +4,7 @@ import { uiRenderer } from '../ui/ui-renderer.js';
 import { theme } from '../ui/theme.js';
 import { runLanguageFlow } from '../flows/language-flow.js';
 import { runEndpointSelectionFlow } from '../flows/endpoint-selection-flow.js';
+import { runContextFlow } from '../flows/context-flow.js';
 import { runApiKeyFlow } from '../flows/api-key-flow.js';
 import { showToolMenu } from './tool-menu.js';
 import { toolManager } from '../../tool-manager.js';
@@ -19,6 +20,7 @@ type MainMenuAction =
   | 'tools'
   | 'clear_config'
   | 'update'
+  | 'context'
   | 'exit';
 
 // 主菜单
@@ -35,6 +37,7 @@ export async function showMainMenu(): Promise<void> {
       { name: `${theme.icon('▸')} ${t('menu_configure_tools')}`, value: 'tools' },
       { name: `${theme.dimIcon('▪')} ${t('menu_clear_config')}`, value: 'clear_config' },
       { name: `${theme.dimIcon('△')} ${t('menu_update_helper')}`, value: 'update' },
+      { name: t('context_title'), value: 'context' },
       { name: `${theme.dimIcon('◁')} ${t('menu_exit')}`, value: 'exit' },
     ]);
 
@@ -56,6 +59,9 @@ export async function showMainMenu(): Promise<void> {
         break;
       case 'update':
         await updateHelper();
+        break;
+      case 'context':
+        await runContextFlow();
         break;
       case 'exit':
         return;

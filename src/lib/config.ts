@@ -1,3 +1,4 @@
+import { AsyncLocalStorage } from 'node:async_hooks';
 import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
@@ -50,6 +51,7 @@ interface Config {
 // 配置管理器单例
 class ConfigManager {
   private config: Config = {};
+  private contextScope = new AsyncLocalStorage<Record<string, number>>();
   private loaded = false;
 
   // 确保配置目录存在
@@ -185,11 +187,12 @@ class ConfigManager {
   }
 
   // 客户端装载成功后一次提交连接与模型，校验失败不覆盖已有设置。
-  saveSettings(apiKey: string, endpoint: string, models: ModelConfig): void {
+  saveSettings(apiKey: string, endpoint: string, models: ModelConfig, settings: { contexts?: Record<string, number> } = {}): void {
     this.load();
     const next: Config = { ...this.config, ...models, api_key: apiKey, endpoint };
     if (models.claudeCode) next.claudeCode = { ...this.config.claudeCode, ...models.claudeCode };
     if (models.toolModels) next.toolModels = { ...this.config.toolModels, ...models.toolModels };
+    if (settings.contexts) next.context_windows = { ...next.context_windows, ...settings.contexts };
     if (endpoint === CUSTOM_ENDPOINT) next.base_url = getBaseUrl(endpoint, next.base_url);
     else delete next.base_url;
     this.ensureDir();
@@ -201,8 +204,14 @@ class ConfigManager {
   // 旧全局值只作兜底；显式 auto 用 0 遮蔽旧值，不影响其他工具。
   getContextWindow(toolName?: string): number | undefined {
     this.load();
+    const scope = this.contextScope.getStore();
+    if (toolName && scope && Object.hasOwn(scope, toolName)) return scope[toolName] || undefined;
     const own = toolName ? this.config.context_windows?.[toolName] : undefined;
     return (own ?? this.config.context_window) || undefined;
+  }
+
+  withContextWindows<T>(values: Record<string, number>, operation: () => Promise<T>): Promise<T> {
+    return this.contextScope.run(values, operation);
   }
 
   setContextWindow(tokens: number | undefined, toolNames: string[]): void {
