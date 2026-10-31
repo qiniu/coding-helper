@@ -352,3 +352,264 @@ export function menuPrompt<T>(config: MenuConfig<T>, context?: { signal?: AbortS
 }
 
 // 返回勾选的值；按 Esc 返回 undefined
+
+// ─── 多选：空格勾选，回车确认（没勾选时直接处理当前行），第一行「全选」，最后一行「继续」 ───
+
+export interface CheckItem<T> {
+  value: T;
+  label: string;
+  icon?: string;
+  tag?: string;
+  checked?: boolean;
+  // 「全选」时选中的项（如已安装的工具）
+  preferred?: boolean;
+}
+
+export interface CheckConfig<T> {
+  message: string;
+  items: CheckItem<T>[];
+  // 「全选」行的文字
+  allLabel?: string;
+  // 「继续」行的文字（已选数量会自动附上）
+  nextLabel?: string;
+  // 允许一个都不选就继续（如「只保存，不改工具」）
+  allowEmpty?: boolean;
+  // 根据当前勾选生成底部提示
+  summary?: (values: T[]) => string;
+}
+
+const checkView = createPrompt(<T,>(config: CheckConfig<T>, done: (values: T[] | undefined) => void) => {
+  const { items } = config;
+  const [checked, setChecked] = useState<boolean[]>(items.map((i) => !!i.checked));
+  // 行号：0 = 全选，1..n = 工具，n + 1 = 继续
+  const [active, setActive] = useState(1);
+  const [status, setStatus] = useState<'idle' | 'done' | 'cancel'>('idle');
+  const [warning, setWarning] = useState('');
+
+  const count = checked.filter(Boolean).length;
+  const preferred = items.map((i) => i.preferred !== false);
+  const allChecked = preferred.some(Boolean) && preferred.every((included, i) => !included || checked[i]);
+  const toggleAll = (): void => setChecked(checked.map((value, i) => preferred[i] ? !allChecked : value));
+  const nextRow = items.length + 1;
+
+  const finish = (values: T[]): void => {
+    setStatus('done');
+    done(values);
+  };
+
+  const proceed = (): void => {
+    if (count === 0 && !config.allowEmpty) {
+      setWarning(t('ui_check_empty'));
+      return;
+    }
+    finish(items.filter((_, i) => checked[i]).map((i) => i.value));
+  };
+
+  useKeypress((key) => {
+    setWarning('');
+    if (isEscape(key)) {
+      setStatus('cancel');
+      done(undefined);
+      return;
+    }
+    if (isUpKey(key)) return setActive(Math.max(0, active - 1));
+    if (isDownKey(key)) return setActive(Math.min(nextRow, active + 1));
+    if (key.name === 'right') return proceed();
+    if (isSpaceKey(key)) {
+      if (active === nextRow) return;
+      if (active === 0) return toggleAll();
+      setChecked(checked.map((c, i) => (i === active - 1 ? !c : c)));
+      return;
+    }
+    if (isEnterKey(key)) {
+      // 「全选」行：回车切换全选
+      if (active === 0) return toggleAll();
+      // 工具行：没勾选任何项时直接处理当前行，否则按已勾选的继续；
+      // allowEmpty 时「不勾选」本身有含义（如只保存），回车按当前勾选继续
+      if (active !== nextRow && count === 0 && !config.allowEmpty) return finish([items[active - 1].value]);
+      return proceed();
+    }
+    // 兼容老习惯的隐藏加速键
+    if (key.name === 'a') setChecked(checked.map((value, i) => preferred[i] || value));
+    else if (key.name === 'n') setChecked(items.map(() => false));
+  });
+
+  const labelWidth = Math.min(Math.max(0, ...items.map((i) => visibleWidth(i.label))), Math.max(1, terminalWidth() - 12));
+  const rowWidth = terminalWidth() - 2;
+  const row = (index: number, text: string): string =>
+    index === active ? highlightRow(` ${theme.brandBold('❯')} ${text}`, rowWidth) : `   ${text}`;
+  const enterText = active !== 0 && active !== nextRow && count === 0 && !config.allowEmpty ? t('ui_key_this_one') : t('ui_key_next');
+  const footer = renderKeyHints([['↑↓', t('ui_key_move')], [t('ui_key_space'), t('ui_key_toggle')], [t('ui_key_enter'), enterText], ['Esc', t('ui_key_back')]]);
+  const summary = config.summary?.(items.filter((_, i) => checked[i]).map((i) => i.value));
+  const extraRows = warning || summary ? 2 + (warning || summary || '').split('\n').length - 1 : 0;
+  // 全选、继续与操作提示固定保留，只滚动中间的选项。
+  const page = usePagination({ items, active: Math.max(0, Math.min(items.length - 1, active - 1)), loop: false,
+    pageSize: Math.max(1, Math.min(14, (process.stdout.rows || 28) - 7 - footer.split('\n').length - extraRows)),
+    renderItem({ item, index }) {
+      const box = checked[index] ? theme.brand('☑') : theme.subtle('☐');
+      const icon = item.icon ? `${item.icon} ` : '';
+      const label = padVisible(truncate(item.label, labelWidth), labelWidth);
+      const name = index + 1 === active ? chalk.bold.hex('#E8F6FF')(label) : item.preferred !== false ? theme.value(label) : theme.subtle(label);
+      const tag = visibleWidth(`${icon}${label}    ${item.tag ?? ''}`) <= terminalWidth() - 8 ? item.tag ?? '' : '';
+      return row(index + 1, `${box} ${icon}${name}    ${theme.subtle(tag)}`);
+    },
+  });
+  if (status !== 'idle') {
+    // 回车直接处理当前行时没有勾选，显示当前行
+    const picked = items.filter((_, i) => checked[i]);
+    const single = picked.length || config.allowEmpty ? [] : items.filter((_, i) => i === active - 1);
+    const names = (picked.length ? picked : single).map((i) => i.label.trim()).join(', ');
+    return status === 'cancel' ? '' : `${theme.success('✔')} ${theme.heading(config.message)} ${theme.brand(truncate(names || '—', 60))}`;
+  }
+
+  const lines = [`${theme.brand('?')} ${theme.heading(config.message)}`];
+  lines.push(row(0, `${allChecked ? theme.brand('☑') : theme.subtle('☐')} ${theme.value(config.allLabel ?? t('ui_check_all'))}`));
+  if (items.length) lines.push(page);
+  lines.push(`   ${theme.border('─'.repeat(Math.max(1, rowWidth - 4)))}`);
+  const nextText = `${config.nextLabel ?? t('ui_check_next')}${theme.subtle(`（${t('ui_selected_count', { count: String(count) })}）`)}  →`;
+  lines.push(row(nextRow, active === nextRow ? chalk.bold.hex('#E8F6FF')(nextText) : theme.brand(nextText)));
+
+  if (warning) lines.push('', `  ${theme.warning(warning)}`);
+  else if (summary) lines.push('', `  ${summary}`);
+  lines.push('', `  ${footer}`);
+  return `${lines.join('\n')}${CURSOR_HIDE}`;
+});
+
+// ─── 密钥输入：编辑期间完全遮蔽，提交后显示摘要 ────────────────────────────────────
+
+export interface SecretConfig {
+  message: string;
+  hint?: string;
+  footer?: KeyHint[];
+  // 允许 Esc 返回（返回 undefined）
+  escape?: boolean;
+  // 输入停顿片刻后，值满足条件就自动提交（粘贴 Key 后自动校验）
+  autoSubmit?: (value: string) => boolean;
+}
+
+export function maskSecret(value: string): string {
+  if (!value) return '';
+  if (value.length <= 8) return '•'.repeat(value.length);
+  return `${value.slice(0, 4)}${theme.subtle('•'.repeat(Math.min(value.length - 8, 24)))}${value.slice(-4)}`;
+}
+
+const secretView = createPrompt((config: SecretConfig, done: (value: string | undefined) => void) => {
+  const [value, setValue] = useState('');
+  const [status, setStatus] = useState<'idle' | 'done' | 'cancel'>('idle');
+
+  // 粘贴完成（停顿 400ms）且格式完整时自动提交
+  useEffect(() => {
+    if (status !== 'idle' || !config.autoSubmit?.(value.trim())) return;
+    const timer = setTimeout(() => {
+      setStatus('done');
+      done(value.trim());
+    }, 400);
+    return () => clearTimeout(timer);
+  }, [value]);
+
+  useKeypress((key, rl) => {
+    if (isEnterKey(key)) {
+      setStatus('done');
+      done(value.trim());
+      return;
+    }
+    if (isEscape(key) && config.escape) {
+      setStatus('cancel');
+      done(undefined);
+      return;
+    }
+    if (isBackspaceKey(key) && !rl.line) {
+      setValue('');
+      return;
+    }
+    setValue(rl.line);
+  });
+
+  if (status === 'cancel') return '';
+  if (status === 'done') {
+    return value ? `${theme.success('✔')} ${theme.heading(config.message)} ${maskSecret(value)}` : '';
+  }
+  const count = value ? theme.subtle(`  ${t('ui_secret_length', { count: String(value.length) })}`) : '';
+  const lines = [
+    `${theme.brand('?')} ${theme.heading(config.message)}`,
+    `  ${theme.brandBold('❯')} ${'•'.repeat(Math.min([...value].length, 32))}${chalk.bgHex('#19C2F0')(' ')}${count}`,
+  ];
+  if (config.hint) lines.push(`  ${theme.subtle(config.hint)}`);
+  lines.push('', `  ${renderKeyHints(config.footer ?? [[t('ui_key_paste'), t('ui_key_paste_hint')], [t('ui_key_enter'), t('ui_key_confirm')], ...(config.escape ? [['Esc', t('ui_key_back')] as KeyHint] : [])])}`);
+  return `${lines.join('\n')}${CURSOR_HIDE}`;
+});
+
+// ─── 文本输入：Esc 返回 ─────────────────────────────────────────────
+
+export interface TextConfig {
+  message: string;
+  // 预填的值，可直接修改
+  default?: string;
+}
+
+const textView = createPrompt((config: TextConfig, done: (value: string | undefined) => void) => {
+  const [value, setValue] = useState(config.default ?? '');
+  const [cursor, setCursor] = useState(config.default?.length ?? 0);
+  const [status, setStatus] = useState<'idle' | 'done' | 'cancel'>('idle');
+
+  useEffect((rl) => {
+    if (config.default) rl.write(config.default);
+  }, []);
+
+  useKeypress((key, rl) => {
+    if (isEnterKey(key)) {
+      setStatus('done');
+      done(value.trim());
+      return;
+    }
+    if (isEscape(key)) {
+      setStatus('cancel');
+      done(undefined);
+      return;
+    }
+    setValue(rl.line);
+    setCursor((rl as typeof rl & { cursor: number }).cursor);
+  });
+
+  if (status === 'cancel') return '';
+  if (status === 'done') return `${theme.success('✔')} ${theme.heading(config.message)} ${theme.brand(value.trim())}`;
+  return [
+    `${theme.brand('?')} ${theme.heading(config.message)}`,
+    `  ${theme.brandBold('❯')} ${value.slice(0, cursor)}${chalk.bgHex('#19C2F0')([...value.slice(cursor)][0] ?? ' ')}${value.slice(cursor + ([...value.slice(cursor)][0]?.length ?? 0))}`,
+    '',
+    `  ${renderKeyHints([[t('ui_key_enter'), t('ui_key_confirm')], ['Esc', t('ui_key_back')]])}`,
+  ].join('\n') + CURSOR_HIDE;
+});
+
+// ─── 按回车（或 Esc）继续 ────────────────────────────────────────────
+
+const continueView = createPrompt((config: { message: string }, done: (value: void) => void) => {
+  const [status, setStatus] = useState<'idle' | 'done'>('idle');
+  useKeypress((key) => {
+    if (isEnterKey(key) || isEscape(key)) {
+      setStatus('done');
+      done();
+    }
+  });
+  if (status === 'done') return '';
+  return `${theme.subtle(config.message)}${CURSOR_HIDE}`;
+});
+
+export function checkPrompt<T>(config: CheckConfig<T>): Promise<T[] | undefined> {
+  return checkView(config as CheckConfig<unknown>) as Promise<T[] | undefined>;
+}
+
+// 返回输入的值；按 Esc 返回 undefined
+export function secretPrompt(config: SecretConfig): Promise<string | undefined> {
+  return secretView(config) as Promise<string | undefined>;
+}
+
+// 返回输入的值；按 Esc 返回 undefined
+export function textPrompt(config: TextConfig): Promise<string | undefined> {
+  return textView(config) as Promise<string | undefined>;
+}
+
+// 等待回车或 Esc
+export function continuePrompt(message: string): Promise<void> {
+  return continueView({ message }) as Promise<void>;
+}

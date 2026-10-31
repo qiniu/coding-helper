@@ -1,11 +1,11 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs'; import os from 'node:os'; import path from 'node:path'; import { createRequire } from 'node:module';
-export async function runPrompt(source, steps, columns = 80) {
+export async function runPrompt(source, steps, columns = 80, options = {}) {
   const { preparePtyHelper } = await import('../../dist/utils/launch-pty.js');
   preparePtyHelper(path.dirname(createRequire(import.meta.url).resolve('node-pty/package.json')));
   const { spawn } = await import('node-pty');
   const home = fs.mkdtempSync(path.join(os.tmpdir(), 'prompt-pty-'));
-  const child = spawn(process.execPath, ['--input-type=module', '-e', source], { cwd: process.cwd(), cols: columns, rows: 28, name: 'xterm-256color', env: { PATH: process.env.PATH, HOME: home, USERPROFILE: home, TERM: 'xterm-256color', FORCE_COLOR: '1' } });
+  const child = spawn(process.execPath, ['--input-type=module', '-e', source], { cwd: process.cwd(), cols: columns, rows: options.rows ?? 28, name: 'xterm-256color', env: { PATH: process.env.PATH, HOME: home, USERPROFILE: home, TERM: 'xterm-256color', FORCE_COLOR: '1' } });
   let transcript = '', index = 0, cursor = 0;
   const clean = value => value.replace(/\x1B(?:[@-Z\\-_a-z]|\[[0-?]*[ -/]*[@-~])/g, '');
   try {
@@ -18,7 +18,7 @@ export async function runPrompt(source, steps, columns = 80) {
         const found = text.indexOf(expected, cursor);
         if (found !== -1) { cursor = found + expected.length; index++; child.write(keys); }
       });
-      child.onExit(({ exitCode }) => { clearTimeout(timer); try { assert.equal(exitCode, 0, clean(transcript)); assert.equal(index, steps.length, clean(transcript)); resolve(clean(transcript)); } catch (error) { reject(error); } });
+      child.onExit(({ exitCode }) => { clearTimeout(timer); try { assert.equal(exitCode, 0, clean(transcript)); assert.equal(index, steps.length, clean(transcript)); resolve(options.raw ? transcript : clean(transcript)); } catch (error) { reject(error); } });
     });
   } finally { child.kill(); fs.rmSync(home, { recursive: true, force: true }); }
 }
