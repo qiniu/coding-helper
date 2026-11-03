@@ -93,14 +93,14 @@ class MarketModelService {
     return `${baseUrl}:${digest}`;
   }
 
-  async fetchModels(baseUrl: string, apiKey: string): Promise<MarketModelInfo[]> {
+  async fetchModels(baseUrl: string, apiKey: string, options: { timeoutMs?: number } = {}): Promise<MarketModelInfo[]> {
     const key = this.buildCacheKey(baseUrl, apiKey);
     if (this.cache && this.cacheKey === key) {
       return this.cache;
     }
 
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 30000);
+    const timeout = setTimeout(() => controller.abort(), options.timeoutMs ?? 30000);
 
     try {
       const response = await fetch(`${baseUrl}/v1/market/models`, {
