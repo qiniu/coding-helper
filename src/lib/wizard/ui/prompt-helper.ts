@@ -17,7 +17,8 @@ export const promptHelper = {
     const result = await menuPrompt({ message, escape: !!back, items: choices.map(choice => ({ value: choice.value, label: choice.name, hint: choice.hint })) });
     return result.action === 'escape' ? back!.value : result.value;
   },
-  async password(message: string): Promise<string> { return await secretPrompt({ message, escape: true }) ?? ''; },
+  // 保留 Esc 的取消信号，调用方才能与直接回车的空输入区分。
+  async password(message: string): Promise<string | undefined> { return secretPrompt({ message, escape: true }); },
   async input(message: string, defaultValue?: string): Promise<string> { return await textPrompt({ message, default: defaultValue }) ?? ''; },
   async confirm(message: string, defaultValue = true): Promise<boolean> {
     const choices = defaultValue ? [{ value: true, label: t('confirm_yes') }, { value: false, label: t('confirm_no') }]
