@@ -293,7 +293,7 @@
   "ui_key_enter": "回车",
   "ui_key_tabs": "切换厂商",
   "ui_key_type": "打字",
-  "ui_key_paste_hint": "后自动校验",
+  "ui_key_paste_hint": "自动校验",
   "ui_search_found": "{{count}} 个结果",
   "ui_search_placeholder": "直接打字搜索",
   "ui_check_all": "全选",
