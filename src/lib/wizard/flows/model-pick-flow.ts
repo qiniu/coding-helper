@@ -1,3 +1,4 @@
+import { visibleWidth } from '../../../utils/string-width.js';
 import ora from 'ora';
 import { t, i18n } from '../../i18n.js';
 import { configManager, type ModelConfig, type Connection } from '../../config.js';
@@ -119,7 +120,8 @@ function modelRow(m: PickerModel, options: PickOptions, extra: Partial<MenuItem<
   const current = m.id === options.current || currentTools.length > 0;
   const tags = [
     ...('hot_tags' in m ? (m.hot_tags ?? []).map(tag => theme.success(localized(HOT_TAG_LABELS_EN, tag))) : []),
-    current ? theme.brand(`${t('model_tag_current')}${currentTools.length ? ` · ${currentTools.join(' / ')}` : ''}`) : '',
+    // 只配置一个工具时「当前」已足够，不再重复工具名
+    current ? theme.brand(`${t('model_tag_current')}${currentTools.length && options.tools.length !== 1 ? ` · ${currentTools.join(' / ')}` : ''}`) : '',
     !caps.toolCall ? theme.warning(t('model_tag_no_tool_call')) : blocked.length ? theme.warning(`✖ ${blocked.map((tool) => tool.displayName).join(' ')}`) : '',
   ].filter(Boolean).join(' ');
   return {
@@ -131,6 +133,26 @@ function modelRow(m: PickerModel, options: PickOptions, extra: Partial<MenuItem<
     search: m.name,
     ...extra,
   };
+}
+
+// 已选清单压成一行：模型名去掉厂商前缀（短名重复时保留完整 ID），放不下的折成「+N 个」，完整清单见「已选」分类
+// browse 为 true 时，折叠的部分提示可按 ← 到「已选」分类查看完整清单
+export function selectionSummary(values: string[], width = Infinity, prefix = t('model_multi_selected', { count: String(values.length) }), browse = false): string {
+  if (!values.length) return `${prefix}—`;
+  const short = (id: string): string => id.slice(id.lastIndexOf('/') + 1) || id;
+  const names = values.map(id => values.filter(other => short(other) === short(id)).length > 1 ? id : short(id));
+  const sep = ' · ';
+  for (let shown = names.length; shown > 0; shown--) {
+    const rest = names.length - shown;
+    const text = prefix + names.slice(0, shown).join(sep) + (rest ? `  ${t(browse ? 'model_multi_more_browse' : 'model_multi_more', { count: String(rest) })}` : '');
+    if (visibleWidth(text) <= width) return text;
+  }
+  // 一个都放不下时依次退：带查看提示 → 只写数量 → 只留「已选 N 个」
+  const fallbacks = [
+    ...(browse ? [`${prefix}${t('model_multi_more_browse', { count: String(names.length) })}`] : []),
+    `${prefix}${t('model_multi_more', { count: String(names.length) })}`,
+  ];
+  return fallbacks.find(text => visibleWidth(text) <= width) ?? prefix.replace(/[:：]\s*$/, '');
 }
 
 // 只根据接口的推荐 / 热门标签排序，不为本地固定模型添加推荐标记。
@@ -193,7 +215,8 @@ async function chooseModels(options: PickOptions, selected?: string[]): Promise<
       filter: showAll ? t('model_filter_all') : t('model_filter_tool_call'),
     }))}`);
     logger.newLine();
-    if (currentSummary) {
+    // 多选时原有配置显示在「下一步」的说明区，这里不再单独占两行
+    if (currentSummary && selected === undefined) {
       logger.log(`  ${theme.subtle(currentSummary)}`);
       logger.newLine();
     }
@@ -214,8 +237,15 @@ async function chooseModels(options: PickOptions, selected?: string[]): Promise<
     const { value, action, query, selected: chosen } = await menuPrompt<string>({
       ...(selected !== undefined ? { multiple: {
         initial: selected,
-        summary: (values: string[]) => t('model_multi_selected', { count: String(values.length), models: values.join(', ') || '—' }),
+        summary: (values: string[], width?: number, final?: boolean) => selectionSummary(values, width, undefined, !final),
+        selectedTab: (count: number) => t('model_tab_selected', { count: String(count) }),
+        selectedEmpty: t('model_multi_selected_empty'),
         acceptLabel: (count: number) => t('model_multi_next', { count: String(count) }),
+        acceptDetail: () => [
+          // 原有配置同样压成一行，模型多时不折行
+          theme.subtle(currentModels.length ? selectionSummary(currentModels.map(item => item.model).filter((model): model is string => !!model), Math.max(1, (process.stdout.columns || 80) - 4), t('model_multi_current_prefix')) : currentSummary ?? ''),
+          theme.subtle(t('model_multi_accept_hint')),
+        ].join('\n'),
         parseCustom: customIds,
         toggleable: (item: MenuItem<string>) => item.value !== SHOW_ALL,
         customItem: (id: string) => modelRow({ id, name: id, capabilitiesUnknown: true }, options),
