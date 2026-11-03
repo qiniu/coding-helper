@@ -31,24 +31,28 @@ export async function runContextFlow(): Promise<void> {
   const safe = plans.filter(plan => plan.tool.supportsPreview === true);
   const normal = plans.filter(plan => plan.tool.supportsPreview !== true);
   const results: ToolResult[] = [];
-  if (safe.length) {
-    const written = await confirmAndWrite(t('context_title'), safe);
-    if (written === 'back') return;
-    results.push(...written);
-    await promptHelper.pressEnter();
-  }
+  // 先取得不可预演目标的同意，再进入预演确认；任一确认取消都尚未写入。
   if (normal.length) {
     uiRenderer.renderPage(t('context_title'));
     uiRenderer.renderHint(t('context_preview_fallback', { tools: normal.map(plan => plan.tool.displayName).join(', ') }));
     const confirmation = await menuPrompt({ message: t('context_targets_hint', { value: contextLabel(context) }), escape: true, default: true,
       items: [{ value: true, label: t('confirm_yes') }, { value: false, label: t('confirm_no') }] });
     if (confirmation.action === 'escape' || !confirmation.value) return;
+  }
+  if (safe.length) {
+    const written = await confirmAndWrite(t('context_title'), safe);
+    if (written === 'back') return;
+    results.push(...written);
+  }
+  // 所有确认完成后连续提交，不能在两组写入之间再次等待用户输入。
+  if (normal.length) {
     const written = await commitWritePlan(normal);
     results.push(...written);
-    renderResultSummary(written);
+    uiRenderer.renderPage(t('context_title'));
+    renderResultSummary(results);
     process.exitCode = exitCodeFor(results);
-    await promptHelper.pressEnter();
   }
+  await promptHelper.pressEnter();
 }
 
 export function contextMenuHint(connected: string[]): string {

@@ -8,5 +8,5 @@ test('cancelling the normal context confirmation leaves helper and writer untouc
  const out=await runPrompt(source+`toolManager.getAll=()=>[normal];await runContextFlow();`+tail,[['输入上下文大小','96k\r'],['选择要修改的工具','\r'],[/不支持预演[\s\S]*?Esc 返回/,'\x1b']]);assert.match(out,/COUNTS.*"normal":0/);assert.match(out,/UNCHANGED true/);
 });
 test('mixed context targets apply the same context through both write modes',{skip:process.platform==='win32'},async()=>{
- const out=await runPrompt(source+`toolManager.getAll=()=>[safe,normal];await runContextFlow();`+tail,[['输入上下文大小','96k\r'],['选择要修改的工具','\x1b[A '],['❯ ☑','\x1b[C'],['确认写入','\r'],[/不支持预演[\s\S]*?Esc 返回/,'\r']]);assert.match(out,/COUNTS.*"safe":1,"normal":1/);assert.match(out,/CAPS.*"safe":96000,"normal":96000/);
+ const out=await runPrompt(source+`toolManager.getAll=()=>[safe,normal];await runContextFlow();`+tail,[['输入上下文大小','96k\r'],['选择要修改的工具','\x1b[A '],['❯ ☑','\x1b[C'],[/不支持预演[\s\S]*?Esc 返回/,'\r'],['确认写入','\r']]);assert.match(out,/COUNTS.*"safe":1,"normal":1/);assert.match(out,/CAPS.*"safe":96000,"normal":96000/);
 });
