@@ -22,6 +22,7 @@ export interface ModelConfig {
   // 通用客户端未单独选择时使用的默认模型
   defaultModel?: string;
   slotModels?: Record<string, Record<string, string>>;
+  recentModels?: string[];
 }
 
 export interface ClaudeCodeConfig {
@@ -30,6 +31,12 @@ export interface ClaudeCodeConfig {
   opusModel?: string;
   subagentModel?: string;
   useDefaultModels?: boolean;
+}
+
+// 内置模型代表清除全部角色覆盖；显式 undefined 表示删除，内存状态与写入的 YAML 保持一致。
+function mergeClaudeModels(current: ClaudeCodeConfig | undefined, update: ClaudeCodeConfig): ClaudeCodeConfig {
+  if (update.useDefaultModels === true) return { useDefaultModels: true };
+  return Object.fromEntries(Object.entries({ ...current, ...update }).filter(([, value]) => value !== undefined));
 }
 
 // 配置文件结构
@@ -72,6 +79,7 @@ interface Config {
   toolModels?: Record<string, string>;
   defaultModel?: string;
   slotModels?: Record<string, Record<string, string>>;
+  recentModels?: string[];
 }
 
 // 配置管理器单例
@@ -197,6 +205,7 @@ class ConfigManager {
       codexModel: this.config.codexModel,
       toolModels: this.config.toolModels ? { ...this.config.toolModels } : undefined,
       defaultModel: this.config.defaultModel,
+      recentModels: this.config.recentModels ? [...this.config.recentModels] : undefined,
       slotModels: this.config.slotModels ? structuredClone(this.config.slotModels) : undefined,
     };
   }
@@ -206,7 +215,7 @@ class ConfigManager {
     // 使用 'in' 检查来区分「未传递」和「显式传递 undefined」
     if ('claudeCode' in models) {
       this.config.claudeCode = models.claudeCode
-        ? { ...this.config.claudeCode, ...models.claudeCode }
+        ? mergeClaudeModels(this.config.claudeCode, models.claudeCode)
         : undefined;
     }
     if ('codeBuddyModels' in models) this.config.codeBuddyModels = models.codeBuddyModels;
@@ -219,6 +228,7 @@ class ConfigManager {
         : undefined;
     }
     if ('defaultModel' in models) this.config.defaultModel = models.defaultModel;
+    if ('recentModels' in models) this.config.recentModels = models.recentModels ? [...new Set(models.recentModels)].slice(0, 3) : undefined;
     if ('slotModels' in models) this.config.slotModels = mergeSlotSettings(this.config.slotModels, models.slotModels);
     this.save();
   }
@@ -228,7 +238,7 @@ class ConfigManager {
     this.load();
     const savesCurrent = !settings.profile || settings.profile === this.config.profile;
     const next: Config = { ...this.config, ...models, ...(savesCurrent ? { api_key: apiKey, endpoint } : {}) };
-    if (models.claudeCode) next.claudeCode = { ...this.config.claudeCode, ...models.claudeCode };
+    if (models.claudeCode) next.claudeCode = mergeClaudeModels(this.config.claudeCode, models.claudeCode);
     if (models.slotModels) next.slotModels = mergeSlotSettings(this.config.slotModels, models.slotModels);
     if (models.toolModels) next.toolModels = { ...this.config.toolModels, ...models.toolModels };
     if (savesCurrent && endpoint === CUSTOM_ENDPOINT) next.base_url = getBaseUrl(endpoint, settings.baseUrl ?? next.base_url);
@@ -256,6 +266,10 @@ class ConfigManager {
     if (toolName && scope && Object.hasOwn(scope, toolName)) return scope[toolName] || undefined;
     const own = toolName ? this.config.context_windows?.[toolName] : undefined;
     return (own ?? this.config.context_window) || undefined;
+  }
+
+  rememberModel(model: string): void {
+    this.setModels({ recentModels: [model, ...(this.getModels().recentModels ?? []).filter(value => value !== model)].slice(0, 3) });
   }
 
   withContextWindows<T>(values: Record<string, number>, operation: () => Promise<T>): Promise<T> {
