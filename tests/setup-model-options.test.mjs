@@ -22,8 +22,9 @@ for(const [name,field] of [['codebuddy','codeBuddyModels'],['workbuddy','workbud
     const out=await runPrompt(source,[
       [/Select tools[^]*Esc back/,'\r'],
       [/Select models to configure[^]*Type search/,'a/model\r'],
-      [/Selected 1:[^]*Type search/,'b/model\r'],
-      [/Selected 2:[^]*Type search/,'\r'],
+      [/Selected 1:[^]*Type search/,'\x1b'],
+      [/Type search/,'b/model\r'],
+      [/Selected 2:[^]*Type search/,'\t'],
       [/\? Confirm[^]*Esc back/,'\r'],
       [/Press Enter/,'\r'],
     ],110,{rows:40});
