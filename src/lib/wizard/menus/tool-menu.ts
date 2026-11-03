@@ -19,7 +19,12 @@ import { fetchLatestVersion, isNewerVersion } from '../../version-service.js';
 import { applyTool, removeTool, hasSavedToolModelConfig, exitCodeFor } from '../../core/tool-service.js';
 export { hasSavedToolModelConfig } from '../../core/tool-service.js';
 
-// 槽位编辑在本层即可从工具菜单进入；后续确认页继续复用完整计划。
+// Buddy 多选没有模型槽位，但同样必须先生成草稿、确认后再写入。
+function isBuddyTool(tool: ITool): boolean {
+  return tool.name === 'codebuddy' || tool.name === 'workbuddy';
+}
+
+// 槽位与 Buddy 多选共用确认流程；后续确认页继续复用完整计划。
 async function configureToolModelSlots(tool: ITool): Promise<void> {
   try {
     const plan = await editToolModels(tool);
@@ -127,7 +132,7 @@ export async function showToolMenu(tool: ITool): Promise<void> {
 
     switch (action) {
       case 'models':
-        if (toolSlots(tool.name).length) await configureToolModelSlots(tool);
+        if (toolSlots(tool.name).length || isBuddyTool(tool)) await configureToolModelSlots(tool);
         else await tool.runModelConfigFlow();
         break;
 
@@ -189,6 +194,8 @@ export function isLatestVersionFetchPending(state: {
 }
 
 async function runInitialToolSetup(tool: ITool): Promise<void> {
+  // 首次进入 Buddy 详情也不能走会提前保存 helper 配置的旧流程。
+  if (isBuddyTool(tool)) return configureToolModelSlots(tool);
   const completed = await tool.runModelConfigFlow();
   if (!completed || tool.launchOnly) return;
 
