@@ -7,12 +7,13 @@ test('failed profile creation stays visible until acknowledged and leaves the me
  const out=await runPrompt(source+`await showMainMenu();console.log('RESULT',JSON.stringify({exitCode:process.exitCode??0,profiles:configManager.listProfiles().length}));`,[
   [/Connect coding tools[\s\S]*Esc Exit/,'\x1b[B'.repeat(3)+'\r'],
   [/Profiles[\s\S]*Esc back/,'\x1b[B\x1b[B\r'],
-  [/Add profile[\s\S]*Esc back/,'\r'],
+  [/New profile[\s\S]*Esc back/,'\r'],
   ['Profile name','work\r'],
   [/Select API endpoint[\s\S]*Esc back/,'\r'],
   ['API Key','invalid-key\r'],
-  [/Profile operation failed\.[\s\S]*Press Enter/,'\r'],
-  [/Profiles[\s\S]*Esc back/,'\x1b'],
+  [/API Key validation failed[\s\S]*Press Enter/,'\r'],
+  [/New profile[\s\S]*Esc back/,'\x1b'],
+  [/Account & endpoint[\s\S]*Esc back/,'\x1b'],
   [/Connect coding tools[\s\S]*Esc Exit/,'\x1b'],
  ]);
  assert.match(out,/RESULT.*"exitCode":0,"profiles":0/);
