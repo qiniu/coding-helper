@@ -9,7 +9,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
 import yaml from 'js-yaml';
-import type { ITool } from './base-tool.js';
+import type { ITool, ToolModelFlowContext } from './base-tool.js';
 import { configManager, type ModelConfig } from '../config.js';
 import { t } from '../i18n.js';
 import { runHermesModelSelectionFlow } from '../wizard/flows/hermes-model-selection-flow.js';
@@ -74,8 +74,8 @@ export class HermesTool implements ITool {
 
   async unloadConfig(): Promise<void> { this.clearModelConfig(); }
 
-  async runModelConfigFlow(): Promise<boolean> {
-    const selected = await runHermesModelSelectionFlow();
+  async runModelConfigFlow(context: ToolModelFlowContext = {}): Promise<boolean> {
+    const selected = await runHermesModelSelectionFlow(context);
     if (!selected) {
       return false;
     }

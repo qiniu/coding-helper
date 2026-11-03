@@ -1,3 +1,4 @@
+import { ModelCatalogHttpError } from './core/model-catalog-error.js';
 import { createHash } from 'node:crypto';
 
 // 市场模型信息接口（详细版本，包含能力信息）
@@ -35,6 +36,9 @@ export interface MarketModelInfo {
     avatar: string;
     model_page: string;
   };
+  // 标记（热门、上新、免费、限时免费）与下线日期，和七牛模型广场一致
+  hot_tags?: string[] | null;
+  retirement_at?: string | null;
 }
 
 // 七牛 features 字段中的能力标签
@@ -113,7 +117,7 @@ class MarketModelService {
       });
 
       if (!response.ok) {
-        throw new Error(`HTTP ${response.status}`);
+        throw new ModelCatalogHttpError(response.status);
       }
 
       const data = (await response.json()) as MarketModelsResponse;

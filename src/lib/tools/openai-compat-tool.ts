@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import { restoreConfigEdits } from '../core/config-transaction.js';
 import { findCommand, commandVersion } from '../../utils/find-command.js';
-import type { ITool } from './base-tool.js';
+import type { ITool, ToolModelFlowContext } from './base-tool.js';
 import { configManager, type ModelConfig } from '../config.js';
 import { marketModelService } from '../market-model-service.js';
 import { getModelCapabilities } from '../market-model-service.js';
@@ -99,8 +99,8 @@ export abstract class OpenAICompatTool implements ITool {
     return model;
   }
 
-  async runModelConfigFlow(): Promise<boolean> {
-    const selected = await runGenericModelSelectionFlow(this.name, this.displayName);
+  async runModelConfigFlow(context: ToolModelFlowContext = {}): Promise<boolean> {
+    const selected = await runGenericModelSelectionFlow(this.name, this.displayName, context);
     if (!selected) return false;
     uiRenderer.renderHeader();
     uiRenderer.renderSuccess(t('generic_config_success', { tool: this.displayName, model: selected }));

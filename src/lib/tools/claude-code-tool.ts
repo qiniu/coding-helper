@@ -3,7 +3,7 @@ import fs from 'node:fs';
 import { isDeepStrictEqual } from 'node:util';
 import path from 'node:path';
 import os from 'node:os';
-import type { ITool } from './base-tool.js';
+import type { ITool, ToolModelFlowContext } from './base-tool.js';
 import { configManager, type ModelConfig, type ClaudeCodeConfig } from '../config.js';
 import { isQiniuBaseUrl } from '../endpoints.js';
 import { t } from '../i18n.js';
@@ -192,8 +192,8 @@ export class ClaudeCodeTool implements ITool {
     this.clearModelConfig();
   }
 
-  async runModelConfigFlow(): Promise<boolean> {
-    return runModelSelectionFlow();
+  async runModelConfigFlow(context: ToolModelFlowContext = {}): Promise<boolean> {
+    return runModelSelectionFlow(context);
   }
 
   renderModelConfigSummary(): void {

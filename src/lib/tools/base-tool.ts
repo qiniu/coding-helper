@@ -1,5 +1,8 @@
 import { type ModelConfig } from '../config.js';
 
+// 向导上下文只用于展示进度，不改变工具配置的保存规则。
+export interface ToolModelFlowContext { step?: { current: number; total: number; keys?: string[] }; }
+
 // 工具接口定义
 export interface ITool {
   name: string;
@@ -58,7 +61,7 @@ export interface ITool {
 
   // 运行该工具特定的模型配置流程（角色选择、多选模型等由各工具自定义）
   // 返回 true 表示用户完成并保存了配置；false 表示用户取消、未选或前置条件不满足
-  runModelConfigFlow(): Promise<boolean>;
+  runModelConfigFlow(context?: ToolModelFlowContext): Promise<boolean>;
 
   // 渲染该工具的模型配置摘要（用于"查看当前配置"菜单）
   renderModelConfigSummary(): void;

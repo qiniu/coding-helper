@@ -1,13 +1,9 @@
 import { capContextWindow } from './openai-compat-tool.js';
 import path from 'node:path';
 import os from 'node:os';
-import type { ITool } from './base-tool.js';
+import type { ITool, ToolModelFlowContext } from './base-tool.js';
 import { configManager, type ModelConfig } from '../config.js';
-import {
-  marketModelService,
-  getModelCapabilities,
-  type MarketModelInfo,
-} from '../market-model-service.js';
+import { configurationModelCatalog, configurationCapabilities, type CatalogModel } from '../core/model-catalog.js';
 import { t } from '../i18n.js';
 import { QINIU_VENDOR, readModelsJson, loadModelsJson, unloadModelsJson } from './models-json.js';
 import { isQiniuBaseUrl } from '../endpoints.js';
@@ -83,7 +79,7 @@ export class WorkBuddyTool implements ITool {
     }
 
     const normalizedBaseUrl = baseUrl.replace(/\/+$/, '');
-    const allModels = await marketModelService.fetchModels(normalizedBaseUrl, apiKey);
+    const allModels = await configurationModelCatalog({ apiKey, baseUrl: normalizedBaseUrl }, modelIds);
     const selectedModels = allModels.filter(m => modelIds.includes(m.id));
 
     // 全部已配置模型都从市场消失：fail fast，避免把"七牛模型清空"伪装成 reload 成功
@@ -112,8 +108,8 @@ export class WorkBuddyTool implements ITool {
 
   // 多选要配置的市场模型，结果存入 configManager.workbuddyModels
   // 用户取消、未选或前置条件不满足时返回 false，让调用方跳过后续 loadConfig
-  async runModelConfigFlow(): Promise<boolean> {
-    const selected = await runWorkBuddyModelSelectionFlow();
+  async runModelConfigFlow(context: ToolModelFlowContext = {}): Promise<boolean> {
+    const selected = await runWorkBuddyModelSelectionFlow(context);
     if (!selected || selected.length === 0) {
       return false;
     }
@@ -133,11 +129,11 @@ export class WorkBuddyTool implements ITool {
   }
 
   private toWorkBuddyModel(
-    market: MarketModelInfo,
+    market: CatalogModel,
     apiKey: string,
     baseUrl: string,
   ): WorkBuddyModel {
-    const caps = getModelCapabilities(market);
+    const caps = configurationCapabilities(market);
     return {
       id: market.id,
       name: market.name,
