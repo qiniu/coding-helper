@@ -431,3 +431,9 @@ pnpm test
 This project is licensed under the [AGPL-3.0](LICENSE) License.
 
 Hermes uses shared YAML editing and guarded transactions. After restoring the original backup, successfully unload to clear the transaction record before loading again; do not retry reload directly.
+
+### Upgrading legacy restoration records
+
+Claude Code, Grok and Hermes automatically migrate recognized tool-level prior values into file-level records before reload or restore. Migration preserves recorded originals, current unmanaged fields and the complete legacy record; previews never persist it. Legacy versions did not retain full file snapshots, so restoration recovers recorded fields rather than promising the original byte formatting. Unknown fields, corrupt records, changed configuration paths and changed provider ownership continue to block writes. Do not delete `state.json` to bypass protection.
+
+When a Droid model's maximum output reaches its context capacity, input and output each receive half the capacity. Existing valid output budgets remain unchanged.

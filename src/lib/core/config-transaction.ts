@@ -65,7 +65,7 @@ export function applyConfigEdits(tool: string, edits: ConfigEdit[], options: { e
     const after = edits.map((edit, i) => edit.build(before[i]));
     const next: Entry[] = files.map((file, i) => ({ file, original: prior.has(file) ? prior.get(file)!.original : before[i] ?? null, applied: after[i], before: before[i] ?? null }));
     // 日志先落盘，异常退出仍保留原值；普通写入失败回滚本轮
-    stateStore.setState(tool, { priors: { files: next } }, key);
+    stateStore.setState(tool, { priors: { ...previous?.priors, files: next } }, key);
     let completed = 0;
     try {
       for (let i = 0; i < files.length; i++) { write(files[i], after[i], before[i]); completed++; }
@@ -87,7 +87,7 @@ export function applyConfigEdits(tool: string, edits: ConfigEdit[], options: { e
       throw error;
     }
     // Only discard the before images after every client write succeeds.
-    stateStore.setState(tool, { priors: { files: next.map(({ before: _before, ...entry }) => entry) } }, key);
+    stateStore.setState(tool, { priors: { ...previous?.priors, files: next.map(({ before: _before, ...entry }) => entry) } }, key);
   });
 }
 
