@@ -21,6 +21,7 @@ export interface ModelConfig {
   toolModels?: Record<string, string>;
   // 通用客户端未单独选择时使用的默认模型
   defaultModel?: string;
+  slotModels?: Record<string, Record<string, string>>;
 }
 
 export interface ClaudeCodeConfig {
@@ -70,6 +71,7 @@ interface Config {
   codexModel?: string;
   toolModels?: Record<string, string>;
   defaultModel?: string;
+  slotModels?: Record<string, Record<string, string>>;
 }
 
 // 配置管理器单例
@@ -195,6 +197,7 @@ class ConfigManager {
       codexModel: this.config.codexModel,
       toolModels: this.config.toolModels ? { ...this.config.toolModels } : undefined,
       defaultModel: this.config.defaultModel,
+      slotModels: this.config.slotModels ? structuredClone(this.config.slotModels) : undefined,
     };
   }
 
@@ -216,6 +219,7 @@ class ConfigManager {
         : undefined;
     }
     if ('defaultModel' in models) this.config.defaultModel = models.defaultModel;
+    if ('slotModels' in models) this.config.slotModels = mergeSlotSettings(this.config.slotModels, models.slotModels);
     this.save();
   }
 
@@ -225,6 +229,7 @@ class ConfigManager {
     const savesCurrent = !settings.profile || settings.profile === this.config.profile;
     const next: Config = { ...this.config, ...models, ...(savesCurrent ? { api_key: apiKey, endpoint } : {}) };
     if (models.claudeCode) next.claudeCode = { ...this.config.claudeCode, ...models.claudeCode };
+    if (models.slotModels) next.slotModels = mergeSlotSettings(this.config.slotModels, models.slotModels);
     if (models.toolModels) next.toolModels = { ...this.config.toolModels, ...models.toolModels };
     if (savesCurrent && endpoint === CUSTOM_ENDPOINT) next.base_url = getBaseUrl(endpoint, settings.baseUrl ?? next.base_url);
     else if (savesCurrent && endpoint !== CUSTOM_ENDPOINT) delete next.base_url;
@@ -385,6 +390,16 @@ function toProfile(name: string, entry: ProfileEntry): Profile {
   const endpoint = normalizeEndpointId(entry.endpoint || DEFAULT_ENDPOINT);
   const baseUrl = getBaseUrl(endpoint, entry.base_url);
   return { name, apiKey: entry.api_key, endpoint, baseUrl };
+}
+
+function mergeSlotSettings(previous: ModelConfig['slotModels'], update: ModelConfig['slotModels']): ModelConfig['slotModels'] {
+  if (update === undefined) return undefined;
+  const next = { ...previous };
+  for (const [tool, slots] of Object.entries(update)) {
+    if (Object.keys(slots).length) next[tool] = { ...next[tool], ...slots };
+    else delete next[tool];
+  }
+  return Object.keys(next).length ? next : undefined;
 }
 
 function validateProfileName(name: string): void {

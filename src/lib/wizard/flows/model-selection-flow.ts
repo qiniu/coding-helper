@@ -34,6 +34,7 @@ export async function runModelSelectionFlow(): Promise<boolean> {
   if (!needsCustomModels) {
     // 用户选择不配置，清除已有的自定义模型配置
     configManager.setModels({
+      slotModels: { 'claude-code': {} },
       claudeCode: {
         haikuModel: undefined,
         sonnetModel: undefined,
