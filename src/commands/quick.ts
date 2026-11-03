@@ -46,7 +46,9 @@ export async function quickCommand(target: string, rest: string[], options: Quic
     if (profile && (args.apiKey || process.env.QINIU_API_KEY || options.intl)) throw new QuickError('profile_connection_conflict');
     let picked = pickApiKey(args, profile ? {} : process.env, profile?.apiKey ?? configManager.getApiKey());
     if (!picked && !options.json && process.stdin.isTTY && process.stdout.isTTY) {
-      const key = (await promptHelper.password(t('apikey_prompt'))).trim();
+      const entered = await promptHelper.password(t('apikey_prompt'));
+      if (entered === undefined) return;
+      const key = entered.trim();
       if (key) picked = { key, source: 'prompt' };
     }
     if (!picked) throw new QuickError('key_missing');
