@@ -4,11 +4,11 @@ import { promptHelper } from '../ui/prompt-helper.js';
 import { uiRenderer } from '../ui/ui-renderer.js';
 
 // 单个模型角色选择（搜索+自动补全）
-async function selectModel(promptKey: string, currentValue?: string): Promise<string | undefined> {
+async function selectModel(promptKey: string, currentValue?: string): Promise<string | undefined | 'back'> {
   const { toolManager } = await import('../../tool-manager.js');
   const tool = toolManager.get('claude-code');
   const picked = await promptHelper.pickModel({ tools: tool ? [tool] : [], connection: configManager.getConnection('claude-code'), title: t(promptKey), current: currentValue, allowSkip: true });
-  return picked !== 'back' && 'model' in picked ? picked.model : undefined;
+  return picked === 'back' ? 'back' : 'model' in picked ? picked.model : undefined;
 }
 
 // 模型选择流程 (Haiku → Sonnet → Opus → Subagent)
@@ -49,9 +49,13 @@ export async function runModelSelectionFlow(): Promise<boolean> {
 
   // 四步选择: Haiku → Sonnet → Opus → Subagent
   const haikuModel = await selectModel('model_select_haiku', currentClaudeCode.haikuModel);
+  if (haikuModel === 'back') return false;
   const sonnetModel = await selectModel('model_select_sonnet', currentClaudeCode.sonnetModel);
+  if (sonnetModel === 'back') return false;
   const opusModel = await selectModel('model_select_opus', currentClaudeCode.opusModel);
+  if (opusModel === 'back') return false;
   const subagentModel = await selectModel('model_select_subagent', currentClaudeCode.subagentModel);
+  if (subagentModel === 'back') return false;
 
   // 展示配置摘要面板，等待用户确认
   uiRenderer.renderHeader();

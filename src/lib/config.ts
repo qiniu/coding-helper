@@ -33,6 +33,12 @@ export interface ClaudeCodeConfig {
   useDefaultModels?: boolean;
 }
 
+// 内置模型代表清除全部角色覆盖；显式 undefined 表示删除，内存状态与写入的 YAML 保持一致。
+function mergeClaudeModels(current: ClaudeCodeConfig | undefined, update: ClaudeCodeConfig): ClaudeCodeConfig {
+  if (update.useDefaultModels === true) return { useDefaultModels: true };
+  return Object.fromEntries(Object.entries({ ...current, ...update }).filter(([, value]) => value !== undefined));
+}
+
 // 配置文件结构
 export interface ProfileEntry {
   api_key: string;
@@ -209,7 +215,7 @@ class ConfigManager {
     // 使用 'in' 检查来区分「未传递」和「显式传递 undefined」
     if ('claudeCode' in models) {
       this.config.claudeCode = models.claudeCode
-        ? { ...this.config.claudeCode, ...models.claudeCode }
+        ? mergeClaudeModels(this.config.claudeCode, models.claudeCode)
         : undefined;
     }
     if ('codeBuddyModels' in models) this.config.codeBuddyModels = models.codeBuddyModels;
@@ -232,7 +238,7 @@ class ConfigManager {
     this.load();
     const savesCurrent = !settings.profile || settings.profile === this.config.profile;
     const next: Config = { ...this.config, ...models, ...(savesCurrent ? { api_key: apiKey, endpoint } : {}) };
-    if (models.claudeCode) next.claudeCode = { ...this.config.claudeCode, ...models.claudeCode };
+    if (models.claudeCode) next.claudeCode = mergeClaudeModels(this.config.claudeCode, models.claudeCode);
     if (models.slotModels) next.slotModels = mergeSlotSettings(this.config.slotModels, models.slotModels);
     if (models.toolModels) next.toolModels = { ...this.config.toolModels, ...models.toolModels };
     if (savesCurrent && endpoint === CUSTOM_ENDPOINT) next.base_url = getBaseUrl(endpoint, settings.baseUrl ?? next.base_url);
@@ -267,7 +273,7 @@ class ConfigManager {
     this.load();
     const next: Config = { ...this.config, ...models };
     if (models.toolModels) next.toolModels = { ...this.config.toolModels, ...models.toolModels };
-    if (models.claudeCode) next.claudeCode = { ...this.config.claudeCode, ...models.claudeCode };
+    if (models.claudeCode) next.claudeCode = mergeClaudeModels(this.config.claudeCode, models.claudeCode);
     if (models.slotModels) next.slotModels = mergeSlotSettings(this.config.slotModels, models.slotModels, true);
     next.context_windows = { ...this.config.context_windows, ...contexts };
     if (recent) next.recentModels = [recent, ...(this.config.recentModels ?? []).filter(model => model !== recent)].slice(0, 3);

@@ -283,8 +283,10 @@ async function showToolSelector(): Promise<void> {
     last = value;
     const tool = toolManager.get(value);
     if (!tool) continue;
-    // 未安装的命令行工具：回车先安装，装好后可直接进入配置
-    if (tool.isInstalled() === false) { if (await installTool(tool)) await showToolMenu(tool); continue; }
+    // 未安装的命令行工具：回车先安装，装好后可直接进入配置。安装检测抛错时按无法判断处理，直接进入工具页
+    let installState: boolean | null = null;
+    try { installState = tool.isInstalled(); } catch { /* 与列表的 quickDetect 一致：检测失败不打断菜单 */ }
+    if (installState === false) { if (await installTool(tool)) await showToolMenu(tool); continue; }
     await showToolMenu(tool);
   }
 }
@@ -297,5 +299,5 @@ async function runSwitchModelFlow(): Promise<void> {
     await promptHelper.pressEnter();
     return;
   }
-  await runToolSetupFlow(toolManager.getAll().filter(tool => connected.includes(tool.name)));
+  await runToolSetupFlow(toolManager.getAll().filter(tool => connected.includes(tool.name)), undefined, { showCurrentModels: true });
 }

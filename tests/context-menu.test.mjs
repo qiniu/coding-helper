@@ -40,5 +40,5 @@ test('main menu More reaches context and returns after invalid input cancellatio
 test('completed context writes remain visible until acknowledged',{skip:process.platform==='win32'},async()=>{
  const {runPrompt}=await import('./helpers/prompt-pty.mjs');
  const source=`import {configManager} from './dist/lib/config.js';import {toolManager} from './dist/lib/tool-manager.js';import {safeWriteFile} from './dist/lib/core/safe-write.js';import {runContextFlow} from './dist/lib/wizard/flows/context-flow.js';configManager.setApiKey('fake');toolManager.getAll=()=>[{name:'opencode',displayName:'ContextTarget',supportsPreview:true,isConfigured:()=>true,loadConfig:async()=>safeWriteFile(process.env.HOME+'/client.json','{}')}];await runContextFlow();console.log('RESULT done');`;
- const out=await runPrompt(source,[['上下文大小','96k\r'],['选择要修改的工具','\r'],['确认写入','\x1b[A\x1b[A\r'],['按回车','\r']]);assert.match(out,/RESULT done/);assert.ok(out.indexOf('按回车')<out.indexOf('RESULT done'));
+ const out=await runPrompt(source,[['上下文大小','96k\r'],['选择要修改的工具','\r'],['确认写入','\r'],['按回车','\r']]);assert.match(out,/RESULT done/);assert.ok(out.indexOf('按回车')<out.indexOf('RESULT done'));
 });

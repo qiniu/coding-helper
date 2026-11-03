@@ -65,7 +65,7 @@ await tool.loadConfig('sk-old','https://api.qnaigc.com',models);const value=JSON
 const results=await confirmAndWrite('REBASE_READY',[{tool,models,main:'vendor/main',changes:[{label:'Main model',after:'vendor/main'}],connection:{apiKey:'sk-new',baseUrl:'https://api.qnaigc.com',endpoint:'china'}}]);
 console.log('RESULT',JSON.stringify(results.map(r=>r.status)));console.log('QINIU',tool.isConfigured());await tool.unloadConfig();console.log('RESTORED',fs.readFileSync(file,'utf8')===deepseek);`;
   // 不需要额外选择：确认页直接列出「还原基线」，写入时自动备份并接入
-  const out = await runPrompt(source, [[/Restore baseline[\s\S]*?old record[\s\S]*?Esc back/, '\x1b[A\x1b[A\r']], 100, { rows: 40 });
+  const out = await runPrompt(source, [[/Restore baseline[\s\S]*?old record[\s\S]*?Esc back/, '\r']], 100, { rows: 40 });
   assert.match(out, /RESULT.*\["success"\]/); assert.match(out, /QINIU true/); assert.match(out, /RESTORED true/); assert.doesNotMatch(out, /sk-deepseek|sk-old|sk-new/);
 });
 

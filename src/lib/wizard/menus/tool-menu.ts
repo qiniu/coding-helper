@@ -95,13 +95,19 @@ export async function showToolMenu(tool: ITool): Promise<void> {
     uiRenderer.renderHeader(tool.name);
     uiRenderer.renderTitle(t('tool_menu_title', { tool: tool.displayName }));
     // 一行接入状态与当前模型；外部改成其他服务时说明怎么接入
+    // 安装与接入检测统一走 quickDetect：检测抛错时不打断工具页（与「我的工具」列表一致）
+    const detection = quickDetect(tool);
     if (!tool.launchOnly) {
-      logger.log(`  ${formatConfiguredBadge(quickDetect(tool))}`);
+      logger.log(`  ${formatConfiguredBadge(detection)}`);
       logger.newLine();
     }
 
-    const installedVersion = tool.getVersion();
-    const isDesktop = tool.isInstalled() === null;
+    let installedVersion: string | null = null;
+    // null 且检测未出错才是桌面应用；检测出错时仍显示版本区，便于用户看到「未安装 / 未知」
+    const isDesktop = detection.installed === null && !detection.errors.includes('installation_detection_failed');
+    if (!isDesktop) {
+      try { installedVersion = tool.getVersion(); } catch { /* 版本仅用于展示 */ }
+    }
     const statusText = formatVersionInfo(installedVersion, latestVersion, fetchCompleted, tool.npmPackageName, isDesktop);
     // 在同一个 prompt 内更新版本信息，保持 readline 和活动选项连续，不通过 abort 重建菜单。
     const statusUpdate = fetchPromise && isLatestVersionFetchPending({ fetchPromise, fetchCompleted })
@@ -109,7 +115,6 @@ export async function showToolMenu(tool: ITool): Promise<void> {
         () => formatVersionInfo(installedVersion, null, true, tool.npmPackageName, isDesktop))
       : undefined;
     // 每项：定宽图标 + 短标签 + 右侧当前值（模型、命令、版本），一眼看清每步会做什么
-    const detection = quickDetect(tool);
     const model = currentToolModel(detection);
     const missing = detection.installed === false;
     const update = !missing && installedVersion && latestVersion && isNewerVersion(installedVersion, latestVersion) ? latestVersion : undefined;
@@ -123,7 +128,7 @@ export async function showToolMenu(tool: ITool): Promise<void> {
             { value: 'unload' as const, icon: theme.dimIcon('◈'), label: t('tool_unload_config'), hint: theme.subtle(t('tool_hint_unload')) },
           ]),
           { value: 'launch', icon: theme.icon('▸'), label: t('tool_launch'),
-            hint: theme.subtle([tool.command, ...(tool.launchArgs ?? [])].join(' ')) },
+            hint: theme.subtle(detection.installed === null ? t('tool_desktop_launch_hint', { tool: tool.displayName }) : [tool.command, ...(tool.launchArgs ?? [])].join(' ')) },
           // 未安装时「更新」换成「安装」；我的工具列表里回车即进入安装
           missing
             ? { value: 'install' as const, icon: theme.icon('⬇'), label: theme.brand(t('install_action')), hint: theme.subtle(tool.installCommand) }

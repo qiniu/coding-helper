@@ -55,7 +55,9 @@ async function validate(items: PlanItem[]): Promise<ToolResult[]> {
     if (!item.connection?.apiKey) { failures.push({ tool: item.tool, status: 'failed', reason: 'apikey_not_set' }); continue; }
     if (item.context !== undefined && item.context !== null && (!Number.isSafeInteger(item.context) || item.context < 1000)) { failures.push({ tool: item.tool, status: 'failed', reason: 'context_invalid' }); continue; }
     try {
-      const models = [...new Set([item.main, ...Object.values(item.overrides ?? {})].filter((model): model is string => !!model))];
+      const selected = item.tool.name === 'codebuddy' ? item.models?.codeBuddyModels
+        : item.tool.name === 'workbuddy' ? item.models?.workbuddyModels : undefined;
+      const models = [...new Set([item.main, ...Object.values(item.overrides ?? {}), ...(selected ?? [])].filter((model): model is string => !!model))];
       for (const model of models) if (await item.tool.checkModel?.(model, { apiKey: item.connection.apiKey, baseUrl: item.connection.baseUrl })) throw new Error();
     } catch { failures.push({ tool: item.tool, status: 'failed', reason: 'plan_validation_failed' }); }
   }
@@ -156,9 +158,11 @@ export async function confirmAndWrite(title: string, initial: PlanItem[], untouc
   let items = prepare(initial).map(withBaselineRow);
   const expanded = new Set<string>(items.length === 1 ? [items[0].tool.name] : []);
   let preview = await previewByTool(items);
-  let last = BACK;
+  // 光标默认停在「写入」：用户走到这一步就是要写入，回车即可；预演失败时写入不可用，改停在第一个工具上便于调整
+  let last: string | undefined;
   while (true) {
     const invalid = preview.results.some(result => result.status === 'failed');
+    if (last === undefined || (invalid && last === WRITE)) last = invalid ? 'tool:' + items[0].tool.name : WRITE;
     uiRenderer.renderPage(title, options.step, t('plan_subtitle', { count: String(items.length) }), undefined, { bodyRows: Math.max(18, (options.step ? 2 : 0) + 3 + items.length + 10) });
     // 预演失败仍允许调整计划；只有有效预演才能提交真实写入。
     if (invalid) {
@@ -225,8 +229,8 @@ export async function confirmAndWrite(title: string, initial: PlanItem[], untouc
         if (expanded.has(selected.tool.name)) expanded.delete(selected.tool.name); else expanded.add(selected.tool.name);
         continue;
       }
-      // 调整后光标回到「返回」，与首次进入一致，避免误触写入
-      last = BACK;
+      // 调整后光标回到「写入」，与首次进入一致
+      last = undefined;
       const edited = await options.edit(selected);
       if (edited) { items = items.map(item => item === selected ? withBaselineRow({ ...edited, connection: selected.connection }) : item); preview = await previewByTool(items); }
       continue;

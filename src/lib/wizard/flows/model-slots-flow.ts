@@ -129,7 +129,7 @@ export async function editToolModels(tool: ITool, from?: PlanItem): Promise<Plan
       // 选了具体模型就改为自定义映射
       if ('model' in picked) { main = picked.model; builtin = false; }
     } else if ('follow' in picked) delete overrides[value];
-    else overrides[value] = picked.model;
+    else if ('model' in picked) overrides[value] = picked.model;
     last = SAVE;
   }
 }

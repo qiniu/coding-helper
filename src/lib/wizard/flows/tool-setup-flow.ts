@@ -1,4 +1,8 @@
-import { pickModel, planForTool } from './model-pick-flow.js';
+import { configManager } from '../../config.js';
+import type { PlanItem } from '../../core/write-plan.js';
+import { runCodeBuddyModelSelectionFlow } from './codebuddy-model-selection-flow.js';
+import { runWorkBuddyModelSelectionFlow } from './workbuddy-model-selection-flow.js';
+import { currentMainModel, pickModel, planForTool } from './model-pick-flow.js';
 import { confirmAndWrite, selectTargets } from '../ui/write-plan.js';
 import { editToolModels } from './model-slots-flow.js';
 import { t } from '../../i18n.js';
@@ -11,6 +15,32 @@ import { installTool } from '../menus/tool-menu.js';
 
 function installState(tool: ITool): boolean | null {
   try { return tool.isInstalled(); } catch { return null; }
+}
+
+// 切换前展示已接入工具的配置，不把读取失败或缺失记录猜成某个默认模型。
+function currentModelDetail(tool: ITool): string {
+  try {
+    const models = configManager.getModels();
+    if (tool.name === 'claude-code' && models.claudeCode?.useDefaultModels) return t('slots_builtin_value');
+    const selected = tool.name === 'codebuddy' ? models.codeBuddyModels : tool.name === 'workbuddy' ? models.workbuddyModels : undefined;
+    return selected?.length ? selected.join(', ') : currentMainModel(tool, models) ?? t('model_current_unknown');
+  } catch { return t('model_current_unknown'); }
+}
+
+// 首次配置与确认页调整共用计划：保留内置模型入口和 Buddy 多模型选择，确认前不保存配置。
+async function editSetupPlan(tool: ITool, from?: PlanItem): Promise<PlanItem | undefined> {
+  if (tool.name !== 'codebuddy' && tool.name !== 'workbuddy') return editToolModels(tool, from);
+  const field = tool.name === 'codebuddy' ? 'codeBuddyModels' : 'workbuddyModels';
+  const connection = { ...(from?.connection ?? configManager.getConnection(tool.name)) };
+  const options = { connection, previous: from?.models?.[field] };
+  const selected = tool.name === 'codebuddy'
+    ? await runCodeBuddyModelSelectionFlow(options)
+    : await runWorkBuddyModelSelectionFlow(options);
+  if (!selected?.length) return undefined;
+  const plan = planForTool(tool, selected[0]);
+  return { ...plan, connection, models: { ...plan.models, [field]: [...selected] }, changes: [
+    { label: t('tool_configure_models'), before: configManager.getModels()[field]?.join(', '), after: selected.join(', ') },
+  ] };
 }
 
 export async function setupTool(tool: ITool): Promise<boolean> {
@@ -53,7 +83,7 @@ export async function setupTool(tool: ITool): Promise<boolean> {
 
 // 选择工具 → 选模型 → 确认写入；取消或失败返回 false。
 // first：「选工具」在整个流程中的步序（首次向导为第 4 步，菜单里为第 1 步）
-export async function runToolSetupFlow(candidates?: ITool[], steps: { first: number; total: number; keys: string[] } = { first: 1, total: FLOW_STEP_KEYS.length, keys: FLOW_STEP_KEYS }): Promise<boolean> {
+export async function runToolSetupFlow(candidates?: ITool[], steps: { first: number; total: number; keys: string[] } = { first: 1, total: FLOW_STEP_KEYS.length, keys: FLOW_STEP_KEYS }, options: { showCurrentModels?: boolean } = {}): Promise<boolean> {
   const tools = candidates ?? toolManager.getAll();
   const step = (offset: number): StepInfo => ({ current: steps.first + offset, total: steps.total, keys: steps.keys });
   let targets: ITool[] | undefined;
@@ -62,7 +92,7 @@ export async function runToolSetupFlow(candidates?: ITool[], steps: { first: num
     // 进度 2 + 标题与说明 3 + 整个工具勾选列表
     uiRenderer.renderPage(t('page_tools'), step(0), t('page_tools_hint'), undefined, { bodyRows: 5 + checklistRows(tools.length) });
     let entered: ITool | undefined;
-    targets = await selectTargets(t('setup_select_tools'), tools, { installable: true, default: cursor, onEnter: tool => { entered = tool; } });
+    targets = await selectTargets(t('setup_select_tools'), tools, { installable: true, default: cursor, detail: options.showCurrentModels ? currentModelDetail : undefined, onEnter: tool => { entered = tool; } });
     if (!targets?.length) return false;
     // 在未安装的命令行工具上直接回车：先进安装页；可安装、跳过安装直接配置，或返回重选。勾选后继续则直接配置
     const only = entered;
@@ -73,10 +103,24 @@ export async function runToolSetupFlow(candidates?: ITool[], steps: { first: num
   }
   const previewable = targets.filter(tool => !tool.launchOnly && tool.supportsPreview === true);
   if (previewable.length) while (true) {
-    const picked = await pickModel({ tools: previewable, step: step(1) });
-    if (picked === 'back' || !('model' in picked)) return false;
-    const plans = previewable.map(tool => planForTool(tool, picked.model));
-    const results = await confirmAndWrite(t('page_confirm'), plans, [], { step: step(2), edit: item => editToolModels(item.tool, item) });
+    const plans: PlanItem[] = [];
+    const shared = previewable.filter(tool => !['claude-code', 'codebuddy', 'workbuddy'].includes(tool.name));
+    for (const tool of previewable.filter(tool => !shared.includes(tool))) {
+      const plan = await editSetupPlan(tool);
+      if (!plan) return false;
+      plans.push(plan);
+    }
+    if (shared.length) {
+      const currentModels = options.showCurrentModels ? shared.map(tool => {
+        try { return { tool: tool.displayName, model: currentMainModel(tool) }; }
+        catch { return { tool: tool.displayName }; }
+      }) : undefined;
+      const picked = await pickModel({ tools: shared, step: step(1), currentModels });
+      if (picked === 'back' || !('model' in picked)) return false;
+      plans.push(...shared.map(tool => planForTool(tool, picked.model)));
+    }
+    const ordered = previewable.map(tool => plans.find(plan => plan.tool === tool)!);
+    const results = await confirmAndWrite(t('page_confirm'), ordered, [], { step: step(2), edit: item => editSetupPlan(item.tool, item) });
     if (results !== 'back') { await promptHelper.pressEnter(); if (results.some(result => result.status === 'failed')) return false; break; }
   }
   // 启动器只配置模型；外部 writer 使用原有的单工具配置流程单独处理。

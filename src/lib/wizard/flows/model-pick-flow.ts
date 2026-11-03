@@ -25,7 +25,7 @@ const FOLLOW = '__follow__';
 const SHOW_ALL = '__show_all__';
 const SKIP = '__skip_model__';
 
-export type PickResult = { model: string } | { follow: true } | 'back';
+export type PickResult = { model: string } | { follow: true } | { skip: true } | 'back';
 
 export interface PickOptions {
   connection?: Connection;
@@ -36,6 +36,8 @@ export interface PickOptions {
   step?: StepInfo;
   // 默认选中的模型
   current?: string;
+  // 批量切换时保留每个工具当前的模型，用于提示与列表标记。
+  currentModels?: { tool: string; model?: string }[];
   // 设置槽位时传入主模型：第一行显示「跟随主模型」
   follow?: string;
 }
@@ -122,9 +124,11 @@ function describe(m: PickerModel, tools: ITool[]): string {
 function modelRow(m: PickerModel, options: PickOptions, extra: Partial<MenuItem<string>> = {}): MenuItem<string> {
   const caps = capabilities(m);
   const blocked = options.tools.filter((tool) => supports(tool, m) === false);
+  const currentTools = options.currentModels?.filter(item => item.model === m.id).map(item => item.tool) ?? [];
+  const current = m.id === options.current || currentTools.length > 0;
   const tags = [
     ...('hot_tags' in m ? (m.hot_tags ?? []).map(tag => theme.success(localized(HOT_TAG_LABELS_EN, tag))) : []),
-    m.id === options.current ? theme.brand(t('model_tag_current')) : '',
+    current ? theme.brand(`${t('model_tag_current')}${currentTools.length ? ` · ${currentTools.join(' / ')}` : ''}`) : '',
     !caps.toolCall ? theme.warning(t('model_tag_no_tool_call')) : blocked.length ? theme.warning(`✖ ${blocked.map((tool) => tool.displayName).join(' ')}`) : '',
   ].filter(Boolean).join(' ');
   return {
@@ -132,7 +136,7 @@ function modelRow(m: PickerModel, options: PickOptions, extra: Partial<MenuItem<
     label: m.id,
     hint: `${theme.subtle((caps.maxInputTokens ? formatContextSize(caps.maxInputTokens) : '—').padStart(5))}  ${tags}`,
     description: describe(m, options.tools),
-    current: m.id === options.current,
+    current,
     search: m.name,
     ...extra,
   };
@@ -151,14 +155,21 @@ function sortModels(models: PickerModel[]): PickerModel[] {
 export async function pickModel(options: PickOptions): Promise<PickResult> {
   const title = options.title ?? t('model_pick_title');
   const connection = { ...(options.connection ?? configManager.getConnection(options.tools[0]?.name)) };
+  const currentModels = options.currentModels ?? (options.current ? [{ tool: options.tools[0]?.displayName ?? '', model: options.current }] : []);
+  const firstCurrent = currentModels[0]?.model;
+  const sharedCurrent = firstCurrent && currentModels.every(item => item.model === firstCurrent) ? firstCurrent : undefined;
+  const currentSummary = !currentModels.length ? undefined
+    : currentModels.length === 1 ? t('generic_current_model', { tool: currentModels[0].tool, model: firstCurrent ?? t('model_current_unknown') })
+    : sharedCurrent ? t('model_current_shared', { model: sharedCurrent })
+    : t('model_current_mixed');
   // 进度 2 + 标题 3 + 说明 2 + 提示行 + 概览 3 + 分隔线 + 搜索框 + 厂商标签 + 约 10 行列表 + 隐藏行数 + 空行与操作提示 2 + 光标
-  const bodyRows = (options.step ? 2 : 0) + 3 + 2 + 22;
+  const bodyRows = (options.step ? 2 : 0) + 3 + 2 + 22 + (currentSummary ? 2 : 0);
   uiRenderer.renderPage(title, options.step, undefined, connection, { bodyRows });
   const models = await loadModels(connection);
   if (!models) return 'back';
 
   let showAll = false;
-  let last: string | undefined = options.current;
+  let last: string | undefined = options.current ?? sharedCurrent;
   while (true) {
     uiRenderer.renderPage(title, options.step, undefined, connection, { bodyRows });
     const usable = sortModels(models.filter((m) => showAll || capabilities(m).toolCall));
@@ -171,6 +182,10 @@ export async function pickModel(options: PickOptions): Promise<PickResult> {
       filter: showAll ? t('model_filter_all') : t('model_filter_tool_call'),
     }))}`);
     logger.newLine();
+    if (currentSummary) {
+      logger.log(`  ${theme.subtle(currentSummary)}`);
+      logger.newLine();
+    }
 
     const items: MenuEntry<string>[] = [
       ...(options.allowSkip ? [{ value: SKIP, label: t('model_skip_option') }, { separator: '' }] : []),
@@ -229,7 +244,7 @@ export async function pickModel(options: PickOptions): Promise<PickResult> {
       last = SHOW_ALL;
       continue;
     }
-    if (value === SKIP) return 'back';
+    if (value === SKIP) return { skip: true };
     if (value === FOLLOW) return { follow: true };
     const model = action === 'custom' ? resolveModelId(query ?? '', models.map((m) => m.id)) : value;
     if (!model) continue;
@@ -261,7 +276,7 @@ export function builtinPlanForClaude(tool: ITool): PlanItem {
   return {
     tool,
     models: {
-      claudeCode: { haikuModel: undefined, sonnetModel: undefined, opusModel: undefined, subagentModel: undefined, useDefaultModels: true },
+      claudeCode: { useDefaultModels: true },
       slotModels: { [tool.name]: {} },
     },
     changes,

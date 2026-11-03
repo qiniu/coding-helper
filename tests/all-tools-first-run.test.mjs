@@ -15,7 +15,11 @@ for(const tool of tools)test('empty HOME first-run model configuration: '+tool.n
   assert.ok(index>=0,'target tool must be visible');
   return '\x1b[B'.repeat(index)+' '+'\x1b[C';
  };
- const steps=[[/请选择语言[\s\S]*?Esc 返回/,'\x1b[B\r'],[/Select API endpoint[\s\S]*?Esc back/,'\x1b[B\x1b[B\r'],[/https:\/\/[\s\S]*?Esc back/,base+'\r'],[/Enter your API Key[\s\S]*?Esc back/,'fixture-key\r'],[/Select tools[\s\S]*?Esc back/,selectTool],[/Type to search[\s\S]*?Type search/,'z-ai/glm-5.2\r']];
- if(tool.supportsPreview===true)steps.push([/\? Confirm[\s\S]*?Esc back/,'\x1b[A\x1b[A\r']);else steps.push([/Press Enter/,'\r']);steps.push([/Press Enter/,'\r']);
+ const steps=[[/请选择语言[\s\S]*?Esc 返回/,'\x1b[B\r'],[/Select API endpoint[\s\S]*?Esc back/,'\x1b[B\x1b[B\r'],[/https:\/\/[\s\S]*?Esc back/,base+'\r'],[/Enter your API Key[\s\S]*?Esc back/,'fixture-key\r'],[/Select tools[\s\S]*?Esc back/,selectTool]];
+ if(tool.name==='claude-code')steps.push([/Main model[\s\S]*?Esc back/,'\r']);
+ if(['codebuddy','workbuddy'].includes(tool.name))steps.push([/Select models to configure[\s\S]*?Esc back/,' '+'\x1b[C']);
+ else steps.push([/Type to search[\s\S]*?Type search/,'z-ai/glm-5.2\r']);
+ if(tool.name==='claude-code')steps.push([/Save & write[\s\S]*?Esc back/,'\r']);
+ if(tool.supportsPreview===true)steps.push([/\? Confirm[\s\S]*?Esc back/,'\r']);else steps.push([/Press Enter/,'\r']);steps.push([/Press Enter/,'\r']);
  const out=await runPrompt(source,steps,110,{rows:40});assert.match(out,new RegExp('FIRST_RUN_VERIFIED '+tool.name));
 });
