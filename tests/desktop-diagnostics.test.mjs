@@ -18,3 +18,16 @@ test('desktop-only tool menu shows the same manual launch guidance as the action
   assert.doesNotMatch(out,/Launch +dsh web/);
   assert.match(out,/NO_CLI_PROBE/);
 });
+
+
+test('failed CLI installation detection does not become desktop launch guidance',{skip:process.platform==='win32'},async()=>{
+ const source=head+`tool.isInstalled=()=>{throw Error('PRIVATE_INSTALL_PROBE')};configManager.setModels({toolModels:{dsh:'demo-model'}});const {showToolMenu}=await import('./dist/lib/wizard/menus/tool-menu.js');await showToolMenu(tool);console.log('MENU_OK');`;
+ const out=await runPrompt(source,[[/Select action[^]*Esc back/,'\x1b']],160,{rows:40});
+ assert.match(out,/Launch +dsh web/);assert.doesNotMatch(out,/is a desktop application|PRIVATE_INSTALL_PROBE/);assert.match(out,/MENU_OK/);
+});
+
+test('a failed installation probe during Launch returns to the menu with safe retry guidance',{skip:process.platform==='win32'},async()=>{
+ const source=head+`tool.isInstalled=()=>{throw Error('PRIVATE_INSTALL_PROBE')};configManager.setModels({toolModels:{dsh:'demo-model'}});const {showToolMenu}=await import('./dist/lib/wizard/menus/tool-menu.js');await showToolMenu(tool);console.log('MENU_OK');`;
+ const out=await runPrompt(source,[[/Select action[^]*Esc back/,'\x1b[B'.repeat(3)+'\r'],[/Unable to detect DeepSeek Harness[^]*Press Enter to continue/,'\r'],[/Select action[^]*Esc back/,'\x1b']],160,{rows:40});
+ assert.match(out,/installation location and permissions/);assert.doesNotMatch(out,/is a desktop application|PRIVATE_INSTALL_PROBE/);assert.match(out,/MENU_OK/);
+});

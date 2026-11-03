@@ -128,7 +128,7 @@ export async function showToolMenu(tool: ITool): Promise<void> {
             { value: 'unload' as const, icon: theme.dimIcon('◈'), label: t('tool_unload_config'), hint: theme.subtle(t('tool_hint_unload')) },
           ]),
           { value: 'launch', icon: theme.icon('▸'), label: t('tool_launch'),
-            hint: theme.subtle(detection.installed === null ? t('tool_desktop_launch_hint', { tool: tool.displayName }) : [tool.command, ...(tool.launchArgs ?? [])].join(' ')) },
+            hint: theme.subtle(isDesktop ? t('tool_desktop_launch_hint', { tool: tool.displayName }) : [tool.command, ...(tool.launchArgs ?? [])].join(' ')) },
           // 未安装时「更新」换成「安装」；我的工具列表里回车即进入安装
           missing
             ? { value: 'install' as const, icon: theme.icon('⬇'), label: theme.brand(t('install_action')), hint: theme.subtle(tool.installCommand) }
@@ -318,7 +318,14 @@ async function applyConfig(tool: ITool): Promise<void> {
 
 // 启动工具
 export async function launchTool(tool: ITool): Promise<void> {
-  if (tool.isInstalled() === null) {
+  let installed: boolean | null;
+  try { installed = tool.isInstalled(); }
+  catch {
+    uiRenderer.renderError(t('tool_installation_detection_failed', { tool: tool.displayName }));
+    await promptHelper.pressEnter();
+    return;
+  }
+  if (installed === null) {
     uiRenderer.renderHint(t('tool_desktop_launch_hint', { tool: tool.displayName }));
     await promptHelper.pressEnter();
     return;
@@ -335,8 +342,7 @@ export async function launchTool(tool: ITool): Promise<void> {
     await promptHelper.pressEnter();
     return;
   }
-  const installed = tool.isInstalled();
-  // null 表示无法检测（桌面应用），视为已安装
+  // 复用前面的安装探测结果，避免重复探测失败打断菜单。
   if (installed === false) {
     uiRenderer.renderError(t('tool_not_installed', {
       tool: tool.displayName,
