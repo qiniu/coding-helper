@@ -90,7 +90,7 @@ export async function showToolMenu(tool: ITool): Promise<void> {
   }
 
   while (true) {
-    uiRenderer.renderHeader();
+    uiRenderer.renderHeader(tool.name);
     uiRenderer.renderTitle(t('tool_menu_title', { tool: tool.displayName }));
 
     const installedVersion = tool.getVersion();
@@ -158,15 +158,15 @@ export async function showToolMenu(tool: ITool): Promise<void> {
 
 // 卸载错误包含恢复操作指引，必须展示，不能只显示通用失败。
 export async function unloadToolConfig(tool: ITool): Promise<void> {
-  uiRenderer.renderHeader();
+  uiRenderer.renderHeader(tool.name);
   if (!await promptHelper.confirm(t('tool_config_unload_confirm', { tool: tool.displayName }))) return;
   try {
     const result = await removeTool(tool);
     if (result.status !== 'success') throw new Error(t(result.reason ?? 'tool_config_unload_failed', { tool: tool.displayName }));
-    uiRenderer.renderHeader();
+    uiRenderer.renderHeader(tool.name);
     uiRenderer.renderSuccess(t('tool_config_unloaded', { tool: tool.displayName }));
   } catch (error: unknown) {
-    uiRenderer.renderHeader();
+    uiRenderer.renderHeader(tool.name);
     uiRenderer.renderError(t('tool_config_unload_failed', { tool: tool.displayName }));
     if (error instanceof Error && error.message) uiRenderer.renderError(error.message);
   }
@@ -185,7 +185,7 @@ async function runInitialToolSetup(tool: ITool): Promise<void> {
   if (!completed || tool.launchOnly) return;
 
   if (tool.name === 'codex') {
-    uiRenderer.renderHeader();
+    uiRenderer.renderHeader(tool.name);
     const confirmed = await promptHelper.confirm(t('tool_config_load_confirm', { tool: tool.displayName }));
     if (!confirmed) return;
   }
@@ -256,7 +256,7 @@ async function loadConfig(tool: ITool): Promise<void> {
   }
 
   // 清屏后二次确认
-  uiRenderer.renderHeader();
+  uiRenderer.renderHeader(tool.name);
   const confirmed = await promptHelper.confirm(
     t('tool_config_load_confirm', { tool: tool.displayName }),
   );
@@ -276,11 +276,11 @@ async function applyConfig(tool: ITool): Promise<void> {
   try {
     const result = await applyTool(tool);
     if (result.status !== 'success') throw new Error(t(result.reason ?? 'tool_config_load_failed', { tool: tool.displayName }));
-    uiRenderer.renderHeader();
+    uiRenderer.renderHeader(tool.name);
     uiRenderer.renderSuccess(t('tool_config_loaded', { tool: tool.displayName }));
     for (const note of tool.getLoadConfigNotes?.() ?? []) uiRenderer.renderHint(note);
   } catch (err: unknown) {
-    uiRenderer.renderHeader();
+    uiRenderer.renderHeader(tool.name);
     uiRenderer.renderError(
       err instanceof Error ? err.message : t('tool_config_load_failed', { tool: tool.displayName }),
     );
@@ -393,7 +393,7 @@ export async function updateTool(tool: ITool): Promise<void> {
 
 // 查看当前配置
 export async function viewConfig(tool: ITool): Promise<void> {
-  uiRenderer.renderHeader();
+  uiRenderer.renderHeader(tool.name);
   uiRenderer.renderTitle(t('config_view_title'));
 
   const { apiKey, baseUrl } = configManager.getConnection(tool.name);
