@@ -13,25 +13,37 @@ import { uiRenderer, type StepInfo } from './ui-renderer.js';
 import { checkPrompt, menuPrompt, type MenuEntry } from './prompts.js';
 import { renderToolResults, safeToolFailureReason } from './tool-results.js';
 import { theme } from './theme.js';
+import { isExternallyModified } from '../../core/rebaseline.js';
 import { detectSorted, displayPath, formatConfiguredBadge, formatInstallState, renderFileChanges, renderResultSummary, toolIcon } from './tool-view.js';
 
 // 勾选要处理的工具：左侧色点，右侧为 detail（如当前模型）或安装 / 接入状态；已安装的排在前面
-export async function selectTargets(message: string, tools: ITool[], options: { preselect?: string[]; detail?: (tool: ITool) => string; allowEmpty?: boolean; nextLabel?: string } = {}): Promise<ITool[] | undefined> {
+// installable：未安装的工具标出「回车安装」；在该行直接回车时通过 onInstall 告知调用方进入安装页
+export async function selectTargets(message: string, tools: ITool[], options: { preselect?: string[]; detail?: (tool: ITool) => string; allowEmpty?: boolean; nextLabel?: string; installable?: boolean; default?: string; onEnter?: (tool: ITool) => void } = {}): Promise<ITool[] | undefined> {
   if (!tools.length) return [];
   const detections = detectSorted(tools);
   const width = Math.max(...tools.map(tool => visibleWidth(tool.displayName)));
-  const selected = await checkPrompt({ message, allowEmpty: options.allowEmpty, nextLabel: options.nextLabel,
+  const selected = await checkPrompt({ message, allowEmpty: options.allowEmpty, nextLabel: options.nextLabel, default: options.default,
+    onEnterSingle: value => { const tool = tools.find(candidate => candidate.name === value); if (tool) options.onEnter?.(tool); },
     items: detections.map(detection => {
       const { tool } = detection;
-      const tag = options.detail?.(tool) ?? `${padVisible(formatInstallState(detection), 10)}  ${detection.configured ? formatConfiguredBadge(detection) : ''}`;
+      const tag = options.detail?.(tool) ?? `${padVisible(formatInstallState(detection), 10)}  ${detection.configured || isExternallyModified(tool) ? formatConfiguredBadge(detection) : ''}`;
       return { value: tool.name, label: padVisible(tool.displayName, width), icon: toolIcon(tool.name, detection.installed === false), tag,
-        checked: options.preselect?.includes(tool.name) ?? false, preferred: true };
+        checked: options.preselect?.includes(tool.name) ?? false, preferred: true,
+        ...(options.installable && detection.installed === false && tool.installCommand
+          ? { enterLabel: t('install_action'), description: theme.subtle(`${t('tool_detail_install_enter')}  ${tool.installCommand}`) } : {}) };
     }),
     summary: picked => picked.length
       ? theme.value(t('targets_summary', { count: String(picked.length), total: String(tools.length) }))
       : theme.subtle(t('targets_none')),
   });
   return selected === undefined ? undefined : detections.map(detection => detection.tool).filter(tool => selected.includes(tool.name));
+}
+// 外部已切到其他服务的工具：写入时自动以当前配置为还原基线（applyTool 处理），确认页多显示一行说明
+function withBaselineRow(item: PlanItem): PlanItem {
+  const label = t('plan_rebaseline');
+  if (!isExternallyModified(item.tool) || item.changes.some(change => change.label === label)) return item;
+  // 放在最后：收起时摘要仍显示模型变化
+  return { ...item, changes: [...item.changes, { label, before: t('plan_rebaseline_before'), after: t('plan_rebaseline_after') }] };
 }
 function prepare(items: PlanItem[]): PlanItem[] {
   return items.map(item => ({ ...item, connection: { ...(item.connection ?? configManager.getConnection(item.tool.name)) },
@@ -121,7 +133,9 @@ function itemSummary(item: PlanItem): string {
   return `${changeText(first)}${extra ? theme.subtle(`  ${extra}`) : ''}`;
 }
 
-function changedFiles(item: PlanItem, files: Map<ITool, PlannedChange[]>): string[] {
+function changedFiles(item: PlanItem, files: Map<ITool, PlannedChange[]>, failed = false): string[] {
+  // 预演未通过时还不知道会改哪些文件，不能显示「没有需要修改的文件」
+  if (failed) return [t('plan_files_preview_failed')];
   const changed = files.get(item.tool);
   return changed?.length ? changed.map(change => displayPath(change.file)) : [t('plan_files_none')];
 }
@@ -139,7 +153,7 @@ const BACK = '__back__';
 // 只有预演通过才能写入；写入时逐个显示进度，最后显示结果表。Esc 返回 'back'
 export async function confirmAndWrite(title: string, initial: PlanItem[], untouched: ITool[] = [], options: { step?: StepInfo; edit?: (item: PlanItem) => Promise<PlanItem | undefined> } = {}): Promise<ToolResult[] | 'back'> {
   if (!initial.length) return 'back';
-  let items = prepare(initial);
+  let items = prepare(initial).map(withBaselineRow);
   const expanded = new Set<string>(items.length === 1 ? [items[0].tool.name] : []);
   let preview = await previewByTool(items);
   let last = BACK;
@@ -162,7 +176,7 @@ export async function confirmAndWrite(title: string, initial: PlanItem[], untouc
         description: theme.subtle(options.edit ? t('plan_row_hint_edit') : t('plan_row_hint')) });
       if (!open) continue;
       const rows: [string, string][] = item.changes.map(change => [change.label, changeText(change)]);
-      changedFiles(item, preview.files).forEach((file, i) => rows.push([i === 0 ? t('plan_file') : '', theme.subtle(file)]));
+      changedFiles(item, preview.files, preview.results.some(result => result.tool === item.tool && result.status === 'failed')).forEach((file, i) => rows.push([i === 0 ? t('plan_file') : '', theme.subtle(file)]));
       rows.forEach(([label, value], i) => entries.push({ value: `row:${item.tool.name}:${i}`, label: `   ${theme.subtle(label)}`, hint: value, disabled: true }));
     }
     const fileCount = [...preview.files.values()].reduce((sum, changes) => sum + changes.length, 0);
@@ -214,7 +228,7 @@ export async function confirmAndWrite(title: string, initial: PlanItem[], untouc
       // 调整后光标回到「返回」，与首次进入一致，避免误触写入
       last = BACK;
       const edited = await options.edit(selected);
-      if (edited) { items = items.map(item => item === selected ? { ...edited, connection: selected.connection } : item); preview = await previewByTool(items); }
+      if (edited) { items = items.map(item => item === selected ? withBaselineRow({ ...edited, connection: selected.connection }) : item); preview = await previewByTool(items); }
       continue;
     }
     if (value !== WRITE || invalid) continue;

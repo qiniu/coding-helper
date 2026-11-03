@@ -161,6 +161,24 @@ class StateStore {
     });
   }
 
+  // 一次提交删除某工具的全部记录（含旧版按工具名的记录），返回被删除的原始记录供归档
+  removeToolRecords(tool: string): Record<string, ToolState> {
+    return this.withLock(() => {
+      const state = this.read();
+      const removed: Record<string, ToolState> = {};
+      for (const key of Object.keys(state.tools)) {
+        let identity: unknown;
+        try { identity = JSON.parse(key); } catch { /* 旧版记录键就是工具名 */ }
+        const owner = Array.isArray(identity) && identity.length === 2 ? identity[0] : key;
+        if (owner !== tool) continue;
+        Object.defineProperty(removed, key, { value: state.tools[key], enumerable: true, configurable: true, writable: true });
+        delete state.tools[key];
+      }
+      if (Object.keys(removed).length) this.write(state);
+      return removed;
+    });
+  }
+
   getPriors(tool: string, file?: string): PriorValues | undefined {
     tool = this.key(tool, file);
     const tools = this.read().tools;

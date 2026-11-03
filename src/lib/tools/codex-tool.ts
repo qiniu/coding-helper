@@ -201,14 +201,8 @@ export function buildCodexConfig(_existing: string, baseUrl?: string, model?: st
     '',
   ];
 
-  if (model) {
-    sections.push(
-      `[profiles.${PROFILE_NAME}]`,
-      `model_provider = "${PROVIDER_NAME}"`,
-      `model = "${escapeTomlString(model)}"`,
-      '',
-    );
-  }
+  // 不再写 [profiles.qn-gpt]：Codex 0.134+ 在 config.toml 里有旧式 profiles 表时，`codex --profile qn-gpt` 会直接报错；
+  // 顶层 model / model_provider 已经指向七牛，旧表在写入时由 mergeCodexConfig 移除
 
   return normalizeToml(sections.join('\n'));
 }
