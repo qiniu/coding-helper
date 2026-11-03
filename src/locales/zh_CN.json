@@ -205,7 +205,7 @@
   "run_unsupported": "{{tool}} 不支持启动器模式",
   "run_supported_tools": "支持的工具：{{tools}}",
   "setup_reason_launch_only": "Copilot 使用会话环境变量，请运行 coding-helper run copilot，无需装载配置文件。",
-  "droid_select_loaded_model": "模型已注册。启动 Droid 后运行 /model，选择 Qiniu: <所选模型> 才会生效；当前会话默认模型尚未改变。",
+  "droid_select_loaded_model": "已自动选择 Qiniu: <所选模型> 作为主模型和 Spec 模式默认模型；Spec 槽位可单独覆盖。可用 /model 查看或调整当前选择。",
   "endpoint_custom": "自定义",
   "endpoint_custom_option": "自定义地址",
   "endpoint_custom_hint": "私有化部署、代理网关",
@@ -299,5 +299,9 @@
   "ui_check_all": "全选",
   "ui_check_all_installed": "全选已安装",
   "ui_check_next": "继续",
-  "ui_check_empty": "请至少选择一项（空格勾选）"
+  "ui_check_empty": "请至少选择一项（空格勾选）",
+  "claude_slot_desc_sonnet": "七牛 · 主模型",
+  "claude_slot_desc_opus": "七牛 · Opus 槽位",
+  "claude_slot_desc_haiku": "七牛 · 兜底模型",
+  "claude_slot_desc_fable": "七牛 · Fable 槽位（同 Opus）"
 }
