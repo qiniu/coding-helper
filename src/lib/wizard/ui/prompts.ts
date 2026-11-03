@@ -16,6 +16,7 @@ import {
 import chalk from 'chalk';
 import { theme } from './theme.js';
 import { t } from '../../i18n.js';
+import { screen } from '../../../utils/logger.js';
 import { padVisible, visibleWidth, truncate, stripAnsi } from '../../../utils/string-width.js';
 
 // 交互只依赖 ↑↓←→、回车、Esc；字母 / 数字键只作为隐藏的加速键，界面上不提示
@@ -191,6 +192,14 @@ export interface MenuConfig<T> {
   // 并按终端高度缩小列表，保证说明、搜索框、列表与操作提示在一屏内
   detailPosition?: 'top' | 'bottom';
   pageSize?: number;
+}
+
+// 清屏后页头与页面内容之下还剩的终端行数；没有清屏或内容已滚出屏幕时返回 undefined
+function remainingRows(): number | undefined {
+  const used = screen.used();
+  const rows = process.stdout.rows;
+  if (used === undefined || !rows || used >= rows) return undefined;
+  return rows - used;
 }
 
 // 文本在当前终端宽度下占用的行数（含自动折行）
@@ -401,10 +410,16 @@ const menuView = createPrompt(<T,>(config: MenuConfig<T>, done: (result: MenuRes
   }) : [];
   const requestedPageSize = config.pageSize ?? 14;
   // 列表之外占用的行数；超出一页时多一行「上面 / 下面还有几个」，操作提示也多出翻页键
+  // 说明在列表下方时，按所有选项中最多的行数（含空行）预留
+  const bottomDetailRows = !detailTop && (all.some((e) => e.description) || config.asyncDetail)
+    ? 1 + Math.max(0, ...all.map((e) => (e.description ? e.description.split('\n').length : 0))) + (config.asyncDetail ? 1 : 0)
+    : 0;
   const fixedRows = (overflow: boolean): number => (statusText ? screenRows(statusText) : 0) + 1 + (searchLine ? screenRows(searchLine) : 0) + (tabsLine ? screenRows(tabsLine) : 0) + (emptyLine ? 1 : 0)
-    + (detailTop ? detailRows + 1 : 0) + (overflow ? 1 : 0) + 1 + screenRows(footerFor(overflow)) + 1;
-  const fitPage = (overflow: boolean): number => detailTop && process.stdout.rows
-    ? Math.max(Math.min(3, requestedPageSize), Math.min(requestedPageSize, process.stdout.rows - fixedRows(overflow)))
+    + (detailTop ? detailRows + 1 : bottomDetailRows) + (overflow ? 1 : 0) + 1 + screenRows(footerFor(overflow)) + 1;
+  // 可用高度：清屏后页头与页面内容之下剩余的行数；没有跟踪时，说明在上方的菜单按整屏计算
+  const available = remainingRows() ?? (detailTop ? process.stdout.rows : undefined);
+  const fitPage = (overflow: boolean): number => available
+    ? Math.max(Math.min(3, requestedPageSize), Math.min(requestedPageSize, available - fixedRows(overflow)))
     : requestedPageSize;
   // 先按不超出估算；放不下全部选项时再按超出（多一行提示）重新计算页高
   const overflows = items.length > fitPage(false);
@@ -561,7 +576,9 @@ const checkView = createPrompt(<T,>(config: CheckConfig<T>, done: (values: T[] |
   const extraRows = warning || summary ? 2 + (warning || summary || '').split('\n').length - 1 : 0;
   // 全选、继续与操作提示固定保留，只滚动中间的选项。
   const page = usePagination({ items, active: Math.max(0, Math.min(items.length - 1, active - 1)), loop: false,
-    pageSize: Math.max(1, Math.min(14, (process.stdout.rows || 28) - 7 - footer.split('\n').length - extraRows)),
+    // 提示行、全选、继续、空行与操作提示固定保留；页头之下剩余的行数不够时缩短列表
+    pageSize: Math.max(1, Math.min(14, (process.stdout.rows || 28) - 7 - footer.split('\n').length - extraRows,
+      (remainingRows() ?? Infinity) - 5 - footer.split('\n').length - extraRows)),
     renderItem({ item, index }) {
       const box = checked[index] ? theme.brand('☑') : theme.subtle('☐');
       const icon = item.icon ? `${item.icon} ` : '';

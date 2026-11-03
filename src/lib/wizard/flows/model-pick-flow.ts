@@ -151,14 +151,16 @@ function sortModels(models: PickerModel[]): PickerModel[] {
 export async function pickModel(options: PickOptions): Promise<PickResult> {
   const title = options.title ?? t('model_pick_title');
   const connection = { ...(options.connection ?? configManager.getConnection(options.tools[0]?.name)) };
-  uiRenderer.renderPage(title, options.step, undefined, connection);
+  // 进度 2 + 标题 3 + 说明 2 + 提示行 + 概览 3 + 分隔线 + 搜索框 + 厂商标签 + 约 10 行列表 + 隐藏行数 + 空行与操作提示 2 + 光标
+  const bodyRows = (options.step ? 2 : 0) + 3 + 2 + 22;
+  uiRenderer.renderPage(title, options.step, undefined, connection, { bodyRows });
   const models = await loadModels(connection);
   if (!models) return 'back';
 
   let showAll = false;
   let last: string | undefined = options.current;
   while (true) {
-    uiRenderer.renderPage(title, options.step, undefined, connection);
+    uiRenderer.renderPage(title, options.step, undefined, connection, { bodyRows });
     const usable = sortModels(models.filter((m) => showAll || capabilities(m).toolCall));
     const byId = new Map(models.map((m) => [m.id, m]));
     const publishers = modelPublishers(usable);

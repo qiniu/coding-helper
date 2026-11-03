@@ -1,8 +1,8 @@
 import { registeredTools } from '../../tool-registry.js';
 import chalk from 'chalk';
-import { stringWidth, padEnd, truncate, visibleWidth } from '../../../utils/string-width.js';
-import { logger } from '../../../utils/logger.js';
-import { renderLogo as renderLogoArt } from './logo.js';
+import { stringWidth, padEnd, truncate, visibleWidth, padVisible, stripAnsi } from '../../../utils/string-width.js';
+import { logger, screen } from '../../../utils/logger.js';
+import { renderLogo as renderLogoArt, renderCompactLogo, logoHeight, COMPACT_LOGO_HEIGHT, COMPACT_LOGO_MIN_COLUMNS } from './logo.js';
 import { theme } from './theme.js';
 import { configManager, type Connection } from '../../config.js';
 import { CUSTOM_ENDPOINT, ENDPOINT_DEFINITIONS } from '../../endpoints.js';
@@ -10,6 +10,31 @@ import { t } from '../../i18n.js';
 import { isLauncherReady } from '../../core/tool-service.js';
 
 export interface StepInfo { current: number; total: number; keys?: string[]; }
+
+// 页头之下默认给页面内容预留的行数：进度 2 + 标题与说明 3 + 菜单提示 1 + 约 8 行选项 + 说明 2 + 操作提示 2。
+// 终端放得下「Logo + 状态栏 + 这些行」时显示完整 Logo，否则退回一行标题；页面可按自己的内容传 bodyRows
+export const PAGE_BODY_ROWS = 18;
+
+// 勾选列表在页头之下的行数：提示行、全选、分隔线、继续、空行 + 已选摘要、空行 + 操作提示、光标
+export function checklistRows(items: number): number {
+  return items + 9;
+}
+
+export interface HeaderOptions {
+  // true / false 强制；不传时按终端高度自动决定
+  full?: boolean;
+  crumb?: string;
+  connection?: Connection;
+  // 页面内容需要的行数（含操作提示），默认 PAGE_BODY_ROWS
+  bodyRows?: number;
+  // 初始化欢迎页在短终端优先显示紧凑的七牛标志。
+  brandMark?: boolean;
+}
+
+// 首次向导的步骤
+export const WIZARD_STEP_KEYS = ['step_language', 'step_endpoint', 'step_apikey', 'step_tools', 'step_model', 'step_confirm'];
+// 接入 / 切换模型的步骤：选工具 → 选模型 → 确认
+export const FLOW_STEP_KEYS = ['step_tools', 'step_model', 'step_confirm'];
 
 // 配置面板条目
 export interface ConfigPanelItem {
@@ -31,16 +56,53 @@ export function connectedToolNames(options: { includeLaunchOnly?: boolean } = {}
   }).map(tool => tool.name);
 }
 
+// 状态栏分行：放得下就一行；否则连接一行、接入与配置档一行；再放不下才逐段换行
+function statusLines(parts: string[], columns: number): string[] {
+  const line = parts.join(theme.subtle('  ·  '));
+  if (visibleWidth(line) + 4 <= columns) return [line];
+  const lines: string[] = [];
+  for (const group of [parts.slice(0, 2), parts.slice(2)]) {
+    const text = group.join(theme.subtle('  ·  '));
+    if (visibleWidth(text) + 4 <= columns) lines.push(text);
+    else lines.push(...group);
+  }
+  return lines;
+}
+
 // 终端 UI 渲染器
 export const uiRenderer = {
-  renderPage(title: string, step?: StepInfo, subtitle?: string, connection?: Connection): void {
-    this.renderHeader({ connection });
-    this.renderTitle(step ? `${title} (${step.current}/${step.total})` : title);
-    if (subtitle) this.renderHint(subtitle);
+  // 页头按终端高度自动决定是否显示完整 Logo；bodyRows 为页面内容需要的行数
+  renderPage(title: string, step?: StepInfo, subtitle?: string, connection?: Connection, options: { full?: boolean; bodyRows?: number } = {}): void {
+    this.renderHeader({ connection, full: options.full, bodyRows: options.bodyRows });
+    if (!step) return this.renderTitle(title, subtitle);
+    this.renderSteps(step);
+    this.renderTitle(title, subtitle);
+  },
+
+  // 流程进度：● 语言 ── ● 线路 ── ◉ API Key ── ○ 工具 ── ○ 模型   3 / 6
+  renderSteps(step: StepInfo): void {
+    const labels = (step.keys ?? WIZARD_STEP_KEYS).slice(0, step.total).map(key => t(key));
+    const parts = labels.map((label, i) => {
+      if (i < step.current - 1) return `${theme.success('●')} ${theme.subtle(label)}`;
+      if (i === step.current - 1) return `${theme.brandBold('◉')} ${theme.heading(label)}`;
+      return `${theme.border('○')} ${theme.border(label)}`;
+    });
+    const counter = theme.subtle(`${Math.min(step.current, step.total)} / ${step.total}`);
+    const line = parts.join(theme.border(' ── '));
+    // 窄终端放不下整条进度时只显示当前步
+    const columns = process.stdout.columns || 100;
+    logger.log(visibleWidth(line) + 10 <= columns ? `  ${line}   ${counter}` : `  ${parts[step.current - 1] ?? ''}   ${counter}`);
+    logger.newLine();
   },
   // 清屏 - 清除终端内容和滚动缓冲区
   clearScreen(): void {
     process.stdout.write('\x1Bc');
+    screen.reset();
+  },
+
+  // 终端高度能否在 Logo 与状态栏之下完整放下 bodyRows 行（含操作提示，另留 1 行给光标）
+  logoFits(bodyRows = PAGE_BODY_ROWS, connection?: Connection, sprite?: string): boolean {
+    return (process.stdout.rows || 0) >= logoHeight(sprite) + this.statusBarRows(connection) + bodyRows + 1;
   },
 
   // 渲染七牛 Logo
@@ -48,13 +110,22 @@ export const uiRenderer = {
     renderLogoArt(toolName);
   },
 
-  // 统一页面头部：清屏 + Logo + 配置面板（线路 + API Key）
-  renderHeader(options: string | { full?: boolean; crumb?: string; connection?: Connection } = {}): void {
+  // 统一页面头部：清屏 + 完整 Logo（终端够高时）或一行标题 + 状态栏。所有页面共用这一规则：
+  // 放得下 Logo、状态栏与页面内容时显示 Logo，只有空间不足时才退回一行标题。
+  // 传工具名时 Logo 旁显示该工具的角色，一行标题带上工具名
+  renderHeader(options: string | HeaderOptions = {}): void {
     const toolName = typeof options === 'string' ? options : undefined;
-    const header = typeof options === 'string' ? { full: (process.stdout.rows || 24) >= 30, crumb: toolName, connection: undefined } : options;
+    const header: HeaderOptions = typeof options === 'string' ? { crumb: toolName } : options;
+    const full = header.full ?? this.logoFits(header.bodyRows, header.connection, toolName);
     this.clearScreen();
-    if (header.full) this.renderLogo(toolName);
-    else logger.log(`  ${theme.brandBold('QINIU')} ${theme.heading('Coding Helper')}${header.crumb ? '  >  ' + header.crumb : ''}`);
+    if (full) this.renderLogo(toolName);
+    else if (header.brandMark && (process.stdout.columns || 80) >= COMPACT_LOGO_MIN_COLUMNS
+      && (process.stdout.rows || 0) >= COMPACT_LOGO_HEIGHT + this.statusBarRows(header.connection) + (header.bodyRows ?? PAGE_BODY_ROWS) + 1) {
+      renderCompactLogo();
+    } else {
+      logger.newLine();
+      logger.log(`  ${theme.brandBold('QINIU')} ${theme.heading('Coding Helper')}${header.crumb ? theme.subtle('  ›  ') + theme.value(header.crumb) : ''}`);
+    }
     this.renderStatusBar(header.connection);
   },
   renderStatusBar(connection?: Connection): void {
@@ -68,41 +139,82 @@ export const uiRenderer = {
     const profile = connection ? connection.profile : configManager.getActiveProfile();
     if (profile) parts.push(`${theme.subtle(t('profile_label'))} ${theme.brand(profile)}`);
     const columns = Math.max(12, process.stdout.columns || 100);
-    const line = parts.join(theme.subtle('  ·  '));
-    if (visibleWidth(line) + 4 <= columns) logger.log(`  ${line}`);
-    else for (const part of parts) logger.log(`  ${part}`);
+    for (const line of statusLines(parts, columns)) logger.log(`  ${line}`);
     logger.log(`  ${theme.border('─'.repeat(Math.max(1, Math.min(columns - 4, 72))))}`);
     logger.newLine();
+  },
+  // 状态栏占用的行数（含分隔线与空行），按与 renderStatusBar 相同的规则换行
+  statusBarRows(connection?: Connection): number {
+    const apiKey = connection ? connection.apiKey : configManager.getApiKey();
+    const parts = [
+      this.endpointLabel(connection?.endpoint, connection?.baseUrl) + '  ',
+      `Key ${apiKey ? this.maskApiKey(apiKey) : t('config_view_not_set')}`,
+      `${t('status_applied')} ${connectedToolNames({ includeLaunchOnly: true }).length} / ${registeredTools().length}`,
+    ];
+    const profile = connection ? connection.profile : configManager.getActiveProfile();
+    if (profile) parts.push(`${t('profile_label')} ${profile}`);
+    return statusLines(parts, Math.max(12, process.stdout.columns || 100)).length + 2;
   },
   endpointLabel(endpoint = configManager.getEndpoint(), baseUrl = configManager.baseUrl): string {
     const definition = ENDPOINT_DEFINITIONS[endpoint];
     return definition ? t(definition.i18nKey) : `${t('endpoint_custom')} ${baseUrl.replace(/^https?:\/\//, '')}`;
   },
 
-  // 渲染欢迎界面
+  // 渲染欢迎界面（圆角卡片）
   renderWelcome(title: string, description: string, privacyNotice: string): void {
-    const line = '─'.repeat(50);
-    logger.newLine();
-    logger.log(chalk.cyan(line));
-    logger.log(chalk.bold.cyan(`  ${title}`));
-    logger.log(chalk.cyan(line));
-    logger.newLine();
-    logger.log(`  ${description}`);
-    logger.newLine();
-    logger.log(chalk.dim(`  ${privacyNotice}`));
+    const lines = [theme.brandBold(title), '', theme.value(description), theme.subtle(privacyNotice)];
+    const inner = Math.min(Math.max(46, ...lines.map(visibleWidth)) + 4, Math.max(20, (process.stdout.columns || 100) - 6));
+    logger.log(`  ${theme.border('╭' + '─'.repeat(inner) + '╮')}`);
+    for (const line of lines) {
+      const text = visibleWidth(line) > inner - 4 ? truncate(line, inner - 4) : line;
+      logger.log(`  ${theme.border('│')}  ${padVisible(text, inner - 2)}${theme.border('│')}`);
+    }
+    logger.log(`  ${theme.border('╰' + '─'.repeat(inner) + '╯')}`);
     logger.newLine();
   },
 
-  // 渲染标题 — 左右等长灰色线条 + 中间亮色标题
-  renderTitle(title: string): void {
-    const titleWidth = stringWidth(title);
-    const totalWidth = 50;
-    const sideLen = Math.max(2, Math.floor((totalWidth - titleWidth - 2) / 2));
-    const leftLine = '─'.repeat(sideLen);
-    const rightLine = '─'.repeat(sideLen);
+  // 页面标题：粗体标题 + 可选的一行说明
+  renderTitle(title: string, subtitle?: string): void {
+    logger.log(`  ${theme.heading(title)}`);
+    if (subtitle) logger.log(`  ${theme.subtle(subtitle)}`);
     logger.newLine();
-    logger.log(`  ${theme.subtle(leftLine)} ${theme.heading(title)} ${theme.subtle(rightLine)}`);
-    logger.newLine();
+  },
+
+  // 圆角表格：表头 + 行，单元格可带颜色
+  renderTable(headers: string[], rows: string[][]): void {
+    const widths = headers.map((header, col) => Math.max(visibleWidth(header), ...rows.map(row => visibleWidth(row[col] ?? ''))));
+    const columns = Math.max(12, process.stdout.columns || 100);
+    // 表格放不下时逐字段展示，按可见列宽换行，保留完整值而不是让边框折行错位。
+    if (3 + widths.reduce((sum, width) => sum + width + 3, 0) > columns) {
+      const wrapped = (text: string, indent: number, style: (value: string) => string): void => {
+        for (const paragraph of stripAnsi(text).split('\n')) {
+          let line = '';
+          for (const char of paragraph) {
+            if (visibleWidth(line + char) > columns - indent) {
+              logger.log(' '.repeat(indent) + style(line));
+              line = '';
+            }
+            line += char;
+          }
+          logger.log(' '.repeat(indent) + style(line));
+        }
+      };
+      for (const cells of rows) {
+        headers.forEach((header, col) => {
+          wrapped(header, 2, theme.label);
+          wrapped(cells[col] ?? '', 4, theme.value);
+        });
+        logger.newLine();
+      }
+      return;
+    }
+    const line = (left: string, mid: string, right: string): string => `  ${theme.border(left + widths.map(w => '─'.repeat(w + 2)).join(mid) + right)}`;
+    const row = (cells: string[]): string => `  ${theme.border('│')}${cells.map((cell, i) => ` ${padVisible(cell, widths[i])} `).join(theme.border('│'))}${theme.border('│')}`;
+    logger.log(line('╭', '┬', '╮'));
+    logger.log(row(headers.map(header => theme.label(header))));
+    logger.log(line('├', '┼', '┤'));
+    for (const cells of rows) logger.log(row(cells));
+    logger.log(line('╰', '┴', '╯'));
   },
 
   // 渲染带边框的配置面板卡片（动态宽度，自适应内容）
