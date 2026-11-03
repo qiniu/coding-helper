@@ -9,8 +9,8 @@ delete process.env.KIMI_CODE_HOME; delete process.env.GROK_HOME;
 const { GrokTool } = await import('../dist/lib/tools/grok-tool.js');
 test('Grok accepts semantic default encodings and identifies managed tables',async()=>{
  const {applyGrokConfig,hasManagedGrokConfig,getGrokInstallCommand}=await import('../dist/lib/tools/grok-tool.js');const {parse}=await import('smol-toml');
- for(const source of ['[models]\n"default"="old"\nkeep=true\n','models.default="old"\nmodels.keep=true\n','models = { default = "old", keep = true }\n']){
-  const next=parse(applyGrokConfig(source,'https://api.qnaigc.com','key','test/model'));assert.equal(next.models.default,'qiniu');assert.equal(next.models.keep,true);
+ for(const source of ['[models]\n"default"="old"\n"session_summary"="old-summary"\nkeep=true\nweb_search="old-web"\n','models.default="old"\nmodels.session_summary="old-summary"\nmodels.keep=true\nmodels.web_search="old-web"\n','models = { default = "old", session_summary = "old-summary", keep = true, web_search = "old-web" }\n']){
+  const next=parse(applyGrokConfig(source,'https://api.qnaigc.com','key','test/model'));assert.equal(next.models.default,'qiniu');assert.equal(next.models.session_summary,'qiniu');assert.equal(next.model.qiniu.model,'test/model');assert.equal(next.models.keep,true);assert.equal(next.models.web_search,'old-web');
  }
  assert.equal(hasManagedGrokConfig('[model."qiniu"] # comment\nmodel="x"'),true);
  assert.equal(hasManagedGrokConfig('text="""\n[model.qiniu]\n"""'),false);
@@ -28,10 +28,10 @@ const { hasSavedToolModelConfig } = await import('../dist/lib/wizard/menus/tool-
 const tool = new GrokTool(); tool.getVersion = () => null;
 marketModelService.fetchModels = async () => [];
 const files = [".grok/config.toml"].map(file => path.join(home, file));
-const originals = ["# keep\n[models]\ndefault = \"original\"\n[other]\ncustom = true\n"];
+const originals = ["# keep\n[models]\ndefault = \"original\"\nsession_summary = \"original-summary\" # restore this too\n[other]\ncustom = true\n"];
 const write = (file, value) => { fs.mkdirSync(path.dirname(file), { recursive: true }); fs.writeFileSync(file, value); };
 const read = file => fs.readFileSync(file, 'utf8');
-const load = (key = 'test-key') => tool.loadConfig(key, 'https://api.qnaigc.com', { toolModels: { [tool.name]: 'test/model' } });
+const load = (key = 'test-key', model = 'test/model') => tool.loadConfig(key, 'https://api.qnaigc.com', { toolModels: { [tool.name]: model } });
 test('Grok keeps CRLF and known context during an offline credential reload',async()=>{
  const {parse}=await import('smol-toml');const fetch=marketModelService.fetchModels;
  const original='[models]\r\ndefault="original"\r\n[other]\r\nkeep=true\r\n';write(files[0],original);
@@ -44,8 +44,9 @@ test('grok is registered and recognizes saved generic model selection', () => {
 });
 test('grok restores bytes and refuses corrupt or changed config', async () => {
   files.forEach((file, i) => write(file, originals[i]));
-  await load(); await load('second-key');
-  assert.match(read(files[0]), /model.qiniu/); assert.match(read(files[0]), /session_summary = "qiniu"/);
+  await load(); await load('second-key', 'second/model');
+  const {parse}=await import('smol-toml');const selected=parse(read(files[0]));
+  assert.equal(selected.models.default,'qiniu');assert.equal(selected.models.session_summary,'qiniu');assert.equal(selected.model.qiniu.model,'second/model');
   await tool.unloadConfig(); files.forEach((file, i) => assert.equal(read(file), originals[i]));
   write(files[0], "broken = [");
   await assert.rejects(load()); assert.equal(read(files[0]), "broken = [");
