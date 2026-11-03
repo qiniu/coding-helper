@@ -35,6 +35,9 @@ export interface MarketModelInfo {
     avatar: string;
     model_page: string;
   };
+  // 标记（热门、上新、免费、限时免费）与下线日期，和七牛模型广场一致
+  hot_tags?: string[] | null;
+  retirement_at?: string | null;
 }
 
 // 七牛 features 字段中的能力标签

@@ -64,9 +64,10 @@ export function renderKeyHints(hints: KeyHint[]): string {
 }
 
 // 标准提示：↑↓ 选择 · 回车 确认 · Esc 返回
-export function standardHints(options: { back?: boolean; search?: boolean; tabs?: boolean; enter?: string } = {}): KeyHint[] {
+export function standardHints(options: { back?: boolean; search?: boolean; tabs?: boolean; enter?: string; page?: boolean } = {}): KeyHint[] {
   return [
     ['↑↓', t('ui_key_move')],
+    ...(options.page ? [['PgUp/PgDn', t('ui_key_page')] as KeyHint] : []),
     ...(options.tabs ? [['←→', t('ui_key_tabs')] as KeyHint] : []),
     [t('ui_key_enter'), options.enter ?? t('ui_key_confirm')],
     ...(options.back !== false ? [['Esc', t('ui_key_back')] as KeyHint] : []),
@@ -112,8 +113,10 @@ export interface MenuItem<T> {
   label: string;
   // 右侧的当前值/状态
   hint?: string;
-  // 选中时显示在列表下方
+  // 选中时显示的说明（默认在列表下方，detailPosition: 'top' 时在列表上方）
   description?: string;
+  // 当前正在使用的项：行首显示 ▪ 标记
+  current?: boolean;
   // 隐藏的加速键（数字或字母），按下直接选中并确认；不可搜索的菜单才生效
   key?: string;
   // 左侧图标（已着色），需定宽
@@ -182,7 +185,16 @@ export interface MenuConfig<T> {
   arrows?: boolean;
   // 选中项变化时异步取一行补充信息（如模型兼容性），结果按 value 缓存
   asyncDetail?: (item: MenuItem<T>) => Promise<string> | string | undefined;
+  // 选中项说明的位置：'top' 放在提示行之后、搜索框与标签之前（固定高度，随选中项实时更新），
+  // 并按终端高度缩小列表，保证说明、搜索框、列表与操作提示在一屏内
+  detailPosition?: 'top' | 'bottom';
   pageSize?: number;
+}
+
+// 文本在当前终端宽度下占用的行数（含自动折行）
+function screenRows(text: string): number {
+  const columns = process.stdout.columns || 100;
+  return text.split('\n').reduce((sum, line) => sum + Math.max(1, Math.ceil(visibleWidth(line) / columns)), 0);
 }
 
 export interface MenuResult<T> {
@@ -310,6 +322,17 @@ const menuView = createPrompt(<T,>(config: MenuConfig<T>, done: (result: MenuRes
       if (next >= first && next <= last) setActive(next);
       return;
     }
+    // 长列表翻页：PageUp / PageDown 一次移动一页，Home / End 跳到首尾（落在最近的可选项上）
+    if (['pageup', 'pagedown', 'home', 'end'].includes(key.name)) {
+      if (activeIndex < 0) return;
+      const target = key.name === 'home' ? first : key.name === 'end' ? last
+        : Math.max(first, Math.min(last, activeIndex + (key.name === 'pageup' ? -pageSize : pageSize)));
+      const step = target >= activeIndex ? -1 : 1;
+      let next = target;
+      while (next !== activeIndex && !selectable(items[next])) next += step;
+      setActive(next);
+      return;
+    }
     if (key.name === 'left' || key.name === 'right') {
       if (config.tabs?.length && !query) {
         const count = config.tabs.length;
@@ -339,24 +362,66 @@ const menuView = createPrompt(<T,>(config: MenuConfig<T>, done: (result: MenuRes
     ...all.map((e) => 4 + iconWidth + labelWidth + 4 + visibleWidth(hintOf(e)) + 2),
   ));
 
+  // 列表之外的各行：提示行、搜索框、标签、无结果提示、说明区与操作提示
+  const detailTop = config.detailPosition === 'top';
+  const searchLine = config.searchable ? (() => {
+    const matches = !query ? 0 : config.items.filter((e) => selectable(e) && !e.pinned && (config.filter ?? defaultFilter)(e, query) !== undefined).length;
+    // 光标：输入后跟在搜索词末尾；未输入或清空后位于占位文字起始处
+    const cursor = cursorOn.current ? CURSOR_ON : ' ';
+    return query
+      ? `  ${theme.brand('⌕')} ${theme.value(query)}${cursor}   ${theme.subtle(t('ui_search_found', { count: String(matches) }))}`
+      : `  ${theme.subtle('⌕')} ${cursor}${theme.subtle(config.placeholder ?? t('ui_search_placeholder'))}`;
+  })() : undefined;
+  const tabsLine = config.tabs?.length ? renderMenuTabs(config.tabs, query ? 0 : tab) : undefined;
+  const hasMatches = query ? config.items.some((e) => selectable(e) && !e.pinned && (config.filter ?? defaultFilter)(e, query) !== undefined) : true;
+  const emptyLine = hasMatches ? undefined : `  ${theme.subtle(config.emptyText?.(query) ?? t('ui_search_empty'))}`;
+  // 操作提示：列表超出一页时加上翻页键
+  const footerFor = (overflow: boolean): string => {
+    const hints = config.footer ?? standardHints({ back: !!config.escape, search: config.searchable, tabs: !!config.tabs?.length, page: overflow });
+    return `  ${renderKeyHints(query ? [['Esc', t('ui_key_clear_search')], [t('ui_key_enter'), t('ui_key_confirm')]] : hints)}`;
+  };
+  const extra = current && current.value !== CUSTOM ? details.get(current.value) : undefined;
+  const detailText = [current?.description, extra].filter(Boolean).join('\n');
+  // 上方说明区按所有选项中最多的行数固定高度，移动选中项时列表不跳动；放不下的行截断，避免折行
+  const detailRows = detailTop
+    ? Math.max(0, ...all.map((e) => (e.description ? e.description.split('\n').length : 0))) + (config.asyncDetail ? 1 : 0)
+    : 0;
+  const detailLines = detailTop ? Array.from({ length: detailRows }, (_, i) => {
+    const line = detailText.split('\n')[i] ?? '';
+    return visibleWidth(line) > terminalWidth() - 4 ? `  ${theme.subtle(truncate(stripAnsi(line), terminalWidth() - 4))}` : `  ${line}`;
+  }) : [];
+  const requestedPageSize = config.pageSize ?? 14;
+  // 列表之外占用的行数；超出一页时多一行「上面 / 下面还有几个」，操作提示也多出翻页键
+  const fixedRows = (overflow: boolean): number => 1 + (searchLine ? screenRows(searchLine) : 0) + (tabsLine ? screenRows(tabsLine) : 0) + (emptyLine ? 1 : 0)
+    + (detailTop ? detailRows + 1 : 0) + (overflow ? 1 : 0) + 1 + screenRows(footerFor(overflow)) + 1;
+  const fitPage = (overflow: boolean): number => detailTop && process.stdout.rows
+    ? Math.max(Math.min(3, requestedPageSize), Math.min(requestedPageSize, process.stdout.rows - fixedRows(overflow)))
+    : requestedPageSize;
+  // 先按不超出估算；放不下全部选项时再按超出（多一行提示）重新计算页高
+  const overflows = items.length > fitPage(false);
+  const pageSize = fitPage(overflows);
+  const footerText = footerFor(overflows);
+
   const page = usePagination({
     items,
     active: Math.max(0, activeIndex),
-    pageSize: config.pageSize ?? 14,
+    pageSize,
     loop: false,
     renderItem({ item, isActive }) {
       if (isSeparator(item)) return item.separator ? `  ${theme.subtle(item.separator)}` : '';
       const icon = item.icon ? `${item.icon} ` : '';
       const rawLabel = query && item.value !== CUSTOM ? highlightMatch(item.label, config.highlight?.(query) ?? query) : item.label;
       const label = padVisible((visibleWidth(rawLabel) > Math.max(1, terminalWidth() - 8 - iconWidth) ? truncate(stripAnsi(rawLabel), Math.max(1, terminalWidth() - 8 - iconWidth)) : rawLabel), Math.min(labelWidth, Math.max(1, terminalWidth() - 8 - iconWidth)));
+      // 当前正在使用的项在第 3 列显示 ▪，标签仍与其他行对齐
+      const mark = item.current ? theme.brand('▪') : ' ';
       if (item.disabled) {
-        return `    ${icon}${theme.subtle(label)}    ${theme.subtle(hintOf(item))}`;
+        return `  ${mark} ${icon}${theme.subtle(label)}    ${theme.subtle(hintOf(item))}`;
       }
       if (isActive) {
-        const text = ` ${theme.brandBold('❯')}  ${icon}${chalk.bold.hex('#E8F6FF')(label)}    ${chalk.hex('#8BE9FF')(hintOf(item))}`;
+        const text = ` ${theme.brandBold('❯')}${mark} ${icon}${chalk.bold.hex('#E8F6FF')(label)}    ${chalk.hex('#8BE9FF')(hintOf(item))}`;
         return highlightRow(text, width);
       }
-      return `    ${icon}${theme.value(label)}    ${theme.subtle(hintOf(item))}`;
+      return `  ${mark} ${icon}${theme.value(label)}    ${theme.subtle(hintOf(item))}`;
     },
   });
 
@@ -364,27 +429,28 @@ const menuView = createPrompt(<T,>(config: MenuConfig<T>, done: (result: MenuRes
     return `${theme.success('✔')} ${theme.heading(config.message)} ${theme.brand(current?.value === CUSTOM ? query : current?.label ?? '')}`;
   }
   const lines = [`${theme.brand('?')} ${theme.heading(config.message)}`];
-  if (config.searchable) {
-    const matches = !query ? 0 : config.items.filter((e) => selectable(e) && !e.pinned && (config.filter ?? defaultFilter)(e, query) !== undefined).length;
-    // 光标：输入后跟在搜索词末尾；未输入或清空后位于占位文字起始处
-    const cursor = cursorOn.current ? CURSOR_ON : ' ';
-    lines.push(query
-      ? `  ${theme.brand('⌕')} ${theme.value(query)}${cursor}   ${theme.subtle(t('ui_search_found', { count: String(matches) }))}`
-      : `  ${theme.subtle('⌕')} ${cursor}${theme.subtle(config.placeholder ?? t('ui_search_placeholder'))}`);
-  }
-  if (config.tabs?.length) lines.push(renderMenuTabs(config.tabs, query ? 0 : tab));
-  const hasMatches = query ? config.items.some((e) => selectable(e) && !e.pinned && (config.filter ?? defaultFilter)(e, query) !== undefined) : true;
-  if (!hasMatches) {
-    lines.push(`  ${theme.subtle(config.emptyText?.(query) ?? t('ui_search_empty'))}`);
-  }
+  // 说明在上方：紧跟提示行，下面一条分隔线，再是搜索框与标签
+  if (detailTop && detailRows) lines.push(...detailLines, `  ${theme.border('─'.repeat(Math.max(1, Math.min(terminalWidth() - 4, 60))))}`);
+  if (searchLine) lines.push(searchLine);
+  if (tabsLine) lines.push(tabsLine);
+  if (emptyLine) lines.push(emptyLine);
   if (items.length) lines.push(page);
-  const extra = current && current.value !== CUSTOM ? details.get(current.value) : undefined;
-  if (current?.description || extra) {
-    lines.push('');
-    for (const line of [current?.description, extra].filter(Boolean).join('\n').split('\n')) lines.push(`  ${line}`);
+  // 与 usePagination（不循环）相同的规则推算可见窗口：选中项尽量居中，靠近首尾时贴边
+  if (items.length > pageSize) {
+    const middle = Math.floor(pageSize / 2);
+    const active = Math.max(0, activeIndex);
+    const below = items.length - active;
+    const start = below < pageSize - middle ? items.length - pageSize : Math.max(0, active - middle);
+    const count = (from: number, to: number): number => items.slice(from, to).filter(selectable).length;
+    const above = count(0, start), rest = count(start + pageSize, items.length);
+    const more = [above ? `↑ ${t('ui_more_above', { count: String(above) })}` : '', rest ? `↓ ${t('ui_more_below', { count: String(rest) })}` : ''].filter(Boolean).join('   ');
+    if (more) lines.push(`  ${theme.subtle(more)}`);
   }
-  const footer = config.footer ?? standardHints({ back: !!config.escape, search: config.searchable, tabs: !!config.tabs?.length });
-  lines.push('', `  ${renderKeyHints(query ? [['Esc', t('ui_key_clear_search')], [t('ui_key_enter'), t('ui_key_confirm')]] : footer)}`);
+  if (!detailTop && detailText) {
+    lines.push('');
+    for (const line of detailText.split('\n')) lines.push(`  ${line}`);
+  }
+  lines.push('', footerText);
   return `${lines.join('\n')}${CURSOR_HIDE}`;
 });
 

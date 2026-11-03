@@ -7,6 +7,10 @@ for (const query of ['glm5', '智谱', '200k']) test('production searchSelect re
  assert.match(out, /RESULT.*"z-ai\/glm-5.2"/);
 });
 
+test('unlisted custom model input is accepted rather than replaced by a suggestion',{skip:process.platform==='win32'},async()=>{
+ const out=await runPrompt(head+`console.log('RESULT',JSON.stringify(await promptHelper.searchSelect('CUSTOM_READY',items)));`,[['CUSTOM_READY','vendor/unlisted'],['vendor/unlisted','\r']]);assert.match(out,/RESULT.*"vendor\/unlisted"/);
+});
+
 for(const [query,id] of [['工具调用','z-ai/glm-5.2'],['思考','vendor/reasoner'],['Friendly','vendor/reasoner']])test('production search preserves visible name or capability: '+query,{skip:process.platform==='win32'},async()=>{
  const out=await runPrompt(head+`console.log('RESULT',JSON.stringify(await promptHelper.searchSelect('CAP_READY',items)));`,[['CAP_READY',query],[query,query==='Friendly'?'\x1b[B\r':'\r']]);assert.ok(out.includes('"'+id+'"'),out);
 });
