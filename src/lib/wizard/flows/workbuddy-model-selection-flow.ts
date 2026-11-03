@@ -1,6 +1,6 @@
 import ora from 'ora';
 import { t } from '../../i18n.js';
-import { configManager } from '../../config.js';
+import { configManager, type Connection } from '../../config.js';
 import {
   marketModelService,
   getModelCapabilities,
@@ -11,14 +11,14 @@ import { uiRenderer } from '../ui/ui-renderer.js';
 
 // 让用户多选 WorkBuddy 要配置的模型，返回选中的模型 ID 列表
 // 若已有历史配置，先询问是否复用；否则进入完整选择流程
-export async function runWorkBuddyModelSelectionFlow(): Promise<string[] | null> {
-  const { apiKey, baseUrl } = configManager.getConnection('workbuddy');
+export async function runWorkBuddyModelSelectionFlow(options: { connection?: Connection; previous?: string[] } = {}): Promise<string[] | null> {
+  const { apiKey, baseUrl } = options.connection ?? configManager.getConnection('workbuddy');
   if (!apiKey) {
     uiRenderer.renderError(t('apikey_not_set'));
     return null;
   }
 
-  const previous = configManager.getModels().workbuddyModels;
+  const previous = options.previous ?? configManager.getModels().workbuddyModels;
   if (previous && previous.length > 0) {
     uiRenderer.renderHeader();
     uiRenderer.renderHint(

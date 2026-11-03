@@ -1,6 +1,6 @@
 import inquirer from 'inquirer';
 import { pickModel, type PickOptions, type PickResult } from '../flows/model-pick-flow.js';
-import { menuPrompt } from './prompts.js';
+import { checkPrompt, menuPrompt } from './prompts.js';
 import { scoreModel, closestModels, resolveModelId, parseModelQuery, type SearchableModel } from '../../core/model-search.js';
 import { RECOMMENDED_MODELS } from '../../core/quick-args.js';
 import { t } from '../../i18n.js';
@@ -90,16 +90,7 @@ export const promptHelper = {
 
   // 多选列表
   async checkbox<T extends string>(message: string, choices: { name: string; value: T }[]): Promise<T[]> {
-    const { answer } = await inquirer.prompt([
-      {
-        type: 'checkbox',
-        name: 'answer',
-        message,
-        choices,
-        pageSize: 15,
-      },
-    ]);
-    return answer as T[];
+    return await checkPrompt({ message, allowEmpty: true, items: choices.map(choice => ({ value: choice.value, label: choice.name })) }) ?? [];
   },
 
   // 搜索+自动补全选择（同时展示输入框和可滚动列表，支持自定义输入和跳过）
