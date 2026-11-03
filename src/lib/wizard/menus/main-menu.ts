@@ -1,7 +1,11 @@
 import { t, i18n } from '../../i18n.js';
 import { promptHelper } from '../ui/prompt-helper.js';
-import { uiRenderer, connectedToolNames, launchOnlyTools } from '../ui/ui-renderer.js';
-import { menuPrompt } from '../ui/prompts.js';
+import { uiRenderer, connectedToolNames, launchOnlyTools, checklistRows } from '../ui/ui-renderer.js';
+import chalk from 'chalk';
+import { menuPrompt, type MenuEntry } from '../ui/prompts.js';
+import { currentToolModel, detectSorted, formatConfiguredBadge, formatInstallState, toolIcon } from '../ui/tool-view.js';
+import { padVisible, visibleWidth } from '../../../utils/string-width.js';
+import type { ToolDetection } from '../../core/tool-service.js';
 import { runLanguageFlow } from '../flows/language-flow.js';
 import { runEndpointSelectionFlow } from '../flows/endpoint-selection-flow.js';
 import { runApiKeyFlow } from '../flows/api-key-flow.js';
@@ -23,11 +27,15 @@ import { restoreCommand } from '../../../commands/restore.js';
 type MainMenuAction = 'setup' | 'model' | 'tools' | 'account' | 'doctor' | 'more';
 type MoreAction = 'context' | 'restore' | 'language' | 'update' | 'clear_config';
 
+// 主菜单在页头之下的行数：提示行 1 + 6 项 + 空行 1 + 操作提示 1 + 光标 1 + 余量 1
+const MAIN_MENU_ROWS = 11;
+
 // 主菜单：6 项，右侧显示当前值；Esc 退出
 export async function showMainMenu(): Promise<void> {
   let last: MainMenuAction | undefined;
   while (true) {
-    uiRenderer.renderHeader({ full: true });
+    // 主菜单内容少（提示行 + 6 项 + 操作提示），24 行的终端也能显示完整 Logo；更矮时退回一行标题
+    uiRenderer.renderHeader({ bodyRows: MAIN_MENU_ROWS });
 
     const connected = connectedToolNames();
     // 只检测是否安装，不查版本（查版本要逐个启动工具，太慢）
@@ -84,7 +92,7 @@ export async function showMainMenu(): Promise<void> {
 async function showAccountMenu(): Promise<void> {
   let last: string | undefined;
   while (true) {
-    uiRenderer.renderPage(t('menu_account'));
+    uiRenderer.renderPage(t('menu_account'), undefined, t('account_subtitle'));
     const apiKey = configManager.getApiKey();
     const profiles = configManager.listProfiles();
     const active = configManager.getActiveProfile();
@@ -93,8 +101,8 @@ async function showAccountMenu(): Promise<void> {
       default: last as 'apikey' | undefined,
       escape: true,
       items: [
-        { value: 'apikey', label: t('menu_configure_apikey'), hint: apiKey ? uiRenderer.maskApiKey(apiKey) : t('config_view_not_set') },
-        { value: 'endpoint', label: t('menu_configure_endpoint'), hint: uiRenderer.endpointLabel() },
+        { value: 'apikey', label: t('menu_configure_apikey'), hint: apiKey ? uiRenderer.maskApiKey(apiKey) : t('config_view_not_set'), description: theme.subtle(t('account_apikey_desc')) },
+        { value: 'endpoint', label: t('menu_configure_endpoint'), hint: uiRenderer.endpointLabel(), description: theme.subtle(t('account_endpoint_desc')) },
         {
           value: 'profile',
           label: t('menu_profiles'),
@@ -167,7 +175,8 @@ function currentModelHint(connected: string[], models: ModelConfig): string {
 // 还原：勾选要还原的工具（默认不勾）后确认
 async function restoreSelected(): Promise<void> {
   const tools = getRestoreTargets(toolManager.getAll());
-  uiRenderer.renderPage(t('menu_restore'), undefined, t('restore_subtitle'));
+  // 标题与说明 3 + 整个还原勾选列表
+  uiRenderer.renderPage(t('menu_restore'), undefined, t('restore_subtitle'), undefined, { bodyRows: 3 + checklistRows(tools.length) });
   if (tools.length === 0) {
     uiRenderer.renderHint(t('restore_nothing'));
     await promptHelper.pressEnter();
@@ -213,26 +222,63 @@ function myToolsHint(connected: number, total: number): string {
   return t('menu_hint_connected', { count: String(connected), total: String(total) });
 }
 
-// 工具选择器（当有多个工具时选择）
-async function showToolSelector(): Promise<void> {
-  const tools = toolManager.getAll();
-
-  uiRenderer.renderHeader();
-  uiRenderer.renderTitle(t('menu_my_tools'));
-  if (launchOnlyTools().length) { uiRenderer.renderHint(t('tools_launch_only_subtitle')); logger.newLine(); }
-
-  // 只能启动接入的工具在右侧注明启动方式，避免被当成「未接入」
-  const choices: { name: string; value: string; hint?: string }[] = tools.map((tool) => ({
-    name: tool.displayName,
+// 我的工具一行：色点 · 名称 · 版本 · 接入状态，右侧当前模型；选中时下方显示模型、连接与配置文件
+function toolEntry(detection: ToolDetection, nameWidth: number): MenuEntry<string> {
+  const { tool } = detection;
+  const installed = detection.installed !== false;
+  const model = currentToolModel(detection);
+  const connection = configManager.getConnection(tool.name);
+  // 是否接入以检测结果为准；接入但没有 helper 保存的模型（如使用工具默认模型）时显示「工具默认」
+  const description = !installed
+    ? `${theme.subtle(t('tool_detail_install'))}  ${theme.value(tool.installCommand)}`
+    // 启动接入的工具不写配置文件，说明用 coding-helper run 启动
+    : tool.launchOnly
+      ? `${theme.subtle(t('tool_detail_launch_only'))}  ${theme.value(`coding-helper run ${tool.name}`)}`
+    : !detection.configured
+      ? theme.subtle(t('tool_detail_not_connected'))
+      : [
+          `${theme.subtle(t('tool_detail_model'))}  ${model ? chalk.hex('#8BE9FF')(model) : theme.subtle(t('tool_detail_model_default'))}`,
+          `${theme.subtle(t('tool_detail_connection'))}  ${theme.value(connection.profile ? `${t('profile_label')} ${connection.profile}` : uiRenderer.endpointLabel(connection.endpoint, connection.baseUrl))}`,
+        ].join('\n');
+  return {
     value: tool.name,
-    ...(tool.launchOnly ? { hint: t('tools_launch_only_hint', { command: `coding-helper run ${tool.name}` }) } : {}),
-  }));
+    icon: toolIcon(tool.name, !installed),
+    label: `${padVisible(installed ? tool.displayName : theme.subtle(tool.displayName), nameWidth)}  ${padVisible(formatInstallState(detection), 10)}  ${formatConfiguredBadge(detection)}`,
+    hint: model ? theme.subtle(model.split('/').pop() ?? model) : '',
+    description,
+    search: tool.name,
+  };
+}
 
-  choices.push({ name: t('tool_back'), value: '__back__' });
-  const toolName = await promptHelper.select<string>(t('menu_select_action'), choices);
-  const tool = toolManager.get(toolName);
-  if (tool) {
-    await showToolMenu(tool);
+// 我的工具：已安装 / 未安装分组，打字搜索，回车打开工具页，Esc 返回
+async function showToolSelector(): Promise<void> {
+  let last: string | undefined;
+  while (true) {
+    // 启动接入也计入总数，在详情页说明启动方式。
+    const detections = detectSorted(toolManager.getAll());
+    // 标题与说明 3 + 提示行 + 搜索框 + 两个分组标题 + 全部工具 + 选中项说明 3 + 空行与操作提示 2 + 光标
+    uiRenderer.renderPage(t('menu_my_tools'), undefined, launchOnlyTools().length ? t('tools_launch_only_subtitle') : undefined, undefined,
+      { bodyRows: 3 + 4 + detections.length + 3 + 2 + 1 });
+    const nameWidth = Math.max(...detections.map(detection => visibleWidth(detection.tool.displayName)));
+    const installed = detections.filter(detection => detection.installed !== false);
+    const missing = detections.filter(detection => detection.installed === false);
+    const { value, action } = await menuPrompt<string>({
+      message: t('menu_select_action'),
+      default: last,
+      escape: true,
+      searchable: true,
+      pageSize: 18,
+      items: [
+        { separator: theme.subtle(t('tool_group_installed', { count: String(installed.length) })) },
+        ...installed.map(detection => toolEntry(detection, nameWidth)),
+        ...(missing.length ? [{ separator: theme.subtle(t('tool_group_missing', { count: String(missing.length) })) }] : []),
+        ...missing.map(detection => toolEntry(detection, nameWidth)),
+      ],
+    });
+    if (action === 'escape') return;
+    last = value;
+    const tool = toolManager.get(value);
+    if (tool) await showToolMenu(tool);
   }
 }
 
@@ -244,5 +290,5 @@ async function runSwitchModelFlow(): Promise<void> {
     await promptHelper.pressEnter();
     return;
   }
-  await runToolSetupFlow(toolManager.getAll().filter(tool => connected.includes(tool.name)), { showCurrentModels: true });
+  await runToolSetupFlow(toolManager.getAll().filter(tool => connected.includes(tool.name)), undefined, { showCurrentModels: true });
 }

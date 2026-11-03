@@ -16,7 +16,9 @@ import {
 import chalk from 'chalk';
 import { theme } from './theme.js';
 import { t } from '../../i18n.js';
+import { screen } from '../../../utils/logger.js';
 import { padVisible, visibleWidth, truncate, stripAnsi } from '../../../utils/string-width.js';
+import { resumeOnResize } from './prompt-resize.js';
 
 // 交互只依赖 ↑↓←→、回车、Esc；字母 / 数字键只作为隐藏的加速键，界面上不提示
 
@@ -202,6 +204,14 @@ export interface MenuConfig<T> {
   pageSize?: number;
 }
 
+// 清屏后页头与页面内容之下还剩的终端行数；没有清屏或内容已滚出屏幕时返回 undefined
+function remainingRows(): number | undefined {
+  const used = screen.used();
+  const rows = process.stdout.rows;
+  if (used === undefined || !rows || used >= rows) return undefined;
+  return rows - used;
+}
+
 // 文本在当前终端宽度下占用的行数（含自动折行）
 function screenRows(text: string): number {
   const columns = process.stdout.columns || 100;
@@ -227,6 +237,18 @@ function selectable<T>(entry: MenuEntry<T> | undefined): entry is MenuItem<T> {
 const CUSTOM = Symbol('custom');
 const ACCEPT = Symbol('accept');
 
+interface MenuSession<T> {
+  query: string;
+  tab: number;
+  value?: T | typeof CUSTOM | typeof ACCEPT;
+  picked: Set<T>;
+  added: MenuItem<T>[];
+  statusText?: string;
+  details: Map<T, string | undefined>;
+  pending: Map<T, Promise<string | undefined>>;
+}
+
+type LiveMenuConfig<T> = MenuConfig<T> & { session: MenuSession<T> };
 
 function defaultFilter<T>(item: MenuItem<T>, query: string): number | undefined {
   const text = `${item.search ?? ''} ${item.label} ${String(item.value)}`.toLowerCase();
@@ -234,25 +256,28 @@ function defaultFilter<T>(item: MenuItem<T>, query: string): number | undefined 
   return index === -1 ? undefined : index;
 }
 
-const menuView = createPrompt(<T,>(config: MenuConfig<T>, done: (result: MenuResult<T>) => void) => {
-  const [query, setQuery] = useState('');
-  const [picked, setPicked] = useState(new Set(config.multiple?.initial));
-  const [added, setAdded] = useState<MenuItem<T>[]>([]);
+const menuView = createPrompt(<T,>(config: LiveMenuConfig<T>, done: (result: MenuResult<T>) => void) => {
+  const { session } = config;
+  const [query, setQuery] = useState(session.query);
+  const [picked, setPicked] = useState(session.picked);
+  const [added, setAdded] = useState(session.added);
+  session.picked = picked;
+  session.added = added;
   const entries = useMemo(() => {
     const control = config.multiple ? config.items.findIndex(entry => selectable(entry) && config.multiple!.toggleable?.(entry) === false) : -1;
     const index = control > 0 && isSeparator(config.items[control - 1]) ? control - 1 : control;
     return index < 0 ? [...config.items, ...added] : [...config.items.slice(0, index), ...added, ...config.items.slice(index)];
   }, [config.items, added]);
-  const [tab, setTab] = useState(0);
+  const [tab, setTab] = useState(session.tab);
   const [status, setStatus] = useState<'idle' | 'done' | 'cancel'>('idle');
-  const [statusText, setStatusText] = useState(config.statusText ?? '');
+  const [statusText, setStatusText] = useState(session.statusText ?? config.statusText ?? '');
   useEffect(() => {
     if (!config.statusUpdate) return;
     let active = true;
     config.statusUpdate.then(text => { if (active) setStatusText(text); }).catch(() => {});
     return () => { active = false; };
   }, [config.statusUpdate]);
-  const [details] = useState(new Map<T, string | undefined>());
+  const [details] = useState(session.details);
   const [, refreshDetails] = useState({});
 
   // 可搜索菜单在搜索框里显示闪烁光标：真实终端光标在列表重绘时会跳到末尾，这里用模拟光标；
@@ -301,23 +326,31 @@ const menuView = createPrompt(<T,>(config: MenuConfig<T>, done: (result: MenuRes
 
   const first = items.findIndex(selectable);
   const last = items.length - 1 - [...items].reverse().findIndex(selectable);
-  const defaultValue = config.multiple?.initial.length ? ACCEPT : config.default;
+  const defaultValue = session.value ?? config.default;
   const defaultIndex = defaultValue === undefined ? -1 : items.findIndex((e) => selectable(e) && e.value === defaultValue);
   const [active, setActive] = useState(defaultIndex === -1 ? first : defaultIndex);
   const activeIndex = selectable(items[active]) ? active : first;
   const current = activeIndex >= 0 ? items[activeIndex] as MenuItem<T | typeof CUSTOM | typeof ACCEPT> : undefined;
   const detailKey = current?.value;
+  session.query = query;
+  session.tab = tab;
+  session.value = current?.value;
+  session.statusText = statusText;
 
   // 选中项变化时取补充信息（只取一次，结果缓存）
   useEffect(() => {
     if (!config.asyncDetail || !current || current.value === CUSTOM || current.value === ACCEPT || details.has(current.value)) return;
     const item = current as MenuItem<T>;
-    // Map 保留值的身份；先占位，避免切换行时重复发起尚未完成的请求。
-    details.set(item.value, undefined);
-    Promise.resolve().then(() => config.asyncDetail!(item)).then((text) => {
-      details.set(item.value, text);
-      refreshDetails({});
-    }).catch(() => {});
+    // 缩放时复用已完成缓存和进行中的只读请求；旧绘制器不再刷新，新绘制器接收结果。
+    let request = session.pending.get(item.value);
+    if (!request) {
+      request = Promise.resolve().then(() => config.asyncDetail!(item)).catch(() => undefined);
+      session.pending.set(item.value, request);
+      request.then(text => { details.set(item.value, text); session.pending.delete(item.value); });
+    }
+    let active = true;
+    request.then(() => { if (active) refreshDetails({}); });
+    return () => { active = false; };
   }, [detailKey]);
 
   const finish = (result: MenuResult<T>): void => {
@@ -448,11 +481,17 @@ const menuView = createPrompt(<T,>(config: MenuConfig<T>, done: (result: MenuRes
   }) : [];
   const requestedPageSize = config.pageSize ?? 14;
   // 列表之外占用的行数；超出一页时多一行「上面 / 下面还有几个」，操作提示也多出翻页键
+  // 说明在列表下方时，按所有选项中最多的行数（含空行）预留
+  const bottomDetailRows = !detailTop && (all.some((e) => e.description) || config.asyncDetail)
+    ? 1 + Math.max(0, ...all.map((e) => (e.description ? e.description.split('\n').length : 0))) + (config.asyncDetail ? 1 : 0)
+    : 0;
   const selectionLine = config.multiple ? `  ${theme.brand(truncate(config.multiple.summary([...picked]), Math.max(1, terminalWidth() - 4)))}` : undefined;
   const fixedRows = (overflow: boolean): number => (selectionLine ? 1 : 0) + (statusText ? screenRows(statusText) : 0) + 1 + (searchLine ? screenRows(searchLine) : 0) + (tabsLine ? screenRows(tabsLine) : 0) + (emptyLine ? 1 : 0)
-    + (detailTop ? detailRows + 1 : 0) + (overflow ? 1 : 0) + 1 + screenRows(footerFor(overflow)) + 1;
-  const fitPage = (overflow: boolean): number => detailTop && process.stdout.rows
-    ? Math.max(Math.min(3, requestedPageSize), Math.min(requestedPageSize, process.stdout.rows - fixedRows(overflow)))
+    + (detailTop ? detailRows + 1 : bottomDetailRows) + (overflow ? 1 : 0) + 1 + screenRows(footerFor(overflow)) + 1;
+  // 可用高度：清屏后页头与页面内容之下剩余的行数；没有跟踪时，说明在上方的菜单按整屏计算
+  const available = remainingRows() ?? (detailTop ? process.stdout.rows : undefined);
+  const fitPage = (overflow: boolean): number => available
+    ? Math.max(Math.min(3, requestedPageSize), Math.min(requestedPageSize, available - fixedRows(overflow)))
     : requestedPageSize;
   // 先按不超出估算；放不下全部选项时再按超出（多一行提示）重新计算页高
   const overflows = items.length > fitPage(false);
@@ -515,7 +554,8 @@ const menuView = createPrompt(<T,>(config: MenuConfig<T>, done: (result: MenuRes
 });
 
 export function menuPrompt<T>(config: MenuConfig<T>, context?: { signal?: AbortSignal }): Promise<MenuResult<T>> {
-  return menuView(config as MenuConfig<unknown>, context) as Promise<MenuResult<T>>;
+  const session: MenuSession<T> = { query: '', tab: 0, value: config.multiple?.initial.length ? ACCEPT : config.default, picked: new Set(config.multiple?.initial), added: [], details: new Map(), pending: new Map() };
+  return resumeOnResize(signal => menuView({ ...config, session } as LiveMenuConfig<unknown>, { signal }) as Promise<MenuResult<T>>, context?.signal);
 }
 
 // 返回勾选的值；按 Esc 返回 undefined
@@ -545,13 +585,19 @@ export interface CheckConfig<T> {
   summary?: (values: T[]) => string;
 }
 
-const checkView = createPrompt(<T,>(config: CheckConfig<T>, done: (values: T[] | undefined) => void) => {
+interface CheckSession { checked?: boolean[]; active?: number; warning?: string; }
+type LiveCheckConfig<T> = CheckConfig<T> & { session: CheckSession };
+
+const checkView = createPrompt(<T,>(config: LiveCheckConfig<T>, done: (values: T[] | undefined) => void) => {
   const { items } = config;
-  const [checked, setChecked] = useState<boolean[]>(items.map((i) => !!i.checked));
+  const [checked, setChecked] = useState<boolean[]>(config.session.checked ?? items.map((i) => !!i.checked));
   // 行号：0 = 全选，1..n = 工具，n + 1 = 继续
-  const [active, setActive] = useState(1);
+  const [active, setActive] = useState(config.session.active ?? 1);
   const [status, setStatus] = useState<'idle' | 'done' | 'cancel'>('idle');
-  const [warning, setWarning] = useState('');
+  const [warning, setWarning] = useState(config.session.warning ?? '');
+  config.session.checked = checked;
+  config.session.active = active;
+  config.session.warning = warning;
 
   const count = checked.filter(Boolean).length;
   const preferred = items.map((i) => i.preferred !== false);
@@ -609,7 +655,9 @@ const checkView = createPrompt(<T,>(config: CheckConfig<T>, done: (values: T[] |
   const extraRows = warning || summary ? 2 + (warning || summary || '').split('\n').length - 1 : 0;
   // 全选、继续与操作提示固定保留，只滚动中间的选项。
   const page = usePagination({ items, active: Math.max(0, Math.min(items.length - 1, active - 1)), loop: false,
-    pageSize: Math.max(1, Math.min(14, (process.stdout.rows || 28) - 7 - footer.split('\n').length - extraRows)),
+    // 提示行、全选、继续、空行与操作提示固定保留；页头之下剩余的行数不够时缩短列表
+    pageSize: Math.max(1, Math.min(14, (process.stdout.rows || 28) - 7 - footer.split('\n').length - extraRows,
+      (remainingRows() ?? Infinity) - 5 - footer.split('\n').length - extraRows)),
     renderItem({ item, index }) {
       const box = checked[index] ? theme.brand('☑') : theme.subtle('☐');
       const icon = item.icon ? `${item.icon} ` : '';
@@ -761,7 +809,8 @@ const continueView = createPrompt((config: { message: string }, done: (value: vo
 });
 
 export function checkPrompt<T>(config: CheckConfig<T>): Promise<T[] | undefined> {
-  return checkView(config as CheckConfig<unknown>) as Promise<T[] | undefined>;
+  const session: CheckSession = {};
+  return resumeOnResize(signal => checkView({ ...config, session } as LiveCheckConfig<unknown>, { signal }) as Promise<T[] | undefined>);
 }
 
 // 返回输入的值；按 Esc 返回 undefined

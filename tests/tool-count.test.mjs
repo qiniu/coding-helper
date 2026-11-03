@@ -59,6 +59,19 @@ for (const [label, setup] of [
   });
 }
 
+for (const ready of [true, false]) {
+  test(`real PTY My tools shows Copilot as ${ready ? 'connected' : 'not connected'} with its launch command`, { skip: process.platform === 'win32' }, async () => {
+    const src = head({ready:true, model:ready});
+    const out = await runPrompt(src, [[/Esc 退出/, '\x1b[B\x1b[B'], [/❯ +(?:\S+ )?我的工具/, '\r'], [/启动方式[^]*搜索/, '\x1b'], [/Esc 退出/, '\x1b']], 120, { rows: 40 });
+    const page = out.slice(out.indexOf('「已接入」'));
+    assert.match(page, /「已接入」包含启动接入的工具/);
+    assert.match(page, ready ? /GitHub Copilot CLI +已安装 +● 已接入七牛/ : /GitHub Copilot CLI +已安装 +○ 未接入/);
+    assert.match(page, /启动方式 +coding-helper run copilot/);
+    assert.match(page, /Claude Code +未安装 +○ 未接入/);
+    if (ready) assert.match(page, /demo-model/);
+  });
+}
+
 test('header tagline counts every registered tool, configurable plus launch-only', { skip: process.platform === 'win32' }, async () => {
   const out = await runPrompt(head(), [[/Esc 退出/, '\x1b']], 120, { rows: 40 });
   const { total, configurable, launchOnly } = counts(out);

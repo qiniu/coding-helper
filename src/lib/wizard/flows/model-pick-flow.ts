@@ -168,7 +168,9 @@ async function chooseModels(options: PickOptions, selected?: string[]): Promise<
     : currentModels.length === 1 ? t('generic_current_model', { tool: currentModels[0].tool, model: firstCurrent ?? t('model_current_unknown') })
     : sharedCurrent ? t('model_current_shared', { model: sharedCurrent })
     : t('model_current_mixed');
-  uiRenderer.renderPage(title, options.step, undefined, connection);
+  // 进度 2 + 标题 3 + 说明 2 + 提示行 + 概览 3 + 分隔线 + 搜索框 + 厂商标签 + 约 10 行列表 + 隐藏行数 + 空行与操作提示 2 + 光标
+  const bodyRows = (options.step ? 2 : 0) + 3 + 2 + 22 + (currentSummary ? 2 : 0);
+  uiRenderer.renderPage(title, options.step, undefined, connection, { bodyRows });
   const loaded = await loadModels(connection, title, options.step);
   if (!loaded) return 'back';
   const models = [...loaded];
@@ -185,7 +187,7 @@ async function chooseModels(options: PickOptions, selected?: string[]): Promise<
   let last: string | undefined = options.current ?? sharedCurrent;
   while (true) {
     for (const id of selected ?? []) if (!models.some(model => model.id === id)) models.push({ id, name: id, capabilitiesUnknown: true });
-    uiRenderer.renderPage(title, options.step, undefined, connection);
+    uiRenderer.renderPage(title, options.step, undefined, connection, { bodyRows });
     const usable = sortModels(models.filter((m) => showAll || capabilities(m).toolCall || selected?.includes(m.id)));
     const byId = new Map(models.map((m) => [m.id, m]));
     const publishers = modelPublishers(usable);
