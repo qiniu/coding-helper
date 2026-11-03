@@ -95,7 +95,10 @@ export async function quickCommand(target: string, rest: string[], options: Quic
     const perform = async (): Promise<ToolResult[]> => {
       const applied: ToolResult[] = [];
       for (const { tool, models } of plans) {
-        const apply = (): Promise<ToolResult> => tool.launchOnly ? Promise.resolve({ tool, status: 'success' }) : applyTool(tool, { apiKey, baseUrl, models });
+        const apply = async (): Promise<ToolResult> => {
+          if (tool.launchOnly) return { tool, status: 'success' };
+          return applyTool(tool, { apiKey, baseUrl, models });
+        };
         applied.push(await (options.json || options.dryRun ? withQuietLogs(apply) : apply()));
       }
       return applied;
