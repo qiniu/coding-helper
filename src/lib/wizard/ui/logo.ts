@@ -4,7 +4,7 @@ import { logger } from '../../../utils/logger.js';
 import { GRADIENT } from './theme.js';
 import { VERSION } from '../../version.js';
 import { t } from '../../i18n.js';
-import { logoGrid, renderGrid, renderSprite, joinBlocks, pixelsSupported, LOGO_WIDTH, SPRITE_WIDTH } from './pixel.js';
+import { logoGrid, renderGrid, renderSprite, joinBlocks, pixelsSupported, LOGO_WIDTH, spriteGrid } from './pixel.js';
 
 // "QINIU" ASCII Art（不支持 256 色或终端过窄时使用，约 34 列宽）
 const LOGO_LINES = [
@@ -18,8 +18,7 @@ const LOGO_LINES = [
 
 // Logo 与小牛之间留 4 列
 const LOGO_GAP = 4;
-// 像素 Logo + 小牛需要的最小终端宽度
-const PIXEL_MIN_COLUMNS = 2 + LOGO_WIDTH + LOGO_GAP + SPRITE_WIDTH + 4;
+// 按当前角色的实际宽度判断终端能否容纳像素页头
 
 function renderTagline(): void {
   const prefix = `  ${chalk.bold.hex('#E8F6FF')('Coding Helper')}  ${chalk.hex('#7D8B99')(`v${VERSION}`)}`;
@@ -35,9 +34,11 @@ export function renderLogo(sprite = 'qiniu'): void {
     logger.log(truncate(`  QINIU Coding Helper v${VERSION}`, process.stdout.columns));
     logger.newLine(); return;
   }
-  if (pixelsSupported() && (process.stdout.columns || 0) >= PIXEL_MIN_COLUMNS) {
+  const spriteWidth = Math.max(0, ...(spriteGrid(sprite) ?? []).map(row => row.length));
+  const pixelMinColumns = 2 + LOGO_WIDTH + LOGO_GAP + spriteWidth + 4;
+  if (pixelsSupported() && (process.stdout.columns || 0) >= pixelMinColumns) {
     const blocks = [renderGrid(logoGrid()), renderSprite(sprite)];
-    for (const line of joinBlocks(blocks, [LOGO_WIDTH + LOGO_GAP - 1, SPRITE_WIDTH], 1)) logger.log(`  ${line}`);
+    for (const line of joinBlocks(blocks, [LOGO_WIDTH + LOGO_GAP - 1, spriteWidth], 1)) logger.log(`  ${line}`);
     logger.newLine();
     renderTagline();
     logger.newLine();

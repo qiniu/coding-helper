@@ -1,6 +1,6 @@
 import chalk from 'chalk';
 
-// 像素角色：每个 12×10 像素，用半块字符 ▀▄ 渲染，1 个字符 = 上下 2 个像素（终端里约 12 列 × 5 行）
+// 像素角色：工具角色为 12×10 像素，七牛标志为 24×16 像素，用半块字符 ▀▄ 渲染，1 个字符 = 上下 2 个像素（终端里约 12 列 × 5 行）
 export interface SpriteDef {
   rows: string[];
   // 字母 → 颜色；'.' 表示透明
@@ -9,11 +9,27 @@ export interface SpriteDef {
 
 const K = '#0A0F14';
 
-// 角色 id 与工具名一致，'qiniu' 为七牛小牛吉祥物
+// 角色 id 与工具名一致，'qiniu' 为官方牛头标志的标准像素版
+// 来源：https://developer.qiniu.com/brand（normal-logo-blue.png）
 export const SPRITES: Record<string, SpriteDef> = {
-  qiniu: { pal: { a: '#19C2F0', b: '#0B86B8', l: '#8BE9FF', k: '#062230' }, rows: [
-    'l..........l', 'll........ll', '.aaaaaaaaaa.', 'aaakaaaakaaa', '.aaaaaaaaaa.',
-    '.abbbbbbbba.', '.abkbbbbkba.', '.aaaaaaaaaa.', '.a.a....a.a.', '.a.a....a.a.'] },
+  qiniu: { pal: { a: '#26ABD9' }, rows: [
+    'a......................a',
+    'aa....................aa',
+    '.aaa..a..............aa.',
+    '..aaa.aa...........aaa..',
+    '...aaaaa.........aaaa...',
+    '....aaaaaaaaaaaaaaaa....',
+    '.....aaaaaaaaaaaaaa.....',
+    '......aaaaaaaaaaa.......',
+    '......aaa.aaaa..........',
+    '.......aa.......aa......',
+    '.......aa......aaa......',
+    '.......aaa.....aaa......',
+    '.......aaa.....aaa......',
+    '.......aaaa...aaaa......',
+    '.......aaaaaaaaaa.......',
+    '........aaaaaaaaa.......',
+  ] },
   'claude-code': { pal: { a: '#D97757', k: K }, rows: [
     '............', '............', '..aaaaaaaa..', '..akaaaaka..', 'aaaaaaaaaaaa',
     '..aaaaaaaa..', '..aaaaaaaa..', '..a.a..a.a..', '..a.a..a.a..', '............'] },
