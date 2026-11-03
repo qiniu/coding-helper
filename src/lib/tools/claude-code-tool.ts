@@ -9,6 +9,7 @@ import { isQiniuBaseUrl } from '../endpoints.js';
 import { t } from '../i18n.js';
 import { assertNotSymlink, readTextFile, readJsonSnapshot, readJsonObjectStrict, safeWriteFile, writeJsonOrRemove, formatJsonLike } from '../core/safe-write.js';
 import { stateStore, type ToolState, type PriorValues } from '../core/state-store.js';
+import { legacyState } from '../core/legacy-state.js';
 import { runModelSelectionFlow } from '../wizard/flows/model-selection-flow.js';
 import { uiRenderer } from '../wizard/ui/ui-renderer.js';
 
@@ -83,6 +84,7 @@ export class ClaudeCodeTool implements ITool {
   // 卸载只处理本工具记录过的字段，保留之后的用户编辑
   clearModelConfig(): void {
     stateStore.withLock(() => {
+      migrateClaudeState();
       const targets = [CLAUDE_SETTINGS_FILE, CLAUDE_JSON_FILE];
       const unrecorded = targets.filter(file => !stateStore.getState(this.name, file));
       const exists = unrecorded.some(file => {
@@ -112,7 +114,7 @@ export class ClaudeCodeTool implements ITool {
   // 两个文件先全部解析和校验；任何写入失败时还原本轮已提交的文件及状态
   async loadConfig(apiKey: string, baseUrl: string, models: ModelConfig): Promise<void> {
     stateStore.withLock(() => {
-      if (stateStore.getState(this.name)) throw new Error('Legacy Claude restoration state requires recovery from backup.');
+      migrateClaudeState();
       const selected = { ...models.claudeCode, ...(models.slotModels?.[this.name]?.fallback ? { haikuModel: models.slotModels[this.name].fallback } : {}), ...(models.slotModels?.[this.name]?.subagent ? { subagentModel: models.slotModels[this.name].subagent } : {}) };
       const clearSelection = !selected.useDefaultModels &&
         [selected.haikuModel, selected.sonnetModel, selected.opusModel, selected.subagentModel].some(Boolean);
@@ -159,7 +161,7 @@ export class ClaudeCodeTool implements ITool {
           next.attribution = { commit: '', pr: '' };
         } else next.hasCompletedOnboarding = true;
         const original = previous ? originalConfig(previous) : current;
-        const priors = { content: original.content ?? null, snapshot: snapshot(original.value, settingsFile, manageModel), manageModel };
+        const priors = { ...previous?.priors, content: original.content ?? null, snapshot: snapshot(original.value, settingsFile, manageModel), manageModel };
         plans.push({ file, before: current.content, after: formatJsonLike(current.content, next), previous,
           next: { priors, applied: snapshot(next, settingsFile, manageModel) } });
       }
@@ -211,6 +213,36 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 }
 
 // 缺失字段不存入快照，从而与显式 null 区分
+function migrateClaudeState(): void {
+  const keys = ['settings.model', 'companyAnnouncements', 'attribution', 'claudeJson.hasCompletedOnboarding', ...CLAUDE_ENV_KEYS.map(key => 'env.' + key)];
+  const saved = legacyState('claude-code', keys);
+  if (!saved) return;
+  const priors = saved.priors!;
+  if (!Object.hasOwn(priors, 'env.ANTHROPIC_BASE_URL') || !Object.hasOwn(priors, 'env.ANTHROPIC_AUTH_TOKEN')) throw new Error('Incomplete legacy Claude restoration state. Recover before retrying.');
+  const records = [CLAUDE_SETTINGS_FILE, CLAUDE_JSON_FILE].map(file => {
+    assertNotSymlink(file);
+    const current = readJsonSnapshot(file), settings = file === CLAUDE_SETTINGS_FILE;
+    if (current.content === undefined) throw new Error('Legacy Claude configuration is missing. Recover from backup before retrying.');
+    const original = structuredClone(current.value);
+    const restore = (object: Record<string, unknown>, key: string, value: unknown): void => {
+      if (value === null) delete object[key]; else Object.defineProperty(object, key, { value: structuredClone(value), enumerable: true, configurable: true, writable: true });
+    };
+    if (settings) {
+      if (!isRecord(current.value.env) || !isQiniuBaseUrl(current.value.env.ANTHROPIC_BASE_URL)) throw new Error('Legacy Claude ownership changed. Recover before retrying.');
+      const env = { ...current.value.env };
+      for (const [key, value] of Object.entries(priors)) {
+        if (key.startsWith('env.')) restore(env, key.slice(4), value);
+        else if (key === 'settings.model') restore(original, 'model', value);
+        else if (key !== 'claudeJson.hasCompletedOnboarding') restore(original, key, value);
+      }
+      original.env = env;
+    } else if (Object.hasOwn(priors, 'claudeJson.hasCompletedOnboarding')) restore(original, 'hasCompletedOnboarding', priors['claudeJson.hasCompletedOnboarding']);
+    const manageModel = settings && Object.hasOwn(priors, 'settings.model');
+    return { file, state: { priors: { content: formatJsonLike(current.content, original), snapshot: snapshot(original, settings, manageModel), manageModel }, applied: snapshot(current.value, settings, manageModel) } };
+  });
+  stateStore.migrateLegacy('claude-code', saved, records);
+}
+
 function snapshot(config: Record<string, unknown>, settings: boolean, model: boolean, keys = CLAUDE_ENV_KEYS): PriorValues {
   const result: PriorValues = {};
   if (settings && Object.hasOwn(config, 'env')) {

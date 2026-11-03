@@ -23,7 +23,8 @@ test('Droid reserves output capacity and carries image support while selecting Q
  const {applyDroidSettings}=await import('../dist/lib/tools/droid-tool.js');
  const original={sessionDefaultSettings:{model:'existing'}};
  for(const image of [true,false]){const next=applyDroidSettings(original,'https://api.qnaigc.com','key','test/model',{contextWindow:32768,maxOutputTokens:8192,modalities:{input:image?['text','image']:['text'],output:['text']}});assert.equal(next.customModels[0].maxContextLimit,24576);assert.equal(next.customModels[0].maxOutputTokens,8192);assert.equal(next.customModels[0].noImageSupport,!image);assert.deepEqual(next.sessionDefaultSettings,{model:'custom:Qiniu:-test/model-0',specModeModel:'custom:Qiniu:-test/model-0'});}
- assert.throws(()=>applyDroidSettings(original,'https://api.qnaigc.com','key','test/model',{contextWindow:8192,maxOutputTokens:8192}),/positive input/);
+ for(const maxOutputTokens of [8192,16384]){const result=applyDroidSettings(original,'https://api.qnaigc.com','key','test/model',{contextWindow:8192,maxOutputTokens});assert.equal(result.customModels[0].maxOutputTokens,4096);assert.equal(result.customModels[0].maxContextLimit,4096);}
+ assert.throws(()=>applyDroidSettings(original,'https://api.qnaigc.com','key','test/model',{contextWindow:1,maxOutputTokens:1}),/positive input/);
 });
 const { marketModelService } = await import('../dist/lib/market-model-service.js');
 const { toolManager } = await import('../dist/lib/tool-manager.js');
