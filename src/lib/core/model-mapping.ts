@@ -1,17 +1,18 @@
+import { slotModel } from './model-slots.js';
 import type { ModelConfig } from '../config.js';
 import type { ITool } from '../tools/base-tool.js';
 
 // 把一个模型 ID 写到各工具当前支持的配置项。
-export function modelConfigFor(tool: Pick<ITool, 'name'>, model: string): ModelConfig {
+export function modelConfigFor(tool: Pick<ITool, 'name'>, model: string, models: ModelConfig = {}): ModelConfig {
   switch (tool.name) {
     case 'claude-code':
       // 主模型 = Sonnet · Opus（Fable 同 Opus）；兜底（Haiku）与子代理默认跟随主模型
       return {
         claudeCode: {
-          haikuModel: model,
+          haikuModel: slotModel('claude-code', 'fallback', model, models),
           sonnetModel: model,
           opusModel: model,
-          subagentModel: model,
+          subagentModel: slotModel('claude-code', 'subagent', model, models),
           useDefaultModels: false,
         },
       };
