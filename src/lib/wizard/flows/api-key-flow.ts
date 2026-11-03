@@ -1,3 +1,4 @@
+import { secretPrompt } from '../ui/prompts.js';
 import ora from 'ora';
 import { t } from '../../i18n.js';
 import { configManager } from '../../config.js';
@@ -16,7 +17,8 @@ export async function runApiKeyFlow(forceSync = false): Promise<boolean> {
 
   // 循环直到成功或用户取消
   while (true) {
-    const apiKey = await promptHelper.password(t('apikey_prompt'));
+    const apiKey = await secretPrompt({ message: t('apikey_prompt'), escape: true });
+    if (apiKey === undefined) return false;
 
     if (!apiKey.trim()) {
       uiRenderer.renderError(t('apikey_empty'));

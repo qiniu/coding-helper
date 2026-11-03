@@ -167,6 +167,8 @@ export interface MenuConfig<T> {
     toggleable?: (item: MenuItem<T>) => boolean;
     customItem?: (value: T) => MenuItem<T>;
   };
+  statusText?: string;
+  statusUpdate?: Promise<string>;
   customFirst?: boolean | ((query: string) => boolean);
   message: string;
   items: MenuEntry<T>[];
@@ -242,7 +244,14 @@ const menuView = createPrompt(<T,>(config: MenuConfig<T>, done: (result: MenuRes
     return index < 0 ? [...config.items, ...added] : [...config.items.slice(0, index), ...added, ...config.items.slice(index)];
   }, [config.items, added]);
   const [tab, setTab] = useState(0);
-  const [status, setStatus] = useState<'idle' | 'done'>('idle');
+  const [status, setStatus] = useState<'idle' | 'done' | 'cancel'>('idle');
+  const [statusText, setStatusText] = useState(config.statusText ?? '');
+  useEffect(() => {
+    if (!config.statusUpdate) return;
+    let active = true;
+    config.statusUpdate.then(text => { if (active) setStatusText(text); }).catch(() => {});
+    return () => { active = false; };
+  }, [config.statusUpdate]);
   const [details] = useState(new Map<T, string | undefined>());
   const [, refreshDetails] = useState({});
 
@@ -312,7 +321,7 @@ const menuView = createPrompt(<T,>(config: MenuConfig<T>, done: (result: MenuRes
   }, [detailKey]);
 
   const finish = (result: MenuResult<T>): void => {
-    setStatus('done');
+    setStatus(result.action === 'escape' ? 'cancel' : 'done');
     done(result);
   };
 
@@ -440,7 +449,7 @@ const menuView = createPrompt(<T,>(config: MenuConfig<T>, done: (result: MenuRes
   const requestedPageSize = config.pageSize ?? 14;
   // 列表之外占用的行数；超出一页时多一行「上面 / 下面还有几个」，操作提示也多出翻页键
   const selectionLine = config.multiple ? `  ${theme.brand(truncate(config.multiple.summary([...picked]), Math.max(1, terminalWidth() - 4)))}` : undefined;
-  const fixedRows = (overflow: boolean): number => (selectionLine ? 1 : 0) + 1 + (searchLine ? screenRows(searchLine) : 0) + (tabsLine ? screenRows(tabsLine) : 0) + (emptyLine ? 1 : 0)
+  const fixedRows = (overflow: boolean): number => (selectionLine ? 1 : 0) + (statusText ? screenRows(statusText) : 0) + 1 + (searchLine ? screenRows(searchLine) : 0) + (tabsLine ? screenRows(tabsLine) : 0) + (emptyLine ? 1 : 0)
     + (detailTop ? detailRows + 1 : 0) + (overflow ? 1 : 0) + 1 + screenRows(footerFor(overflow)) + 1;
   const fitPage = (overflow: boolean): number => detailTop && process.stdout.rows
     ? Math.max(Math.min(3, requestedPageSize), Math.min(requestedPageSize, process.stdout.rows - fixedRows(overflow)))
@@ -474,10 +483,11 @@ const menuView = createPrompt(<T,>(config: MenuConfig<T>, done: (result: MenuRes
     },
   });
 
+  if (status === 'cancel') return '';
   if (status === 'done') {
     return `${theme.success('✔')} ${theme.heading(config.message)} ${theme.brand(config.multiple ? config.multiple.summary([...picked]) : current?.value === CUSTOM ? query : current?.label ?? '')}`;
   }
-  const lines = [`${theme.brand('?')} ${theme.heading(config.message)}`];
+  const lines = [...(statusText ? [statusText] : []), `${theme.brand('?')} ${theme.heading(config.message)}`];
   // 说明在上方：紧跟提示行，下面一条分隔线，再是搜索框与标签
   if (detailTop && detailRows) lines.push(...detailLines, `  ${theme.border('─'.repeat(Math.max(1, Math.min(terminalWidth() - 4, 60))))}`);
   if (selectionLine) lines.push(selectionLine);

@@ -50,3 +50,8 @@ export async function runContextFlow(): Promise<void> {
     await promptHelper.pressEnter();
   }
 }
+
+export function contextMenuHint(connected: string[]): string {
+  const values = [...new Set(connected.filter(name => !CONTEXT_UNSUPPORTED_TOOLS.includes(name)).map(name => contextLabel(configManager.getContextWindow(name))))];
+  return values.length > 1 ? t('context_mixed') : values[0] ?? contextLabel();
+}

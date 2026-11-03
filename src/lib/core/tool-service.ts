@@ -18,6 +18,16 @@ export interface ToolDetection {
   errors: string[];
 }
 
+// 启动接入不写客户端文件；安装、连接和模型均就绪，且本地启动配置没有冲突时才计为已接入。
+export function isLauncherReady(tool: ITool, installed = tool.isInstalled()): boolean {
+  if (!tool.launchOnly || installed !== true || !tool.getLaunchEnv) return false;
+  const connection = configManager.getConnection(tool.name);
+  const models = configManager.getModels();
+  if (!connection.apiKey?.trim() || !hasSavedToolModelConfig(tool, models)) return false;
+  tool.getLaunchEnv(connection.apiKey, connection.baseUrl, models);
+  return true;
+}
+
 // 检测失败与“未接入”分开；不把可能包含配置正文的解析错误直接写进 JSON。
 export function detectTool(tool: ITool): ToolDetection {
   const result: ToolDetection = { tool, installed: null, version: null, configured: null, errors: [] };
