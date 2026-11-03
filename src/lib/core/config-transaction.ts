@@ -5,6 +5,8 @@ import { atomicWriteFile, assertNotSymlink, readTextFile, safeWriteFile, writeJs
 
 export interface ConfigEdit { file: string; build: (content: string | undefined) => string; }
 interface Entry { file: string; original: string | null; applied: string; before?: string | null; }
+// 仅适配器能证明托管字段未变时，返回保留外部编辑的还原原值；undefined 表示拒绝。
+export type ConfigReconciler = (file: string, current: string, original: string | null, applied: string) => string | null | undefined;
 const record = (value: unknown): value is Record<string, unknown> => value !== null && typeof value === 'object' && !Array.isArray(value);
 
 // 父目录解析别名，文件自身的链接仍拒绝；同一配置只有一份还原记录
@@ -47,7 +49,7 @@ function write(file: string, value: string | undefined, expected: string | undef
 }
 
 // 整组文件校验完成后才写入。文本修改无法可靠推断所有权时停止，绝不覆盖外部编辑。
-export function applyConfigEdits(tool: string, edits: ConfigEdit[], options: { extend?: boolean } = {}): void {
+export function applyConfigEdits(tool: string, edits: ConfigEdit[], options: { extend?: boolean; reconcile?: ConfigReconciler } = {}): void {
   stateStore.withLock(() => {
     if (!edits.length) throw new Error('Configuration transaction requires files.');
     const files = edits.map(edit => canonicalConfigPath(edit.file));
@@ -57,11 +59,18 @@ export function applyConfigEdits(tool: string, edits: ConfigEdit[], options: { e
     const recorded = previous?.priors?.files;
     const previousFiles = options.extend && Array.isArray(recorded) ? recorded.map(entry => record(entry) && typeof entry.file === 'string' ? entry.file : '') : files;
     if (previousFiles.some(file => !files.includes(file))) throw new Error('Configuration transaction targets cannot be removed during extension.');
-    const old = entries(previous, previousFiles);
-    const prior = new Map(old?.map(entry => [entry.file, entry]));
+    const recordedEntries = entries(previous, previousFiles);
     if (!previous && stateStore.getState(tool)) throw new Error('Legacy state requires recovery before configuration.');
     const before = files.map(readTextFile);
-    if (old?.some(entry => { const current = before[files.indexOf(entry.file)]; return current !== entry.applied && !(Object.hasOwn(entry, 'before') && (current ?? null) === entry.before); })) throw new Error('Configuration changed since loading. Restore from backup before retrying.');
+    const interrupted = recordedEntries?.some(entry => Object.hasOwn(entry, 'before'));
+    const old = recordedEntries?.map(entry => {
+      const current = before[files.indexOf(entry.file)];
+      if (current === entry.applied || Object.hasOwn(entry, 'before') && (current ?? null) === entry.before) return entry;
+      const original = !interrupted && current !== undefined ? options.reconcile?.(entry.file, current, entry.original, entry.applied) : undefined;
+      if (original === undefined) throw new Error('Configuration changed since loading. Restore from backup before retrying.');
+      return { ...entry, original };
+    });
+    const prior = new Map(old?.map(entry => [entry.file, entry]));
     const after = edits.map((edit, i) => edit.build(before[i]));
     const next: Entry[] = files.map((file, i) => ({ file, original: prior.has(file) ? prior.get(file)!.original : before[i] ?? null, applied: after[i], before: before[i] ?? null }));
     // 日志先落盘，异常退出仍保留原值；普通写入失败回滚本轮
@@ -91,19 +100,26 @@ export function applyConfigEdits(tool: string, edits: ConfigEdit[], options: { e
   });
 }
 
-export function restoreConfigEdits(tool: string, targets: string[]): boolean {
+export function restoreConfigEdits(tool: string, targets: string[], options: { reconcile?: ConfigReconciler } = {}): boolean {
   return stateStore.withLock(() => {
     if (!targets.length) return false;
     const files = targets.map(canonicalConfigPath);
     const { key, saved } = transaction(tool, files);
-    const old = entries(saved, files);
-    if (!old) return false;
+    const recordedEntries = entries(saved, files);
+    if (!recordedEntries) return false;
     files.forEach(assertNotSymlink);
     const before = files.map(readTextFile);
     // 允许卸载中断后重试；原有文件被外部删除时保留唯一还原记录。
-    if (old.some((entry, i) => (before[i] === undefined && entry.original !== null) || before[i] !== entry.applied && before[i] !== (entry.original ?? undefined) && !(Object.hasOwn(entry, 'before') && (before[i] ?? null) === entry.before))) {
-      throw new Error('Configuration changed since loading. Restore from backup before retrying.');
-    }
+    const interrupted = recordedEntries.some(entry => Object.hasOwn(entry, 'before'));
+    const old = recordedEntries.map((entry, i) => {
+      const current = before[i];
+      if (!(current === undefined && entry.original !== null) && (current === entry.applied || current === (entry.original ?? undefined) || Object.hasOwn(entry, 'before') && (current ?? null) === entry.before)) return entry;
+      const original = !interrupted && current !== undefined ? options.reconcile?.(entry.file, current, entry.original, entry.applied) : undefined;
+      if (original === undefined) throw new Error('Configuration changed since loading. Restore from backup before retrying.');
+      return { ...entry, original, applied: current! };
+    });
+    // 协调后的原值先落盘；部分还原或记录清理失败时仍能安全重试。
+    if (old.some((entry, i) => entry !== recordedEntries[i])) stateStore.setState(tool, { ...saved, priors: { ...saved?.priors, files: old } }, key);
     for (let i = 0; i < files.length; i++) {
       if (before[i] !== undefined) write(files[i], old[i].original ?? undefined, before[i]);
     }

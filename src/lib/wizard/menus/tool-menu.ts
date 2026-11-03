@@ -103,9 +103,11 @@ export async function showToolMenu(tool: ITool): Promise<void> {
     }
 
     let installedVersion: string | null = null;
-    try { installedVersion = tool.getVersion(); } catch { /* 版本仅用于展示 */ }
     // null 且检测未出错才是桌面应用；检测出错时仍显示版本区，便于用户看到「未安装 / 未知」
     const isDesktop = detection.installed === null && !detection.errors.includes('installation_detection_failed');
+    if (!isDesktop) {
+      try { installedVersion = tool.getVersion(); } catch { /* 版本仅用于展示 */ }
+    }
     const statusText = formatVersionInfo(installedVersion, latestVersion, fetchCompleted, tool.npmPackageName, isDesktop);
     // 在同一个 prompt 内更新版本信息，保持 readline 和活动选项连续，不通过 abort 重建菜单。
     const statusUpdate = fetchPromise && isLatestVersionFetchPending({ fetchPromise, fetchCompleted })
@@ -126,7 +128,7 @@ export async function showToolMenu(tool: ITool): Promise<void> {
             { value: 'unload' as const, icon: theme.dimIcon('◈'), label: t('tool_unload_config'), hint: theme.subtle(t('tool_hint_unload')) },
           ]),
           { value: 'launch', icon: theme.icon('▸'), label: t('tool_launch'),
-            hint: theme.subtle([tool.command, ...(tool.launchArgs ?? [])].join(' ')) },
+            hint: theme.subtle(detection.installed === null ? t('tool_desktop_launch_hint', { tool: tool.displayName }) : [tool.command, ...(tool.launchArgs ?? [])].join(' ')) },
           // 未安装时「更新」换成「安装」；我的工具列表里回车即进入安装
           missing
             ? { value: 'install' as const, icon: theme.icon('⬇'), label: theme.brand(t('install_action')), hint: theme.subtle(tool.installCommand) }
@@ -316,6 +318,11 @@ async function applyConfig(tool: ITool): Promise<void> {
 
 // 启动工具
 export async function launchTool(tool: ITool): Promise<void> {
+  if (tool.isInstalled() === null) {
+    uiRenderer.renderHint(t('tool_desktop_launch_hint', { tool: tool.displayName }));
+    await promptHelper.pressEnter();
+    return;
+  }
   if (tool.launchOnly || (tool.launchArgs && tool.getLaunchEnv)) {
     const previousExitCode = process.exitCode;
     let shuttingDown = false;
@@ -335,15 +342,6 @@ export async function launchTool(tool: ITool): Promise<void> {
       tool: tool.displayName,
       command: tool.installCommand,
     }));
-    return;
-  }
-
-  // 桌面应用特殊处理：提示手动启动
-  if (tool.isInstalled() === null) {
-    uiRenderer.renderHint(t('tool_desktop_launch_hint', {
-      tool: tool.displayName,
-    }));
-    await promptHelper.pressEnter();
     return;
   }
 

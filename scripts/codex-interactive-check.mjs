@@ -428,13 +428,14 @@ export function buildScenarios(tools) {
     tools.forEach((tool,index) => steps.push({ ...(index ? {input:'\u001b[B'} : {}), expectSelected:tool.displayName }));
     if (tools.at(-1).installed === false) {
       // 未安装的工具回车进入安装页；Esc 不执行安装命令，返回「我的工具」列表
-      steps.push({input:'\r',waitAfter:ZH_LOCALE.install_subtitle});
-      steps.push({input:'\u001b',waitAfter:ZH_LOCALE.menu_my_tools});
+      // 等光标出现后再发按键，页头出现时新的 readline 可能尚未接管输入。
+      steps.push({input:'\r',expectSelected:ZH_LOCALE.install_action});
+      steps.push({input:'\u001b',expectSelected:tools.at(-1).displayName});
     } else {
       steps.push({input:'\r',waitAfter:ZH_LOCALE.tool_configure_models});
       steps.push({input:downToOption(toolMenuOptions(tools.at(-1)),ZH_LOCALE.tool_configure_models,ZH_LOCALE.tool_back),expectSelected:ZH_LOCALE.tool_back});
       // 工具页返回「我的工具」列表
-      steps.push({input:'\r',waitAfter:ZH_LOCALE.menu_my_tools});
+      steps.push({input:'\r',expectSelected:tools.at(-1).displayName});
     }
     steps.push({input:'\u001b',waitAfter:ZH_LOCALE.menu_setup_tools});
   }

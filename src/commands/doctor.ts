@@ -94,7 +94,7 @@ export async function doctorCommand(): Promise<void> {
     checks.push({
       label: t('doctor_tool_installed', { tool: tool.displayName }),
       status: installed ? 'pass' : 'warn',
-      detail: installed ? t('doctor_found') : t('doctor_not_found'),
+      detail: installed === null ? t('tool_status_unknown') : installed ? t('doctor_found') : t('doctor_not_found'),
     });
   }
 
