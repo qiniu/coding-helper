@@ -122,7 +122,8 @@ function modelRow(m: PickerModel, options: PickOptions, extra: Partial<MenuItem<
   const current = m.id === options.current || currentTools.length > 0;
   const tags = [
     ...('hot_tags' in m ? (m.hot_tags ?? []).map(tag => theme.success(localized(HOT_TAG_LABELS_EN, tag))) : []),
-    current ? theme.brand(`${t('model_tag_current')}${currentTools.length ? ` · ${currentTools.join(' / ')}` : ''}`) : '',
+    // 只配置一个工具时「当前」已足够，不再重复工具名
+    current ? theme.brand(`${t('model_tag_current')}${currentTools.length && options.tools.length !== 1 ? ` · ${currentTools.join(' / ')}` : ''}`) : '',
     !caps.toolCall ? theme.warning(t('model_tag_no_tool_call')) : blocked.length ? theme.warning(`✖ ${blocked.map((tool) => tool.displayName).join(' ')}`) : '',
   ].filter(Boolean).join(' ');
   return {
@@ -169,7 +170,7 @@ async function chooseModels(options: PickOptions, selected?: string[]): Promise<
     : sharedCurrent ? t('model_current_shared', { model: sharedCurrent })
     : t('model_current_mixed');
   // 进度 2 + 标题 3 + 说明 2 + 提示行 + 概览 3 + 分隔线 + 搜索框 + 厂商标签 + 约 10 行列表 + 隐藏行数 + 空行与操作提示 2 + 光标
-  const bodyRows = (options.step ? 2 : 0) + 3 + 2 + 22 + (currentSummary ? 2 : 0);
+  const bodyRows = (options.step ? 2 : 0) + 3 + 2 + 22 + (currentSummary && selected === undefined ? 2 : 0);
   uiRenderer.renderPage(title, options.step, undefined, connection, { bodyRows });
   const loaded = await loadModels(connection, title, options.step);
   if (!loaded) return 'back';
@@ -198,7 +199,8 @@ async function chooseModels(options: PickOptions, selected?: string[]): Promise<
       filter: showAll ? t('model_filter_all') : t('model_filter_tool_call'),
     }))}`);
     logger.newLine();
-    if (currentSummary) {
+    // 多选时原有配置显示在「下一步」的说明区，这里不再单独占两行
+    if (currentSummary && selected === undefined) {
       logger.log(`  ${theme.subtle(currentSummary)}`);
       logger.newLine();
     }
@@ -221,6 +223,10 @@ async function chooseModels(options: PickOptions, selected?: string[]): Promise<
         initial: selected,
         summary: (values: string[]) => t('model_multi_selected', { count: String(values.length), models: values.join(', ') || '—' }),
         acceptLabel: (count: number) => t('model_multi_next', { count: String(count) }),
+        acceptDetail: () => [
+          theme.subtle(currentSummary ?? ''),
+          theme.subtle(t('model_multi_accept_hint')),
+        ].join('\n'),
         parseCustom: customIds,
         toggleable: (item: MenuItem<string>) => item.value !== SHOW_ALL,
         customItem: (id: string) => modelRow({ id, name: id, capabilitiesUnknown: true }, options),

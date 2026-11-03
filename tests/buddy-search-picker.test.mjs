@@ -29,3 +29,14 @@ test('show-all retains custom additions and an empty selection cannot continue',
  const source=head('codebuddy')+`assert.deepEqual(await select(),['alpha/one']);console.log('ALL_OK');`;
  const out=await runPrompt(source,[[frame,'vendor/new\r'],[/Selected 1:[^]*Type search/,'\x1b[F\r'],[/Selected 1:[^]*Only models with tool calls[^]*Type search/,'vendor/new\r'],[/Selected 0:[^]*Type search/,'\talpha/one\r'],[/Selected 1: alpha\/one[^]*Type search/,'\r']],120,{rows:42});assert.match(out,/ALL_OK/);
 });
+
+test('multi picker keeps the page tidy: no stale key hint in the title and no custom row for a plain word with matches',pty,async()=>{
+ const source=head('codebuddy',['alpha/one'])+`assert.deepEqual(await select(),['alpha/one']);console.log('TIDY_OK');`;
+ const out=await runPrompt(source,[[frame,'beta'],[/⌕ beta[^]*Type search/,'\x1b'],[/Selected 1:[^]*Type search/,'\t']],120,{rows:42});
+ assert.match(out,/TIDY_OK/);
+ assert.doesNotMatch(out,/space to select/);
+ // 「当前已配置」放在「下一步」的说明区，且只出现在列表上方
+ assert.match(out,/Currently configured: alpha\/one[^]*Next →/);
+ const searching=out.slice(out.indexOf('⌕ beta'));
+ assert.doesNotMatch(searching.slice(0,searching.indexOf('Type search')),/Use custom model ID/);
+});
