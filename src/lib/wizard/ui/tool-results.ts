@@ -5,7 +5,8 @@ import { uiRenderer } from './ui-renderer.js';
 const SAFE_REASON_KEYS = new Set(['apikey_not_set', 'setup_preview_unsupported', 'quick_save_failed', 'tool_config_load_failed',
   'plan_write_failed', 'plan_validation_failed', 'rebaseline_failed', 'helper_settings_failed', 'context_invalid',
   'tool_failure_unrecorded', 'tool_failure_recovery', 'tool_failure_path', 'tool_failure_changed',
-  'tool_failure_retry', 'tool_failure_conflict', 'tool_failure_protected', 'tool_failure_permissions']);
+  'tool_failure_retry', 'tool_failure_conflict', 'tool_failure_protected', 'tool_failure_permissions',
+  'dsh_desktop_profile_unsupported', 'dsh_desktop_profile_missing']);
 
 // 保留可操作的恢复提示；未知解析异常可能包含旧凭据，不将原文带入终端。
 export function safeToolFailureReason(reason?: string, fallback = 'tool_config_load_failed'): string {

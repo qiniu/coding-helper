@@ -1,9 +1,10 @@
 import os from 'node:os';
 import path from 'node:path';
 import fs from 'node:fs';
-import { isAlias, isMap, isScalar, isSeq, parseDocument, visit, type Document, type YAMLMap } from 'yaml';
+import { isDeepStrictEqual } from 'node:util';
+import { isAlias, isMap, isNode, isScalar, isSeq, parseDocument, visit, type Document, type YAMLMap } from 'yaml';
 import { type ModelConfig } from '../config.js';
-import { applyConfigEdits, canonicalConfigPath, parseConfigObject } from '../core/config-transaction.js';
+import { applyConfigEdits, canonicalConfigPath, parseConfigObject, restoreConfigEdits } from '../core/config-transaction.js';
 import { stateStore } from '../core/state-store.js';
 import { readDotenvValue, setDotenvValue } from '../core/dotenv-edit.js';
 import { readTextFile } from '../core/safe-write.js';
@@ -16,6 +17,7 @@ const ROW = 'llm-pi-ai';
 const PROFILES = ['web', 'headless'] as const;
 const PLUGIN = '@deepseek-ai/dsh-llm-pi-ai';
 const KEY_ENV = 'CODING_HELPER_DSH_API_KEY';
+const DESKTOP_PROFILE = 'desktop';
 export function getDshHome(): string {
   const override = process.env.DSH_HOME;
   const value = override !== undefined && override.trim() ? override : path.join(os.homedir(), '.dsh');
@@ -25,14 +27,40 @@ export function getDshHome(): string {
 function profileFile(profile: string, file: string): string { return path.join(getDshHome(), 'profiles', profile, file); }
 function patchFile(profile = 'web'): string { return profileFile(profile, 'cordis.patch.yml'); }
 function envFile(): string { return path.join(getDshHome(), '.env'); }
-function targets(): string[] { return [...PROFILES.flatMap(profile => [profileFile(profile, 'package.json'), patchFile(profile)]), envFile()]; }
+function desktopManifest(): string | undefined { return readTextFile(profileFile(DESKTOP_PROFILE, 'package.json')); }
+function hasDesktopProfile(): boolean { return desktopManifest() !== undefined; }
+function baseTargets(): string[] { return [...PROFILES.flatMap(profile => [profileFile(profile, 'package.json'), patchFile(profile)]), envFile()]; }
+function allowedTargets(): string[] { return [...baseTargets(), patchFile(DESKTOP_PROFILE)]; }
+function recordedTargets(): string[] | undefined {
+  const records = stateStore.getFileStates('dsh');
+  const files = records[0]?.state.priors?.files;
+  return Array.isArray(files) ? files.map(entry => (entry as { file: string }).file) : undefined;
+}
+function targets(): string[] {
+  // Desktop 可在旧五文件记录之后初始化；还原只处理记录里真正托管的目标。
+  return recordedTargets() ?? [...baseTargets(), ...(hasDesktopProfile() ? [patchFile(DESKTOP_PROFILE)] : [])];
+}
 function checkTargets(): void {
-  const expected = targets().map(canonicalConfigPath);
+  const expected = allowedTargets().map(canonicalConfigPath);
+  const required = baseTargets().map(canonicalConfigPath);
   for (const entry of stateStore.getFileStates('dsh')) {
     const files = entry.state.priors?.files;
-    if (!Array.isArray(files) || files.some(value => !value || typeof value !== 'object' || !('file' in value) || typeof value.file !== 'string' || !expected.includes(value.file))) {
+    if (!Array.isArray(files) || ![required.length, expected.length].includes(files.length) || files.some(value => !value || typeof value !== 'object' || !('file' in value) || typeof value.file !== 'string' || !expected.includes(value.file)) ||
+        new Set(files.map(value => (value as { file: string }).file)).size !== files.length || required.some(file => !files.some(value => (value as { file: string }).file === file))) {
       throw new Error('Configuration directory changed or restoration state is invalid. Restore the recorded DSH files first.');
     }
+  }
+}
+// Desktop 拥有自己的依赖和插件清单；只校验标准基础组件，不改写 manifest。
+function validateDesktopManifest(content: string): void {
+  const data = parseConfigObject(content);
+  const dsh = data.dsh;
+  const profile = dsh && typeof dsh === 'object' && 'profile' in dsh ? dsh.profile : undefined;
+  const bundles = profile && typeof profile === 'object' && 'bundles' in profile ? profile.bundles : undefined;
+  if (!Array.isArray(bundles) || bundles.some(bundle => typeof bundle !== 'string') ||
+      bundles.indexOf('@deepseek-ai/dsh-base') < 0 ||
+      bundles.indexOf('@deepseek-ai/dsh-web-app') <= bundles.indexOf('@deepseek-ai/dsh-base')) {
+    throw new Error('dsh_desktop_profile_unsupported');
   }
 }
 function profileManifest(content: string | undefined, profile: typeof PROFILES[number]): string {
@@ -121,6 +149,55 @@ export function buildDshPatch(content: string, baseUrl: string, model: string, l
   return String(doc);
 }
 
+// 比较配置值和表达式标签，忽略缩进、注释和对象键顺序，不执行 !!js。
+function nodeSnapshot(node: unknown): unknown {
+  if (isMap(node)) return { tag: node.tag, value: Object.fromEntries(node.items.map(pair => [(pair.key as { value: string }).value, nodeSnapshot(pair.value)])) };
+  if (isSeq(node)) return { tag: node.tag, value: node.items.map(nodeSnapshot) };
+  if (isScalar(node)) return { tag: node.tag, value: node.value };
+  return node;
+}
+// 只协调 profile patch；凭据、manifest、未知目录及中断日志仍使用严格事务校验。
+function reconcileDshPatch(file: string, current: string, original: string | null, applied: string): string | undefined {
+  if (![...PROFILES, DESKTOP_PROFILE].some(profile => canonicalConfigPath(patchFile(profile)) === file)) return undefined;
+  const before = parseDshPatch(original ?? ''), written = parseDshPatch(applied), now = parseDshPatch(current);
+  for (const id of [ROW, 'agent-default-model']) {
+    const prior = rows(before, id)[0], expected = rows(written, id)[0], actual = rows(now, id)[0];
+    if (!expected || !actual || expected.tag !== actual.tag) return undefined;
+    const owned = id === ROW ? [['disabled'], ['config', 'providers', DSH_PROVIDER]]
+      : [['disabled'], ['config', 'provider'], ['config', 'model'], ['config', 'reasoningEffort']];
+    // 行名称与容器标签也会影响插件含义，不能仅凭叶子值相同接管。
+    for (const keys of [['name'], ...owned]) {
+      if (!isDeepStrictEqual(nodeSnapshot(expected.getIn(keys, true)), nodeSnapshot(actual.getIn(keys, true)))) return undefined;
+    }
+    for (const keys of id === ROW ? [['config'], ['config', 'providers']] : [['config']]) {
+      const a = expected.getIn(keys, true), b = actual.getIn(keys, true);
+      if (!isMap(a) || !isMap(b) || a.tag !== b.tag) return undefined;
+    }
+    // 在当前文档上撤销助手拥有的字段，外部新增服务商、UI、权限和注释留在原处。
+    for (const keys of owned) {
+      const value = prior?.getIn(keys, true);
+      if (value === undefined) { if (actual.hasIn(keys)) actual.deleteIn(keys); }
+      else actual.setIn(keys, isNode(value) ? value.clone() : value);
+      for (let length = keys.length - 1; length > 0; length--) {
+        const prefix = keys.slice(0, length), parent = actual.getIn(prefix, true);
+        if (isMap(parent) && !parent.items.length && !prior?.hasIn(prefix)) actual.deleteIn(prefix);
+      }
+    }
+    if (!prior && actual.items.length === 1 && actual.has('id') && isSeq(now.contents)) {
+      const comments = [actual.commentBefore, actual.comment].filter(Boolean).join('\n');
+      if (comments) now.comment = [now.comment, comments].filter(Boolean).join('\n');
+      for (const operation of [...now.contents.items]) {
+        if (operation === actual) now.contents.items.splice(now.contents.items.indexOf(actual), 1);
+        else if (isMap(operation)) {
+          const inserted = operation.get('insert', true);
+          if (isSeq(inserted) && inserted.items.includes(actual)) inserted.items.splice(inserted.items.indexOf(actual), 1);
+        }
+      }
+    }
+  }
+  return String(now);
+}
+
 function checkHomeOverrides(): string | undefined {
   const content = readTextFile(path.join(getDshHome(), 'cordis.patch.yml'));
   if (content !== undefined) {
@@ -131,7 +208,8 @@ function checkHomeOverrides(): string | undefined {
 }
 function configured(): { model?: string; baseUrl?: string } {
   checkHomeOverrides();
-  const values = PROFILES.map(profile => {
+  const values = [...PROFILES, ...(hasDesktopProfile() ? [DESKTOP_PROFILE] : [])].map(profile => {
+    if (profile === DESKTOP_PROFILE) validateDesktopManifest(desktopManifest()!);
     const doc = parseDshPatch(readTextFile(patchFile(profile)) ?? '');
     const provider = rows(doc, ROW)[0], defaults = rows(doc, 'agent-default-model')[0];
     if (!provider || defaults?.getIn(['config', 'provider']) !== DSH_PROVIDER) return {};
@@ -155,13 +233,21 @@ export class DshTool extends OpenAICompatTool {
   launchArgs = ['web'];
   installCommand = 'npm install -g @deepseek-ai/dsh@0.2.1-rc.5';
   updateCommand = 'npm install -g @deepseek-ai/dsh@0.2.1-rc.5';
-  getLoadConfigNotes(): string[] { return [t('dsh_config_note')]; }
-  getConfig(): Record<string, unknown> { return { configPath: patchFile(), ...configured() }; }
+  // 有桌面 profile 而没有 CLI 时按桌面应用展示，不要求另外安装 npm CLI。
+  isInstalled(): boolean | null { return super.isInstalled() || (hasDesktopProfile() ? null : false); }
+  getLoadConfigNotes(): string[] { return [t(hasDesktopProfile() ? 'dsh_desktop_config_note' : 'dsh_config_note')]; }
+  getConfig(): Record<string, unknown> { return { configPath: patchFile(), profiles: [...PROFILES, ...(hasDesktopProfile() ? [DESKTOP_PROFILE] : [])], ...configured() }; }
   isConfigured(): boolean { const value = configured(); return !!value.model && isQiniuBaseUrl(value.baseUrl) && !!readDotenvValue(readTextFile(envFile()) ?? '', KEY_ENV); }
   async loadConfig(apiKey: string, baseUrl: string, models: ModelConfig): Promise<void> {
     checkTargets();
-    if (!fs.existsSync(patchFile()) && ['settings.yaml', 'settings.yml'].some(name => fs.existsSync(path.join(getDshHome(), name)))) throw new Error('Legacy DSH settings format detected. Upgrade DSH to the cordis.patch.yml format before loading.');
+    if (![...PROFILES, DESKTOP_PROFILE].some(profile => fs.existsSync(patchFile(profile))) && ['settings.yaml', 'settings.yml'].some(name => fs.existsSync(path.join(getDshHome(), name)))) throw new Error('Legacy DSH settings format detected. Upgrade DSH to the cordis.patch.yml format before loading.');
     const homePatch = checkHomeOverrides();
+    const desktop = desktopManifest();
+    const desktopTarget = canonicalConfigPath(patchFile(DESKTOP_PROFILE));
+    if (desktop === undefined && recordedTargets()?.includes(desktopTarget)) {
+      throw new Error('dsh_desktop_profile_missing');
+    }
+    if (desktop !== undefined) validateDesktopManifest(desktop);
     const model = this.resolveModel(models), limits = await fetchModelLimits(baseUrl, apiKey, model, this.name);
     applyConfigEdits(this.name, [
       ...PROFILES.flatMap(profile => [
@@ -171,11 +257,19 @@ export class DshTool extends OpenAICompatTool {
         } },
         { file: patchFile(profile), build: (content: string | undefined) => buildDshPatch(content ?? '', baseUrl, model, limits) },
       ]),
+      ...(desktop === undefined ? [] : [{ file: patchFile(DESKTOP_PROFILE), build: (content: string | undefined) => {
+        if (desktopManifest() !== desktop) throw new Error('DSH Desktop manifest changed before writing. Retry.');
+        return buildDshPatch(content ?? '', baseUrl, model, limits);
+      } }]),
       { file: envFile(), build: content => setDotenvValue(content ?? '', KEY_ENV, apiKey) },
-    ]);
+    ], { extend: true, reconcile: reconcileDshPatch });
   }
-  unloadConfig(): void { checkTargets(); this.restoreManagedConfig(targets()); }
+  unloadConfig(): void {
+    checkTargets(); const files = targets();
+    if (!restoreConfigEdits(this.name, files, { reconcile: reconcileDshPatch })) this.restoreManagedConfig(files);
+  }
   getLaunchEnv(apiKey: string, baseUrl: string, models: ModelConfig): Record<string, string> {
+    if (this.isInstalled() === null) throw new Error(t('dsh_desktop_launch_note'));
     const value = configured();
     if (value.baseUrl !== openAIBaseUrl(baseUrl) || value.model !== this.resolveModel(models)) throw new Error('Load the selected DSH connection and model before launching.');
     return { DSH_HOME: getDshHome(), [KEY_ENV]: apiKey };
