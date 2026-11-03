@@ -88,7 +88,7 @@ export async function quickCommand(target: string, rest: string[], options: Quic
         if (!await tool.checkModel?.(candidate, { apiKey, baseUrl })) { model = candidate; break; }
       }
       if (!model) { results.push({ tool, status: 'skipped', reason: 'quick_model_incompatible' }); continue; }
-      plans.push({ tool, model, models: modelConfigFor(tool, model) });
+      plans.push({ tool, model, models: { ...modelConfigFor(tool, model, savedModels), slotModels: savedModels.slotModels } });
     }
     const account = await checkAccountStatus(apiKey, baseUrl, plans.map(plan => plan.model));
     if (account.usable === false) throw new Error(describeAccountStatus(account));

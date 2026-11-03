@@ -1,3 +1,6 @@
+import { modelConfigFor, savedModelFor } from '../../core/model-mapping.js';
+import { slotOverrides, toolSlots } from '../../core/model-slots.js';
+import type { PlanItem, PlanChange } from '../../core/write-plan.js';
 import ora from 'ora';
 import { t, i18n } from '../../i18n.js';
 import { configManager, type ModelConfig, type Connection } from '../../config.js';
@@ -270,4 +273,59 @@ async function chooseModels(options: PickOptions, selected?: string[]): Promise<
 
     return { model };
   }
+}
+
+
+function mainLabel(tool: ITool): string {
+  return tool.name === 'claude-code' ? t('plan_claude_main') : t('plan_model');
+}
+
+// 工具当前的主模型（未接入时为空）
+export function currentMainModel(tool: ITool, models: ModelConfig = configManager.getModels()): string | undefined {
+  return tool.isConfigured?.() ? savedModelFor(tool, models) ?? tool.defaultModel : undefined;
+}
+
+// Claude Code 使用内置模型：不写自定义模型映射，清空各槽位（与原「不自定义模型」流程写入的内容一致）
+export function builtinPlanForClaude(tool: ITool): PlanItem {
+  const saved = configManager.getModels();
+  const builtinValue = t('slots_builtin_value');
+  const before = saved.claudeCode?.useDefaultModels ? builtinValue : currentMainModel(tool, saved);
+  const previous = slotOverrides(tool.name, saved);
+  const changes: PlanChange[] = [
+    { label: mainLabel(tool), before, after: builtinValue },
+    ...toolSlots(tool.name).map((slot) => ({ label: t(slot.labelKey), before: before === builtinValue ? builtinValue : before ? previous[slot.id] ?? before : undefined, after: builtinValue })),
+  ];
+  return {
+    tool,
+    models: {
+      claudeCode: { useDefaultModels: true },
+      slotModels: { [tool.name]: {} },
+    },
+    changes,
+    overrides: {},
+    builtin: true,
+  };
+}
+
+// 一个工具的写入计划：主模型 + 各槽位（单独设置过的保持不变，其余跟随主模型）
+export function planForTool(tool: ITool, main: string, overrides: Record<string, string> = slotOverrides(tool.name), note = ''): PlanItem {
+  const saved = configManager.getModels();
+  const before = currentMainModel(tool, saved);
+  const previous = slotOverrides(tool.name, saved);
+  const changes: PlanChange[] = [{ label: mainLabel(tool), before, after: main, note }];
+  for (const slot of toolSlots(tool.name)) {
+    const own = overrides[slot.id];
+    const was = before ? previous[slot.id] ?? before : undefined;
+    changes.push(own
+      ? { label: t(slot.labelKey), before: was, after: own, note: own === previous[slot.id] ? t('slot_kept') : t('slot_custom') }
+      : { label: t(slot.labelKey), before: was, after: main, note: t('slot_following') });
+  }
+  const withSlots: ModelConfig = { slotModels: { [tool.name]: overrides } };
+  return {
+    tool,
+    models: { ...modelConfigFor(tool, main, withSlots), slotModels: { [tool.name]: overrides } },
+    changes,
+    main,
+    overrides,
+  };
 }
