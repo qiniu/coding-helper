@@ -517,5 +517,6 @@
   "apikey_current_replace": "Current key {{key}}. Entering a new key replaces it",
   "profile_operation_failed": "Profile operation failed. Check the name, key, endpoint and configuration, then try again",
   "plan_files_none": "No files need changes",
-  "tool_detail_model_default": "Tool default model"
+  "tool_detail_model_default": "Tool default model",
+  "dsh_config_note": "Configures dsh 0.2.1-rc.5 Web/Headless profiles. Run dsh web, dsh headless or coding-helper run dsh; reselect the model in existing sessions."
 }

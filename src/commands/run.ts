@@ -26,6 +26,7 @@ export async function runCommand(toolName: string, args: string[]): Promise<void
     const variables = tool.getLaunchEnv(apiKey, connection.baseUrl, configManager.getModels());
     if (tool.isInstalled() === false) throw new Error(t('tool_not_installed', { tool: tool.displayName, command: tool.installCommand }));
     let passArgs = args[0] === '--' ? args.slice(1) : args;
+    if (!passArgs.length) passArgs = tool.launchArgs ?? [];
     if (tool.getLaunchSettings) {
       if (passArgs.some(arg => arg === '--settings' || arg.startsWith('--settings='))) throw new Error('The launcher manages session settings; do not pass --settings.');
       temporary = fs.mkdtempSync(path.join(os.tmpdir(), 'coding-helper-launch-'));

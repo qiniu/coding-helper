@@ -27,7 +27,7 @@ async function select<T>(config: { message: string; choices: { name: string; val
   const result = await menuPrompt({ message: config.message, statusText: config.statusText, statusUpdate: config.statusUpdate, escape: true, items: config.choices.map(choice => ({ value: choice.value, label: choice.name })) }, context);
   return result.action === 'escape' ? 'back' as T : result.value;
 }
-const PLANNED_TOOLS = ['claude-code', 'codex', 'codebuddy', 'workbuddy', 'hermes', 'opencode', 'qwen-code', 'kimi-code', 'grok', 'droid', 'openclaw'];
+const PLANNED_TOOLS = ['claude-code', 'codex', 'codebuddy', 'workbuddy', 'hermes', 'opencode', 'qwen-code', 'kimi-code', 'grok', 'droid', 'openclaw', 'dsh'];
 // 重载保留该工具完整的已保存模型集合，避免将 Buddy 的多模型缩减为首项。
 export function reloadPlanForTool(tool: ITool) {
   const saved = configManager.getModels();
@@ -291,7 +291,7 @@ async function applyConfig(tool: ITool): Promise<void> {
 
 // 启动工具
 export async function launchTool(tool: ITool): Promise<void> {
-  if (tool.launchOnly) {
+  if (tool.launchOnly || (tool.launchArgs && tool.getLaunchEnv)) {
     const previousExitCode = process.exitCode;
     let shuttingDown = false;
     try {
@@ -324,7 +324,7 @@ export async function launchTool(tool: ITool): Promise<void> {
 
   logger.info(t('tool_launching', { tool: tool.displayName }));
   try {
-    const result = spawn.sync(findCommand(tool.command, tool.searchPaths) ?? tool.command, [], { stdio: 'inherit' });
+    const result = spawn.sync(findCommand(tool.command, tool.searchPaths) ?? tool.command, tool.launchArgs ?? [], { stdio: 'inherit' });
     if (result.error) throw result.error;
   } catch (error) {
     uiRenderer.renderError(error instanceof Error ? error.message : String(error));
