@@ -84,6 +84,14 @@ export async function applyTool(tool: ITool, connection?: { apiKey: string; base
 export async function removeTool(tool: ITool): Promise<ToolResult> {
   if (tool.launchOnly) return { tool, status: 'skipped', reason: 'setup_reason_launch_only' };
   try {
+    // 已由外部切走时，归档旧记录即可；不能再用旧凭据覆盖当前官方或第三方配置。
+    if (isExternallyModified(tool)) {
+      stateStore.withLock(() => {
+        rebaselineTool(tool);
+        stateStore.removeToolRecords(tool.name);
+      });
+      return { tool, status: 'success' };
+    }
     // 只有适配器能确认哪些文件已还原；失败时不能由公共层清除其恢复记录。
     await tool.unloadConfig();
     return { tool, status: 'success' };
