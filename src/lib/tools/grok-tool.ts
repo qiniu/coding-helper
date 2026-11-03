@@ -1,3 +1,4 @@
+import { slotModel } from '../core/model-slots.js';
 import os from 'node:os';
 import path from 'node:path';
 import { parse } from 'smol-toml';
@@ -45,11 +46,17 @@ export function applyGrokConfig(
   apiKey: string,
   model: string,
   contextWindow = 128000,
+  summary?: { model: string; contextWindow?: number },
 ): string {
   const newline = existing.includes('\r\n') ? '\r\n' : '\n';
   let content = removeTomlTable(existing, MODEL_TABLE);
   content = upsertTomlTableKey(content, 'models', 'default', '"qiniu"');
-  const next = normalizeToml(content.trimEnd() + newline + newline + modelTable(MODEL_TABLE, model, baseUrl, apiKey, contextWindow).replace(/\n/g, newline));
+  if (summary) {
+    content = removeTomlTable(content, 'model.qiniu-summary');
+    content = upsertTomlTableKey(content, 'models', 'session_summary', JSON.stringify(summary.model === model ? MODEL_ID : 'qiniu-summary'));
+  }
+  const extra = summary && summary.model !== model ? modelTable('model.qiniu-summary', summary.model, baseUrl, apiKey, summary.contextWindow ?? contextWindow).replace(/\n/g, newline) : '';
+  const next = normalizeToml(content.trimEnd() + newline + newline + modelTable(MODEL_TABLE, model, baseUrl, apiKey, contextWindow).replace(/\n/g, newline) + extra);
   validateToml(next); return next;
 }
 
@@ -72,11 +79,18 @@ export class GrokTool extends OpenAICompatTool {
   async loadConfig(apiKey: string, baseUrl: string, models: ModelConfig): Promise<void> {
     const model = this.resolveModel(models);
     const limits = await fetchModelLimits(baseUrl, apiKey, model, this.name);
+    const summary = slotModel(this.name, 'summary', model, models);
+    const summaryLimits = summary === model ? limits : await fetchModelLimits(baseUrl, apiKey, summary, this.name);
     applyConfigEdits(this.name, [{ file: getGrokConfigFile(), build: content => {
       const config = parse(content ?? '');
-      const previous = isRecord(config.model) && isRecord(config.model.qiniu) ? config.model.qiniu : undefined;
-      const known = previous?.model === model && typeof previous.context_window === 'number' && Number.isFinite(previous.context_window) && previous.context_window > 0 ? previous.context_window : undefined;
-      return applyGrokConfig(content ?? '', baseUrl, apiKey, model, effectiveContextLimit(limits, known));
+      const entries: unknown[] = isRecord(config.model) ? [config.model.qiniu, config.model['qiniu-summary']] : [];
+      const knownLimit = (id: string): number | undefined => {
+        const limits = entries.filter(isRecord).filter(entry => entry.model === id && entry.base_url === openAIBaseUrl(baseUrl))
+          .map(entry => entry.context_window).filter((value): value is number => typeof value === 'number' && Number.isFinite(value) && value > 0);
+        return limits.length ? Math.min(...limits) : undefined;
+      };
+      const known = knownLimit(model), summaryKnown = knownLimit(summary);
+      return applyGrokConfig(content ?? '', baseUrl, apiKey, model, effectiveContextLimit(limits, known), { model: summary, contextWindow: effectiveContextLimit(summaryLimits, summaryKnown) });
     } }]);
   }
   unloadConfig(): void { this.restoreManagedConfig([getGrokConfigFile()]); }

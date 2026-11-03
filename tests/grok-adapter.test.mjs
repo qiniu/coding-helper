@@ -45,7 +45,7 @@ test('grok is registered and recognizes saved generic model selection', () => {
 test('grok restores bytes and refuses corrupt or changed config', async () => {
   files.forEach((file, i) => write(file, originals[i]));
   await load(); await load('second-key');
-  assert.match(read(files[0]), /model.qiniu/); assert.equal(read(files[0]).includes('session_summary'), false);
+  assert.match(read(files[0]), /model.qiniu/); assert.match(read(files[0]), /session_summary = "qiniu"/);
   await tool.unloadConfig(); files.forEach((file, i) => assert.equal(read(file), originals[i]));
   write(files[0], "broken = [");
   await assert.rejects(load()); assert.equal(read(files[0]), "broken = [");
