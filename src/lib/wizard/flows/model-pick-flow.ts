@@ -286,6 +286,7 @@ export function planForTool(tool: ITool, main: string, overrides: Record<string,
     tool,
     models: { ...modelConfigFor(tool, main, withSlots), slotModels: { [tool.name]: overrides } },
     changes,
+    connection: configManager.getConnection(tool.name),
     main,
     overrides,
   };
