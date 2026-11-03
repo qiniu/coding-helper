@@ -2,7 +2,7 @@ import { registeredTools } from '../../tool-registry.js';
 import chalk from 'chalk';
 import { stringWidth, padEnd, truncate, visibleWidth, padVisible, stripAnsi } from '../../../utils/string-width.js';
 import { logger } from '../../../utils/logger.js';
-import { renderLogo as renderLogoArt } from './logo.js';
+import { renderLogo as renderLogoArt, logoHeight } from './logo.js';
 import { theme } from './theme.js';
 import { configManager, type Connection } from '../../config.js';
 import { CUSTOM_ENDPOINT, ENDPOINT_DEFINITIONS } from '../../endpoints.js';
@@ -26,10 +26,24 @@ export function connectedToolNames(): string[] {
   return registeredTools().filter(tool => { try { return !tool.launchOnly && tool.isConfigured?.(); } catch { return false; } }).map(tool => tool.name);
 }
 
+// 状态栏分行：放得下就一行；否则连接一行、接入与配置档一行；再放不下才逐段换行
+function statusLines(parts: string[], columns: number): string[] {
+  const line = parts.join(theme.subtle('  ·  '));
+  if (visibleWidth(line) + 4 <= columns) return [line];
+  const lines: string[] = [];
+  for (const group of [parts.slice(0, 2), parts.slice(2)]) {
+    const text = group.join(theme.subtle('  ·  '));
+    if (visibleWidth(text) + 4 <= columns) lines.push(text);
+    else lines.push(...group);
+  }
+  return lines;
+}
+
 // 终端 UI 渲染器
 export const uiRenderer = {
-  renderPage(title: string, step?: StepInfo, subtitle?: string, connection?: Connection): void {
-    this.renderHeader({ connection });
+  // full：用完整 Logo 作页头（调用方先用 logoFits 确认终端高度够用）
+  renderPage(title: string, step?: StepInfo, subtitle?: string, connection?: Connection, options: { full?: boolean } = {}): void {
+    this.renderHeader({ connection, full: options.full });
     if (!step) return this.renderTitle(title, subtitle);
     this.renderSteps(step);
     this.renderTitle(title, subtitle);
@@ -53,6 +67,11 @@ export const uiRenderer = {
   // 清屏 - 清除终端内容和滚动缓冲区
   clearScreen(): void {
     process.stdout.write('\x1Bc');
+  },
+
+  // 终端高度能否在 Logo 与状态栏之下完整放下 bodyRows 行（含操作提示，另留 1 行给光标）
+  logoFits(bodyRows: number): boolean {
+    return (process.stdout.rows || 0) >= logoHeight() + this.statusBarRows() + bodyRows + 1;
   },
 
   // 渲染七牛 Logo
@@ -83,18 +102,21 @@ export const uiRenderer = {
     const profile = connection ? connection.profile : configManager.getActiveProfile();
     if (profile) parts.push(`${theme.subtle(t('profile_label'))} ${theme.brand(profile)}`);
     const columns = Math.max(12, process.stdout.columns || 100);
-    const line = parts.join(theme.subtle('  ·  '));
-    if (visibleWidth(line) + 4 <= columns) logger.log(`  ${line}`);
-    else {
-      // 放不下时分两行：连接一行，接入与配置档一行；再放不下才逐段换行
-      for (const group of [parts.slice(0, 2), parts.slice(2)]) {
-        const text = group.join(theme.subtle('  ·  '));
-        if (visibleWidth(text) + 4 <= columns) logger.log(`  ${text}`);
-        else for (const part of group) logger.log(`  ${part}`);
-      }
-    }
+    for (const line of statusLines(parts, columns)) logger.log(`  ${line}`);
     logger.log(`  ${theme.border('─'.repeat(Math.max(1, Math.min(columns - 4, 72))))}`);
     logger.newLine();
+  },
+  // 状态栏占用的行数（含分隔线与空行），按与 renderStatusBar 相同的规则换行
+  statusBarRows(connection?: Connection): number {
+    const apiKey = connection ? connection.apiKey : configManager.getApiKey();
+    const parts = [
+      this.endpointLabel(connection?.endpoint, connection?.baseUrl) + '  ',
+      `Key ${apiKey ? this.maskApiKey(apiKey) : t('config_view_not_set')}`,
+      `${t('status_applied')} ${connectedToolNames().length} / ${registeredTools().filter(tool => !tool.launchOnly).length}`,
+    ];
+    const profile = connection ? connection.profile : configManager.getActiveProfile();
+    if (profile) parts.push(`${t('profile_label')} ${profile}`);
+    return statusLines(parts, Math.max(12, process.stdout.columns || 100)).length + 2;
   },
   endpointLabel(endpoint = configManager.getEndpoint(), baseUrl = configManager.baseUrl): string {
     const definition = ENDPOINT_DEFINITIONS[endpoint];

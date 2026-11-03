@@ -27,6 +27,16 @@ function renderTagline(): void {
   logger.log(visibleWidth(line) <= columns ? line : prefix);
 }
 
+// renderLogo 会输出的行数（与下面的分支一一对应），用于按终端高度决定能否显示完整 Logo
+export function logoHeight(sprite = 'qiniu'): number {
+  if (process.stdout.columns && process.stdout.columns < 38) return 3;
+  const spriteWidth = Math.max(0, ...(spriteGrid(sprite) ?? []).map(row => row.length));
+  if (pixelsSupported() && (process.stdout.columns || 0) >= 2 + LOGO_WIDTH + LOGO_GAP + spriteWidth + 4) {
+    return Math.max(renderGrid(logoGrid()).length, renderSprite(sprite).length) + 4;
+  }
+  return LOGO_LINES.length + 3;
+}
+
 // 渲染七牛 Logo：宽终端用像素字 + 小牛，否则用文字 Logo
 export function renderLogo(sprite = 'qiniu'): void {
   logger.newLine();
