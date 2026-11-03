@@ -163,8 +163,14 @@ export interface MenuConfig<T> {
   // 多选搜索共用同一绘制器；搜索和分类只改变可见项，不改变已选集合。
   multiple?: {
     initial: T[];
-    summary: (values: T[]) => string;
+    // width 为可用列数：超出时由调用方压缩成一行（如只列前几个并写「+N 个」）
+    summary: (values: T[], width?: number, final?: boolean) => string;
     acceptLabel: (count: number) => string;
+    // 末尾追加「已选 N」分类，只列出已选项，便于查看与移除完整清单
+    selectedTab?: (count: number) => string;
+    selectedEmpty?: string;
+    // 光标停在「下一步」时上方说明区显示的内容（如原有配置与操作说明），避免说明区留白
+    acceptDetail?: (values: T[]) => string;
     parseCustom?: (query: string) => T[];
     toggleable?: (item: MenuItem<T>) => boolean;
     customItem?: (value: T) => MenuItem<T>;
@@ -269,6 +275,11 @@ const menuView = createPrompt(<T,>(config: LiveMenuConfig<T>, done: (result: Men
     return index < 0 ? [...config.items, ...added] : [...config.items.slice(0, index), ...added, ...config.items.slice(index)];
   }, [config.items, added]);
   const [tab, setTab] = useState(session.tab);
+  // 多选时在分类末尾加「已选 N」：从「全部」按 ← 一下即可查看完整清单
+  const tabs = useMemo((): MenuTab<T>[] | undefined => config.multiple?.selectedTab && config.tabs?.length
+    ? [...config.tabs, { label: config.multiple.selectedTab(picked.size), match: (item: MenuItem<T>) => picked.has(item.value) }]
+    : config.tabs, [config.tabs, picked]);
+  const onSelectedTab = !!config.multiple?.selectedTab && !!tabs && tab === tabs.length - 1;
   const [status, setStatus] = useState<'idle' | 'done' | 'cancel'>('idle');
   const [statusText, setStatusText] = useState(session.statusText ?? config.statusText ?? '');
   useEffect(() => {
@@ -309,17 +320,19 @@ const menuView = createPrompt(<T,>(config: LiveMenuConfig<T>, done: (result: Men
         .filter((x): x is { item: MenuItem<T>; order: number; score: number } => x.score !== undefined)
         .sort((a, b) => a.score - b.score || a.order - b.order)
         .map((x) => x.item);
-      const customText = config.multiple && scored.some(item => String(item.value) === query.trim()) ? undefined : config.customLabel?.(query);
+      // 多选时搜索词已有匹配、又不像模型 ID（不含 / 或逗号）时，不再额外列出「使用自定义模型 ID」
+      const customText = config.multiple && (scored.some(item => String(item.value) === query.trim()) || (scored.length && !/[/,，]/.test(query)))
+        ? undefined : config.customLabel?.(query);
       const custom: MenuItem<typeof CUSTOM>[] = customText ? [{ value: CUSTOM, label: customText }] : [];
       const suggested = scored.length ? [] : config.suggest?.(query) ?? [];
       const preferCustom = typeof config.customFirst === 'function' ? config.customFirst(query) : config.customFirst;
       if (custom.length && (preferCustom || !scored.length)) return [...custom, ...((scored.length || suggested.length) ? [{ separator: '' }, ...scored, ...suggested] : [])];
       return [...scored, ...suggested, ...(custom.length ? [{ separator: '' }, ...custom] : [])];
     }
-    const current = config.tabs?.[tab];
+    const current = tabs?.[tab];
     const visible = !current || tab === 0 ? entries : entries.filter((e) => !isSeparator(e) && !e.pinned && current.match(e));
     return config.multiple ? [
-      { value: ACCEPT, label: config.multiple.acceptLabel(picked.size), disabled: !picked.size },
+      { value: ACCEPT, label: config.multiple.acceptLabel(picked.size), disabled: !picked.size, description: config.multiple.acceptDetail?.([...picked]) },
       { separator: '' }, ...visible,
     ] : visible;
   }, [query, tab, entries, picked]);
@@ -416,8 +429,8 @@ const menuView = createPrompt(<T,>(config: LiveMenuConfig<T>, done: (result: Men
       return;
     }
     if (key.name === 'left' || key.name === 'right') {
-      if (config.tabs?.length && !query) {
-        const count = config.tabs.length;
+      if (tabs?.length && !query) {
+        const count = tabs.length;
         setTab((tab + (key.name === 'right' ? 1 : count - 1)) % count);
         setActive(0);
         return;
@@ -434,7 +447,7 @@ const menuView = createPrompt(<T,>(config: LiveMenuConfig<T>, done: (result: Men
   });
 
   const all: MenuItem<T | typeof ACCEPT>[] = entries.filter((e): e is MenuItem<T> => !isSeparator(e));
-  if (config.multiple) all.push({ value: ACCEPT, label: config.multiple.acceptLabel(picked.size) });
+  if (config.multiple) all.push({ value: ACCEPT, label: config.multiple.acceptLabel(picked.size), description: config.multiple.acceptDetail?.([...picked]) });
   const labelWidth = Math.max(0, ...all.map((e) => visibleWidth(e.label)));
   const iconWidth = (config.multiple ? 2 : 0) + Math.max(0, ...all.map((e) => (e.icon ? visibleWidth(e.icon) + 1 : 0)));
   const showHints = hintFits(4 + iconWidth, labelWidth, Math.max(0, ...all.map((e) => visibleWidth(e.hint ?? ''))));
@@ -455,16 +468,18 @@ const menuView = createPrompt(<T,>(config: LiveMenuConfig<T>, done: (result: Men
       ? `  ${theme.brand('⌕')} ${theme.value(query)}${cursor}   ${theme.subtle(t('ui_search_found', { count: String(matches) }))}`
       : `  ${theme.subtle('⌕')} ${cursor}${theme.subtle(config.placeholder ?? t('ui_search_placeholder'))}`;
   })() : undefined;
-  const tabsLine = config.tabs?.length ? renderMenuTabs(config.tabs, query ? 0 : tab) : undefined;
+  const tabsLine = tabs?.length ? renderMenuTabs(tabs, query ? 0 : tab) : undefined;
   const hasMatches = query ? entries.some((e) => selectable(e) && !e.pinned && (config.filter ?? defaultFilter)(e, query) !== undefined) : true;
-  const emptyLine = hasMatches ? undefined : `  ${theme.subtle(config.emptyText?.(query) ?? t('ui_search_empty'))}`;
+  const emptyLine = !hasMatches ? `  ${theme.subtle(config.emptyText?.(query) ?? t('ui_search_empty'))}`
+    : onSelectedTab && !query && !picked.size ? `  ${theme.subtle(config.multiple?.selectedEmpty ?? t('ui_search_empty'))}` : undefined;
   // 操作提示：列表超出一页时加上翻页键
   const footerFor = (overflow: boolean): string => {
     if (config.multiple) return `  ${renderKeyHints([
       ['↑↓', t('ui_key_move')], ...(overflow ? [['PgUp/PgDn', t('ui_key_page')] as KeyHint] : []),
       [t('ui_key_enter'), t('model_multi_toggle')], ['Tab', t('model_multi_continue')],
       ['Esc', query ? t('ui_key_clear_search') : t('ui_key_back')],
-      ['←→', t('ui_key_tabs')], [t('ui_key_type'), t('ui_key_search')],
+      // 超出一页时多了翻页键，省掉「←→ 切换厂商」（厂商标签就在列表上方），保持一行
+      ...(overflow ? [] : [['←→', t('ui_key_tabs')] as KeyHint]), [t('ui_key_type'), t('ui_key_search')],
     ])}`;
     const hints = config.footer ?? standardHints({ back: !!config.escape, search: config.searchable, tabs: !!config.tabs?.length, page: overflow });
     return `  ${renderKeyHints(query ? [['Esc', t('ui_key_clear_search')], [t('ui_key_enter'), t('ui_key_confirm')]] : hints)}`;
@@ -485,7 +500,16 @@ const menuView = createPrompt(<T,>(config: LiveMenuConfig<T>, done: (result: Men
   const bottomDetailRows = !detailTop && (all.some((e) => e.description) || config.asyncDetail)
     ? 1 + Math.max(0, ...all.map((e) => (e.description ? e.description.split('\n').length : 0))) + (config.asyncDetail ? 1 : 0)
     : 0;
-  const selectionLine = config.multiple ? `  ${theme.brand(truncate(config.multiple.summary([...picked]), Math.max(1, terminalWidth() - 4)))}` : undefined;
+  // 已选清单：「已选 N 个：」用品牌色加粗，模型列表用正文色，一眼区分数量与内容
+  const selectionLine = config.multiple ? (() => {
+    const text = truncate(config.multiple.summary([...picked], Math.max(1, terminalWidth() - 4)), Math.max(1, terminalWidth() - 4));
+    const at = text.search(/[:：]/);
+    if (at < 0) return `  ${theme.brandBold(text)}`;
+    // 折叠提示（「  +N …」）用弱化色，与模型名区分
+    const body = text.slice(at + 1);
+    const fold = body.search(/(^|\s{2})\+\d/);
+    return `  ${theme.brandBold(text.slice(0, at + 1))}${theme.value(fold < 0 ? body : body.slice(0, fold))}${fold < 0 ? '' : theme.subtle(body.slice(fold))}`;
+  })() : undefined;
   const fixedRows = (overflow: boolean): number => (selectionLine ? 1 : 0) + (statusText ? screenRows(statusText) : 0) + 1 + (searchLine ? screenRows(searchLine) : 0) + (tabsLine ? screenRows(tabsLine) : 0) + (emptyLine ? 1 : 0)
     + (detailTop ? detailRows + 1 : bottomDetailRows) + (overflow ? 1 : 0) + 1 + screenRows(footerFor(overflow)) + 1;
   // 可用高度：清屏后页头与页面内容之下剩余的行数；没有跟踪时，说明在上方的菜单按整屏计算
@@ -507,24 +531,28 @@ const menuView = createPrompt(<T,>(config: LiveMenuConfig<T>, done: (result: Men
       if (isSeparator(item)) return item.separator ? `  ${theme.subtle(item.separator)}` : '';
       const check = config.multiple && item.value !== ACCEPT && config.multiple.toggleable?.(item as MenuItem<T>) !== false ? (picked.has(item.value as T) ? theme.success('☑') : theme.subtle('☐')) + ' ' : '';
       const icon = check + (item.icon ? `${item.icon} ` : '');
+      const chosen = config.multiple && item.value !== ACCEPT && picked.has(item.value as T);
       const rawLabel = query && item.value !== CUSTOM ? highlightMatch(item.label, config.highlight?.(query) ?? query) : item.label;
       const label = padVisible((visibleWidth(rawLabel) > Math.max(1, terminalWidth() - 8 - iconWidth) ? truncate(stripAnsi(rawLabel), Math.max(1, terminalWidth() - 8 - iconWidth)) : rawLabel), Math.min(labelWidth, Math.max(1, terminalWidth() - 8 - iconWidth)));
-      // 当前正在使用的项在第 3 列显示 ▪，标签仍与其他行对齐
-      const mark = item.current ? theme.brand('▪') : ' ';
+      // 当前正在使用的项在第 3 列显示 ▪，标签仍与其他行对齐；多选时已有 ☑ 与「当前」标签，不再重复标记
+      const mark = item.current && !config.multiple ? theme.brand('▪') : ' ';
       if (item.disabled) {
         return `  ${mark} ${icon}${theme.subtle(label)}    ${theme.subtle(hintOf(item))}`;
       }
       if (isActive) {
-        const text = ` ${theme.brandBold('❯')}${mark} ${icon}${chalk.bold.hex('#E8F6FF')(label)}    ${chalk.hex('#8BE9FF')(hintOf(item))}`;
+        const text = ` ${theme.brandBold('❯')}${mark} ${icon}${item.value === ACCEPT ? theme.brandBold(label) : chalk.bold.hex('#E8F6FF')(label)}    ${chalk.hex('#8BE9FF')(hintOf(item))}`;
         return highlightRow(text, width);
       }
-      return `  ${mark} ${icon}${theme.value(label)}    ${theme.subtle(hintOf(item))}`;
+      // 多选时已选的模型名用品牌色，「下一步」始终用品牌色，与普通行区分
+      const tone = item.value === ACCEPT ? theme.brandBold : chosen ? theme.brand : theme.value;
+      return `  ${mark} ${icon}${tone(label)}    ${theme.subtle(hintOf(item))}`;
     },
   });
 
   if (status === 'cancel') return '';
   if (status === 'done') {
-    return `${theme.success('✔')} ${theme.heading(config.message)} ${theme.brand(config.multiple ? config.multiple.summary([...picked]) : current?.value === CUSTOM ? query : current?.label ?? '')}`;
+    const doneWidth = Math.max(1, terminalWidth() - visibleWidth(config.message) - 4);
+    return `${theme.success('✔')} ${theme.heading(config.message)} ${theme.brand(config.multiple ? config.multiple.summary([...picked], doneWidth, true) : current?.value === CUSTOM ? query : current?.label ?? '')}`;
   }
   const lines = [...(statusText ? [statusText] : []), `${theme.brand('?')} ${theme.heading(config.message)}`];
   // 说明在上方：紧跟提示行，下面一条分隔线，再是搜索框与标签
