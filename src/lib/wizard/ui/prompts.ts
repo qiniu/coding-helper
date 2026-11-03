@@ -395,7 +395,15 @@ const menuView = createPrompt(<T,>(config: LiveMenuConfig<T>, done: (result: Men
         const extra = values.filter(value => !entries.some(entry => selectable(entry) && entry.value === value));
         if (extra.length) setAdded([...added, ...extra.map(value => config.multiple!.customItem?.(value) ?? { value, label: String(value) })]);
         setPicked(next);
-        updateQuery('');
+        // 勾选不清空搜索、不跳到「下一步」，保留正在浏览的位置以便连续选择。
+        if (onSelectedTab && !query) {
+          // 已选分类中取消后当前行会消失：优先停在下一项，末尾则停在上一项。
+          const remaining = items.filter(entry => !selectable(entry) || entry.value === ACCEPT || next.has(entry.value as T));
+          const modelRows = remaining.flatMap((entry, index) => selectable(entry) && entry.value !== ACCEPT ? [index] : []);
+          setActive(modelRows.find(index => index >= activeIndex) ?? modelRows[modelRows.length - 1] ?? 0);
+        } else {
+          setActive(activeIndex);
+        }
         return;
       }
       if (current.value === CUSTOM) return finish({ value: undefined as T, action: 'custom', query });
