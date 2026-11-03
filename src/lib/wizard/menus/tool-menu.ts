@@ -313,6 +313,11 @@ async function applyConfig(tool: ITool): Promise<void> {
 
 // 启动工具
 export async function launchTool(tool: ITool): Promise<void> {
+  if (tool.isInstalled() === null) {
+    uiRenderer.renderHint(t('tool_desktop_launch_hint', { tool: tool.displayName }));
+    await promptHelper.pressEnter();
+    return;
+  }
   if (tool.launchOnly || (tool.launchArgs && tool.getLaunchEnv)) {
     const previousExitCode = process.exitCode;
     let shuttingDown = false;
@@ -332,15 +337,6 @@ export async function launchTool(tool: ITool): Promise<void> {
       tool: tool.displayName,
       command: tool.installCommand,
     }));
-    return;
-  }
-
-  // 桌面应用特殊处理：提示手动启动
-  if (tool.isInstalled() === null) {
-    uiRenderer.renderHint(t('tool_desktop_launch_hint', {
-      tool: tool.displayName,
-    }));
-    await promptHelper.pressEnter();
     return;
   }
 

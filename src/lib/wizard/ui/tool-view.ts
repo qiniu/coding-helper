@@ -123,6 +123,9 @@ export function renderResultSummary(results: ToolResult[], options: { undoComman
     logger.log(`  ${result.status === 'failed' ? theme.danger('✖') : theme.warning('–')} ${theme.value(result.tool.displayName)}  ${theme.subtle(reasonText(result))}`);
   }
   logger.newLine();
+  for (const result of ok) {
+    for (const note of result.tool.getLoadConfigNotes?.() ?? []) uiRenderer.renderHint(note);
+  }
   if (ok.length) {
     const commands = ok.filter(result => installState(result.tool) !== null).map(result => theme.value(launchHint(result.tool)));
     if (commands.length) logger.log(`  ${theme.brandBold(t('result_next'))}  ${t('result_next_launch', { commands: commands.join(theme.subtle(' / ')) })}`);
