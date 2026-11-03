@@ -10,10 +10,10 @@ const WELCOME_BODY_ROWS = 14;
 // 语言选择流程
 export async function runLanguageFlow(step?: StepInfo): Promise<boolean> {
   if (step) {
-    // 首次欢迎页在短终端使用紧凑牛头，按整页行数判断，保证语言选项与提示都在一屏内。
+    // 首次欢迎页按整页行数选页头档位（与其他页面同一规则），保证语言选项与提示都在一屏内。
     const welcome = step.current === 1;
     if (welcome) {
-      uiRenderer.renderHeader({ bodyRows: WELCOME_BODY_ROWS, brandMark: true });
+      uiRenderer.renderHeader({ bodyRows: WELCOME_BODY_ROWS });
       uiRenderer.renderSteps(step);
       uiRenderer.renderWelcome(t('welcome'), t('welcome_description'), t('privacy_notice'));
     } else uiRenderer.renderPage(t('page_language'), step);

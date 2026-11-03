@@ -546,6 +546,5 @@
   "tool_hint_update_to": "可更新到 {{version}}",
   "tool_hint_install_skip": "跳过安装，直接写入配置",
   "install_skip": "跳过",
-  "model_publisher_unknown": "未知发布方",
-  "dsh_config_note": "为 dsh 0.2.1-rc.5 的 Web/Headless profile 写入配置。运行 dsh web、dsh headless 或 coding-helper run dsh；已有会话需重新选择模型。"
+  "model_publisher_unknown": "未知发布方"
 }

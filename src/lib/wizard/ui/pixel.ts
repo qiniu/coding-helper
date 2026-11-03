@@ -84,10 +84,36 @@ const LOGO_GRADIENT = ['#8BEDFF', '#52DBFF', '#22C8F5', '#12B1E6', '#0C98D2', '#
 // 像素网格：每格是颜色或 undefined（透明）
 export type PixelGrid = (string | undefined)[][];
 
+// 牛头按行渐变：与 QINIU 字同一组色阶，顶部浅青、中部官方蓝 #29A8E1、底部深蓝
+const QINIU_GRADIENT = ['#8BEDFF', '#29A8E1', '#0A6AA6'];
+
+function parseHex(hex: string): number[] {
+  return [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16));
+}
+
+// 第 row 行（共 total 行）在渐变上的颜色：中间一行固定为官方蓝，上半段由浅青过渡到官方蓝，下半段由官方蓝过渡到深蓝
+export function qiniuGradientColor(row: number, total: number): string {
+  const [top, brand, bottom] = QINIU_GRADIENT.map(parseHex);
+  // 取偶数行，半块渲染时官方蓝落在字符前景色上
+  const mid = Math.max(0, Math.floor((total - 1) / 2) - (Math.floor((total - 1) / 2) % 2));
+  const [a, b, t] = row <= mid
+    ? [top, brand, mid === 0 ? 1 : row / mid]
+    : [brand, bottom, (row - mid) / (total - 1 - mid)];
+  return '#' + a.map((v, k) => Math.round(v + (b[k] - v) * t).toString(16).padStart(2, '0')).join('').toUpperCase();
+}
+
+// 按行给牛头上色：完整版与紧凑版共用同一渐变
+function gradientRows(rows: string[]): PixelGrid {
+  return rows.map((row, r) => {
+    const color = qiniuGradientColor(r, rows.length);
+    return [...row].map((ch) => (ch === '.' ? undefined : color));
+  });
+}
+
 // 从官方透明 PNG 按轮廓采样的紧凑标志，16×10 像素 = 16 列×5 行。
-// 与完整牛头共用官方蓝色；短终端也保留品牌图形。
+// 与完整牛头共用同一渐变；短终端也保留品牌图形。
 export function compactQiniuGrid(): PixelGrid {
-  return [
+  return gradientRows([
     'a..............a',
     '.a..a.........a.',
     '.aaaa.......aaa.',
@@ -98,12 +124,13 @@ export function compactQiniuGrid(): PixelGrid {
     '.....aa...aa....',
     '.....aaaaaaa....',
     '.....aaaaaa.....',
-  ].map(row => [...row].map(ch => ch === '.' ? undefined : SPRITES.qiniu.pal.a));
+  ]);
 }
 
 export function spriteGrid(id: string): PixelGrid | undefined {
   const def = SPRITES[id];
   if (!def) return undefined;
+  if (id === 'qiniu') return gradientRows(def.rows);
   return def.rows.map(row => [...row].map(ch => ch === '.' ? undefined : def.pal[ch]));
 }
 

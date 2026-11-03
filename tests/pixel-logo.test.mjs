@@ -37,11 +37,24 @@ test('compact official Qiniu mark fits the short header without cutting ANSI col
  const log=logger.log,newLine=logger.newLine,level=chalk.level,columns=Object.getOwnPropertyDescriptor(process.stdout,'columns');
  try{
   const grid=compactQiniuGrid();assert.equal(grid.length,10);assert.ok(grid.every(row=>row.length===16));
-  assert.deepEqual([...new Set(grid.flat().filter(Boolean))],['#29A8E1']);
+  const rowColors=grid.map(row=>[...new Set(row.filter(Boolean))]);assert.ok(rowColors.every(colors=>colors.length===1),'compact mark colors are uniform per row');assert.ok(new Set(rowColors.flat()).size>=5,'compact mark uses a vertical gradient');
   for(const color of [0,3])for(const width of [38,60,100]){
    chalk.level=color;Object.defineProperty(process.stdout,'columns',{value:width,configurable:true});const lines=[];logger.log=line=>lines.push(line);logger.newLine=()=>lines.push('');renderCompactLogo();
    assert.equal(lines.length,COMPACT_LOGO_HEIGHT);assert.ok(lines.every(line=>visibleWidth(line)<=width));
    const plain=lines.map(stripAnsi).join('\n');assert.match(plain,/Coding Helper/);assert.match(plain,/[▀▄█]/);assert.ok(!plain.includes('\x1b'));assert.ok(!plain.includes('…'));
   }
  }finally{logger.log=log;logger.newLine=newLine;chalk.level=level;if(columns)Object.defineProperty(process.stdout,'columns',columns);else delete process.stdout.columns;}
+});
+
+test('full and compact Qiniu marks share one vertical gradient through the official blue',async()=>{
+ for(const grid of [spriteGrid('qiniu'),compactQiniuGrid()]){
+  const colors=grid.map(row=>row.find(Boolean)).filter(Boolean);
+  assert.equal(colors[0],'#8BEDFF');assert.equal(colors.at(-1),'#0A6AA6');
+  const lum=c=>[1,3,5].reduce((sum,i)=>sum+parseInt(c.slice(i,i+2),16),0);
+  for(let i=1;i<colors.length;i++)assert.ok(lum(colors[i])<=lum(colors[i-1]),`row ${i} darker than row ${i-1}`);
+  assert.ok(grid.every(row=>new Set(row.filter(Boolean)).size<=1));
+  // 官方蓝落在偶数行（半块字符的前景色）上
+  const brandRow=grid.findIndex(row=>row.includes('#29A8E1'));assert.ok(brandRow>0&&brandRow%2===0,`official blue row ${brandRow}`);
+ }
+ assert.equal(SPRITES.qiniu.pal.a,'#29A8E1');
 });

@@ -546,6 +546,5 @@
   "tool_hint_update_to": "update to {{version}}",
   "tool_hint_install_skip": "configure without installing",
   "install_skip": "Skip",
-  "model_publisher_unknown": "Unknown publisher",
-  "dsh_config_note": "Configures dsh 0.2.1-rc.5 Web/Headless profiles. Run dsh web, dsh headless or coding-helper run dsh; reselect the model in existing sessions."
+  "model_publisher_unknown": "Unknown publisher"
 }
