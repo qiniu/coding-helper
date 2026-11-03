@@ -6,10 +6,38 @@ import { isQiniuBaseUrl } from '../endpoints.js';
 import type { ModelConfig } from '../config.js';
 import { readTextFile } from '../core/safe-write.js';
 import { applyConfigEdits } from '../core/config-transaction.js';
+import { migrateLegacyText, legacyState } from '../core/legacy-state.js';
 import { OpenAICompatTool, fetchModelLimits, effectiveContextLimit, openAIBaseUrl, isRecord } from './openai-compat-tool.js';
-import { escapeTomlString, normalizeToml, removeTomlTable, upsertTomlTableKey, validateToml } from '../core/toml-edit.js';
+import { escapeTomlString, normalizeToml, removeTomlTable, removeTomlTableKey, upsertTomlTableKey, validateToml } from '../core/toml-edit.js';
 const MODEL_ID = 'qiniu';
 const MODEL_TABLE = `model.${MODEL_ID}`;
+const LEGACY_KEYS = ['default', 'subagent', 'session_summary'].map(key => 'models.' + key);
+
+function migrateGrokState(): void {
+  if (!legacyState('grok', LEGACY_KEYS)) return;
+  if (path.resolve(getGrokConfigFile()) !== path.join(os.homedir(), '.grok', 'config.toml')) throw new Error('Legacy configuration directory changed. Restore the original path before retrying.');
+  migrateLegacyText('grok', getGrokConfigFile(), LEGACY_KEYS, (content, priors) => {
+    if (!Object.hasOwn(priors, 'models.default')) throw new Error('Incomplete legacy Grok restoration state. Recover before retrying.');
+    const current = parse(content);
+    if (!isRecord(current.model) || !isRecord(current.model.qiniu) || !isQiniuBaseUrl(current.model.qiniu.base_url)) throw new Error('Legacy Grok ownership changed. Recover before retrying.');
+    for (const id of ['qiniu', 'qiniu-summary']) {
+      const model = current.model[id];
+      if (model !== undefined && (!isRecord(model) || !isQiniuBaseUrl(model.base_url))) throw new Error('Legacy Grok model ownership changed. Recover before retrying.');
+    }
+    let original = removeTomlTable(removeTomlTable(content, MODEL_TABLE), 'model.qiniu-summary');
+    for (const key of LEGACY_KEYS) {
+      const name = key.slice('models.'.length);
+      const present = isRecord(current.models) ? current.models[name] : undefined;
+      if (!Object.hasOwn(priors, key) && !['qiniu', 'qiniu-summary'].includes(present as string)) continue;
+      const value = priors[key] ?? null;
+      const parsed = value === null ? undefined : typeof value === 'string' ? parse('value = ' + value) : undefined;
+      if (value !== null && (!parsed || Object.keys(parsed).length !== 1 || typeof parsed.value !== 'string')) throw new Error('Invalid legacy Grok model reference. Recover before retrying.');
+      if (present !== undefined && !['qiniu', 'qiniu-summary', parsed?.value].includes(present as string)) throw new Error('Legacy Grok model selection changed. Recover before retrying.');
+      original = value === null ? removeTomlTableKey(original, 'models', name) : upsertTomlTableKey(original, 'models', name, JSON.stringify(parsed!.value));
+    }
+    validateToml(original); return original;
+  });
+}
 
 export function getGrokConfigFile(): string {
   return path.join(process.env.GROK_HOME || path.join(os.homedir(), '.grok'), 'config.toml');
@@ -81,6 +109,7 @@ export class GrokTool extends OpenAICompatTool {
     const limits = await fetchModelLimits(baseUrl, apiKey, model, this.name);
     const summary = slotModel(this.name, 'summary', model, models);
     const summaryLimits = summary === model ? limits : await fetchModelLimits(baseUrl, apiKey, summary, this.name);
+    migrateGrokState();
     applyConfigEdits(this.name, [{ file: getGrokConfigFile(), build: content => {
       const config = parse(content ?? '');
       const entries: unknown[] = isRecord(config.model) ? [config.model.qiniu, config.model['qiniu-summary']] : [];
@@ -93,5 +122,5 @@ export class GrokTool extends OpenAICompatTool {
       return applyGrokConfig(content ?? '', baseUrl, apiKey, model, effectiveContextLimit(limits, known), { model: summary, contextWindow: effectiveContextLimit(summaryLimits, summaryKnown) });
     } }]);
   }
-  unloadConfig(): void { this.restoreManagedConfig([getGrokConfigFile()]); }
+  unloadConfig(): void { migrateGrokState(); this.restoreManagedConfig([getGrokConfigFile()]); }
 }
