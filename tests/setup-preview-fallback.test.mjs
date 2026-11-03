@@ -8,7 +8,7 @@ test('mixed initial setup commits safe tools and separately configures unsupport
 });
 
 test('cancelling an individual fallback reports the setup as cancelled',{skip:process.platform==='win32'},async()=>{
- const out=await runPrompt(source+`normal.runModelConfigFlow=async()=>false;toolManager.getAll=()=>[normal];const completed=await runToolSetupFlow();console.log('RESULT',completed,JSON.stringify(count));`,[['选择要配置的工具','\r']]);assert.match(out,/RESULT false.*"safe":0,"normal":0/);
+ const out=await runPrompt(source+`normal.runModelConfigFlow=async()=>false;toolManager.getAll=()=>[normal];const completed=await runToolSetupFlow();console.log('RESULT',completed,JSON.stringify(count));`,[['选择要配置的工具','\r'],[/选择要配置的工具[^]*Esc 返回/,'\x1b']]);assert.match(out,/RESULT false.*"safe":0,"normal":0/);
 });
 
 // 首次仅选择 Copilot 也应完成初始化，且不调用持久配置 writer。

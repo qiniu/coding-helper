@@ -60,7 +60,7 @@ test('all credential-dependent model flows use the bound connection without a gl
  t.mock.method(promptHelper,'confirm',async()=>true);
  t.mock.method(promptHelper,'searchSelect',async()=> 'model');
  t.mock.method(promptHelper,'pickModel',async options=>{received.push([options.connection.baseUrl,options.connection.apiKey]);return {model:'model'};});
- t.mock.method(promptHelper,'checkbox',async()=> ['model']);
+ t.mock.method(promptHelper,'pickModels',async options=>{received.push([options.connection.baseUrl,options.connection.apiKey]);return ['model'];});
  const received=[];
  const fetch=async(url,key)=>{received.push([url,key]);return [{id:'model',name:'Model',features:[]}];};
  t.mock.method(marketModelService,'fetchModels',fetch);t.mock.method(modelService,'fetchModels',fetch);

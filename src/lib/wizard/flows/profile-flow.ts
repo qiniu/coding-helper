@@ -95,7 +95,8 @@ async function profileActions(initial: Profile): Promise<void> {
       default: last,
       escape: true,
       items: [
-        { value: 'use', label: t('profile_action_use'), hint: active ? theme.success(t('profile_action_use_current')) : '', disabled: active },
+        // 没有 Key 的配置档不能设为当前（与 profile use 命令一致），否则会把连接切到空 Key
+        { value: 'use', label: t('profile_action_use'), hint: active ? theme.success(t('profile_action_use_current')) : !profile.apiKey ? theme.warning(t('apikey_not_set')) : '', disabled: active || !profile.apiKey },
         { value: 'test', label: t('profile_action_test') },
         { value: 'delete', label: theme.danger(t('profile_action_delete')) },
         { separator: '' },
@@ -124,6 +125,11 @@ async function guarded<T>(operation: () => Promise<T>): Promise<T | undefined> {
 
 // 设为当前：先记下仍指向七牛的工具，切换后由用户勾选要同步哪些
 async function useProfile(profile: Profile): Promise<void> {
+  if (!profile.apiKey) {
+    uiRenderer.renderError(t('apikey_not_set'));
+    await promptHelper.pressEnter();
+    return;
+  }
   const targets = getSyncTargets(toolManager.getAll());
   configManager.useProfile(profile.name);
   clearCaches();

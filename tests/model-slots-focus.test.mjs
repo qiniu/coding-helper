@@ -25,14 +25,14 @@ for (const [tool, label, saved, mainLabel] of cases) {
   test(`real PTY ${tool} model page with ${label} focuses the main model, Enter opens the picker and Esc saves nothing`, { skip: process.platform === 'win32' }, async () => {
     const frames = [];
     const out = await runPrompt(source(tool, saved), [
-      [/保存并写入[^]*返回/, text => { frames.push(text.slice(text.lastIndexOf('? 请选择操作'))); return '\r'; }],
+      [/下一步[^]*返回/, text => { frames.push(text.slice(text.lastIndexOf('? 请选择操作'))); return '\r'; }],
       [/⌕[^]*返回/, '\x1b'],
-      [/保存并写入[^]*返回/, '\x1b'],
+      [/下一步[^]*返回/, '\x1b'],
     ], 90, { rows: 30 });
     const [first] = frames;
-    // 焦点（❯）在主模型行，而不是「保存并写入」
+    // 焦点（❯）在主模型行，而不是「下一步」
     assert.match(first, new RegExp(`❯ ?. ?${mainLabel.replace(/[()（）]/g, '.')}`), first);
-    assert.doesNotMatch(first, /❯ ?. ?保存并写入/, first);
+    assert.doesNotMatch(first, /❯ ?. ?下一步/, first);
     // 回车直接进入了模型选择页
     assert.match(out, /⌕/);
     assert.match(out, /RESULT cancel WRITES 0 UNCHANGED true/);
@@ -65,7 +65,7 @@ test('real PTY Claude Code saved as built-in reopens in built-in state and picki
   const out = await runPrompt(src, [
     [/✔ 已选择[^]*返回/, '\r'],
     [/⌕[^]*返回/, '\r'],
-    [/z-ai\/glm-5\.2[^]*保存并写入[^]*返回/, '\r'],
+    [/z-ai\/glm-5\.2[^]*下一步[^]*返回/, '\r'],
   ], 90, { rows: 30 });
   const plan = JSON.parse(out.match(/PLAN (.*)/)[1]);
   assert.equal(plan.builtin, undefined);

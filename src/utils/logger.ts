@@ -8,19 +8,38 @@ export function withQuietLogs<T>(operation: () => Promise<T>): Promise<T> {
 }
 
 // 清屏后已输出的终端行数（按列宽折行计算），供页头与菜单判断剩余高度；未清屏时不跟踪
-let screenRows: number | undefined;
+let screenContent: string[] | undefined;
+let frameRenderer: (() => void) | undefined;
+let frameTail: string[] = [];
+
+export interface ScreenFrame {
+  render?: () => void;
+  lines: string[];
+}
+
 function countRows(...parts: unknown[]): void {
-  if (screenRows === undefined) return;
-  const columns = process.stdout.columns || 80;
-  for (const line of parts.map(part => String(part ?? '')).join(' ').split('\n')) {
-    screenRows += Math.max(1, Math.ceil(visibleWidth(line) / columns));
-  }
+  if (!screenContent) return;
+  const text = parts.map(part => String(part ?? '')).join(' ');
+  screenContent.push(text);
+  frameTail.push(text);
 }
 export const screen = {
   // 清屏时调用：从 0 开始计数
-  reset(): void { screenRows = 0; },
+  reset(): void { screenContent = []; frameRenderer = undefined; frameTail = []; },
   // 清屏后已用的行数；没有清屏过时返回 undefined
-  used(): number | undefined { return screenRows; },
+  used(): number | undefined {
+    if (!screenContent) return undefined;
+    const columns = process.stdout.columns || 80;
+    return screenContent.reduce((total, text) => total + text.split('\n').reduce((rows, line) => rows + Math.max(1, Math.ceil(visibleWidth(line) / columns)), 0), 0);
+  },
+  // 记住页头的渲染方法，缩放后重新计算尺寸，而不是回放旧宽度的像素图。
+  rememberFrame(render: () => void): void { frameRenderer = render; frameTail = []; },
+  capture(): ScreenFrame { return { render: frameRenderer, lines: [...frameTail] }; },
+  repaint(frame: ScreenFrame): void {
+    if (frame.render) frame.render();
+    else { process.stdout.write('\x1B[2J\x1B[H'); this.reset(); }
+    for (const line of frame.lines) logger.log(line);
+  },
 };
 
 // 日志工具 - 统一终端输出格式

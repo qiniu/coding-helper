@@ -2,10 +2,11 @@ import { modelConfigFor, savedModelFor } from '../../core/model-mapping.js';
 import { slotOverrides, toolSlots } from '../../core/model-slots.js';
 import type { PlanItem, PlanChange } from '../../core/write-plan.js';
 import ora from 'ora';
-import { modelService } from '../../model-service.js';
 import { t, i18n } from '../../i18n.js';
 import { configManager, type ModelConfig, type Connection } from '../../config.js';
-import { marketModelService, getModelCapabilities, type MarketModelInfo } from '../../market-model-service.js';
+import { getModelCapabilities } from '../../market-model-service.js';
+import type { CatalogModel } from '../../core/model-catalog.js';
+import { loadModelCatalog } from './model-catalog-flow.js';
 import { formatContextSize } from '../../core/context.js';
 import { closestModels, parseModelQuery, resolveModelId, scoreModel, publisherOf, modelPublishers } from '../../core/model-search.js';
 import type { ITool } from '../../tools/base-tool.js';
@@ -14,7 +15,7 @@ import { menuPrompt, type MenuEntry, type MenuItem } from '../ui/prompts.js';
 import { theme } from '../ui/theme.js';
 import { logger } from '../../../utils/logger.js';
 
-type PickerModel = MarketModelInfo | { id: string; name: string; owned_by?: string; capabilitiesUnknown: true };
+type PickerModel = CatalogModel;
 function capabilities(model: PickerModel) {
   if ('capabilitiesUnknown' in model) return { toolCall: true, maxInputTokens: 0, maxOutputTokens: 0, images: false, reasoning: false };
   // 选择页只显示接口给出的限额，不能把写入配置时的保守兜底值当成模型元数据。
@@ -45,21 +46,14 @@ export interface PickOptions {
 
 
 // 按当前工具连接获取模型列表，缓存由市场服务维护。
-async function loadModels(connection: Connection): Promise<PickerModel[] | undefined> {
+async function loadModels(connection: Connection, title: string, step?: StepInfo): Promise<PickerModel[] | undefined> {
   const apiKey = connection.apiKey;
   if (!apiKey) {
     uiRenderer.renderError(t('apikey_not_set'));
     return undefined;
   }
-  const spinner = ora({ text: t('hermes_fetching_models'), indent: 2 }).start();
-  try {
-    return await marketModelService.fetchModels(connection.baseUrl, apiKey);
-  } catch {
-    // 自定义网关可能只提供标准模型目录；元数据不可用时仍保留手动输入。
-    try {
-      return (await modelService.fetchModels(connection.baseUrl, apiKey)).map(model => ({ id: model.id, name: model.id, owned_by: model.owned_by, capabilitiesUnknown: true as const }));
-    } catch { return []; }
-  } finally { spinner.stop(); }
+  const result = await loadModelCatalog(connection, title, step);
+  return result.kind === 'back' ? undefined : result.kind === 'manual' ? [] : result.models;
 }
 
 // 某个工具能否用这个模型：工具自己的预判优先，其次看是否支持工具调用
@@ -128,7 +122,8 @@ function modelRow(m: PickerModel, options: PickOptions, extra: Partial<MenuItem<
   const current = m.id === options.current || currentTools.length > 0;
   const tags = [
     ...('hot_tags' in m ? (m.hot_tags ?? []).map(tag => theme.success(localized(HOT_TAG_LABELS_EN, tag))) : []),
-    current ? theme.brand(`${t('model_tag_current')}${currentTools.length ? ` · ${currentTools.join(' / ')}` : ''}`) : '',
+    // 只配置一个工具时「当前」已足够，不再重复工具名
+    current ? theme.brand(`${t('model_tag_current')}${currentTools.length && options.tools.length !== 1 ? ` · ${currentTools.join(' / ')}` : ''}`) : '',
     !caps.toolCall ? theme.warning(t('model_tag_no_tool_call')) : blocked.length ? theme.warning(`✖ ${blocked.map((tool) => tool.displayName).join(' ')}`) : '',
   ].filter(Boolean).join(' ');
   return {
@@ -152,37 +147,60 @@ function sortModels(models: PickerModel[]): PickerModel[] {
 }
 
 // 选模型：直接打字搜索，←→ 切换厂商，默认只列支持工具调用的模型；Esc 返回上一步
+export interface MultiPickOptions extends PickOptions { selected?: string[]; }
+
 export async function pickModel(options: PickOptions): Promise<PickResult> {
+  const result = await chooseModels(options);
+  return typeof result === 'object' && 'models' in result ? 'back' : result;
+}
+
+export async function pickModels(options: MultiPickOptions): Promise<string[] | undefined> {
+  const result = await chooseModels(options, options.selected ?? []);
+  return typeof result === 'object' && 'models' in result ? result.models : undefined;
+}
+
+async function chooseModels(options: PickOptions, selected?: string[]): Promise<PickResult | { models: string[] }> {
   const title = options.title ?? t('model_pick_title');
   const connection = { ...(options.connection ?? configManager.getConnection(options.tools[0]?.name)) };
   const currentModels = options.currentModels ?? (options.current ? [{ tool: options.tools[0]?.displayName ?? '', model: options.current }] : []);
   const firstCurrent = currentModels[0]?.model;
   const sharedCurrent = firstCurrent && currentModels.every(item => item.model === firstCurrent) ? firstCurrent : undefined;
-  const currentSummary = !currentModels.length ? undefined
+  const currentSummary = selected !== undefined ? t('model_multi_current', { models: currentModels.map(item => item.model).filter(Boolean).join(', ') || t('model_current_unknown') }) : !currentModels.length ? undefined
     : currentModels.length === 1 ? t('generic_current_model', { tool: currentModels[0].tool, model: firstCurrent ?? t('model_current_unknown') })
     : sharedCurrent ? t('model_current_shared', { model: sharedCurrent })
     : t('model_current_mixed');
   // 进度 2 + 标题 3 + 说明 2 + 提示行 + 概览 3 + 分隔线 + 搜索框 + 厂商标签 + 约 10 行列表 + 隐藏行数 + 空行与操作提示 2 + 光标
-  const bodyRows = (options.step ? 2 : 0) + 3 + 2 + 22 + (currentSummary ? 2 : 0);
+  const bodyRows = (options.step ? 2 : 0) + 3 + 2 + 22 + (currentSummary && selected === undefined ? 2 : 0);
   uiRenderer.renderPage(title, options.step, undefined, connection, { bodyRows });
-  const models = await loadModels(connection);
-  if (!models) return 'back';
+  const loaded = await loadModels(connection, title, options.step);
+  if (!loaded) return 'back';
+  const models = [...loaded];
+  const catalogIds = new Set(loaded.map(model => model.id));
+  // 保存的旧 ID 即使不在目录里也可查看、移除；未知能力按未知显示。
+  const customIds = (q: string): string[] => [...new Set(q.split(/[,，]+/).map(value => resolveModelId(value.trim(), models.map(model => model.id))).filter(Boolean))];
+  const customLabel = (q: string): string | undefined => {
+    const parts = selected !== undefined ? q.split(/[,，]+/).map(value => value.trim()) : [q.trim()];
+    const valid = parts.every(value => /^[\w.\-/:]+$/.test(value) && !parseModelQuery(value).minContext && !parseModelQuery(value).vision && !parseModelQuery(value).toolCall && !parseModelQuery(value).reasoning);
+    return valid && (parts.length > 1 || !models.some(model => model.id === q.trim())) ? t('model_custom_value', { value: customIds(q).join(', ') }) : undefined;
+  };
 
   let showAll = false;
   let last: string | undefined = options.current ?? sharedCurrent;
   while (true) {
+    for (const id of selected ?? []) if (!models.some(model => model.id === id)) models.push({ id, name: id, capabilitiesUnknown: true });
     uiRenderer.renderPage(title, options.step, undefined, connection, { bodyRows });
-    const usable = sortModels(models.filter((m) => showAll || capabilities(m).toolCall));
+    const usable = sortModels(models.filter((m) => showAll || capabilities(m).toolCall || selected?.includes(m.id)));
     const byId = new Map(models.map((m) => [m.id, m]));
     const publishers = modelPublishers(usable);
     const recent = (configManager.getModels().recentModels ?? []).filter((id) => usable.some((m) => m.id === id));
     logger.log(`  ${theme.subtle(t('model_pick_summary', {
       tools: options.tools.map((tool) => tool.displayName).join(' · '),
-      count: String(usable.length),
+      count: String(usable.filter(model => catalogIds.has(model.id)).length),
       filter: showAll ? t('model_filter_all') : t('model_filter_tool_call'),
     }))}`);
     logger.newLine();
-    if (currentSummary) {
+    // 多选时原有配置显示在「下一步」的说明区，这里不再单独占两行
+    if (currentSummary && selected === undefined) {
       logger.log(`  ${theme.subtle(currentSummary)}`);
       logger.newLine();
     }
@@ -197,10 +215,22 @@ export async function pickModel(options: PickOptions): Promise<PickResult> {
       ] : []),
       ...usable.map((m) => modelRow(m, options)),
       { separator: '' },
-      { value: SHOW_ALL, label: showAll ? t('model_show_tool_call_only') : t('model_show_all', { count: String(models.length) }) },
+      { value: SHOW_ALL, label: showAll ? t('model_show_tool_call_only') : t('model_show_all', { count: String(loaded.length) }) },
     ];
 
-    const { value, action, query } = await menuPrompt<string>({
+    const { value, action, query, selected: chosen } = await menuPrompt<string>({
+      ...(selected !== undefined ? { multiple: {
+        initial: selected,
+        summary: (values: string[]) => t('model_multi_selected', { count: String(values.length), models: values.join(', ') || '—' }),
+        acceptLabel: (count: number) => t('model_multi_next', { count: String(count) }),
+        acceptDetail: () => [
+          theme.subtle(currentSummary ?? ''),
+          theme.subtle(t('model_multi_accept_hint')),
+        ].join('\n'),
+        parseCustom: customIds,
+        toggleable: (item: MenuItem<string>) => item.value !== SHOW_ALL,
+        customItem: (id: string) => modelRow({ id, name: id, capabilitiesUnknown: true }, options),
+      } } : {}),
       message: options.follow ? t('slot_pick_prompt') : t('model_pick_prompt'),
       default: last,
       escape: true,
@@ -216,8 +246,8 @@ export async function pickModel(options: PickOptions): Promise<PickResult> {
         ...(usable.some(m => !publisherOf(m)) ? [{ label: t('model_publisher_unknown'), match: (item: MenuItem<string>) => item.value === SHOW_ALL || (byId.has(item.value) && !publisherOf(byId.get(item.value)!)) }] : []),
       ],
       filter: (item, q) => {
-        const m = byId.get(item.value);
-        if (!m) return undefined;
+        const m = byId.get(item.value) ?? (selected !== undefined ? { id: item.value, name: item.label, capabilitiesUnknown: true as const } : undefined);
+        if (!m || item.value === SHOW_ALL) return undefined;
         const caps = capabilities(m);
         if (parseModelQuery(q).toolCall && 'capabilitiesUnknown' in m) return undefined;
         return scoreModel({ id: m.id, name: m.name, publisher: publisherOf(m), reasoning: caps.reasoning, context: caps.maxInputTokens, toolCall: caps.toolCall, vision: caps.images }, q, {
@@ -234,12 +264,12 @@ export async function pickModel(options: PickOptions): Promise<PickResult> {
         return closestModels(candidates.map(m => m.id), q).map(id => modelRow(byId.get(id)!, options));
       },
       // 像模型 ID 的输入才提供「使用自定义模型 ID」（中文厂商名、200k、看图 这类过滤词不算）
-      customLabel: (q) => /^[\w.\-/:]+$/.test(q.trim()) && !parseModelQuery(q).minContext && !parseModelQuery(q).vision && !parseModelQuery(q).toolCall && !parseModelQuery(q).reasoning && !byId.has(q.trim())
-        ? t('model_custom_value', { value: resolveModelId(q, models.map((m) => m.id)) })
-        : undefined,
+      customLabel,
     });
     if (action === 'escape') return 'back';
+    if (action === 'accept' && chosen?.length) return { models: chosen };
     if (value === SHOW_ALL) {
+      selected = chosen ?? selected;
       showAll = !showAll;
       last = SHOW_ALL;
       continue;

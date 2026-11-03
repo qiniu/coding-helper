@@ -206,9 +206,9 @@ function checkHomeOverrides(): string | undefined {
   }
   return content;
 }
-function configured(): { model?: string; baseUrl?: string } {
+function configured(profiles: readonly string[] = PROFILES): { model?: string; baseUrl?: string } {
   checkHomeOverrides();
-  const values = [...PROFILES, ...(hasDesktopProfile() ? [DESKTOP_PROFILE] : [])].map(profile => {
+  const values = profiles.map(profile => {
     if (profile === DESKTOP_PROFILE) validateDesktopManifest(desktopManifest()!);
     const doc = parseDshPatch(readTextFile(patchFile(profile)) ?? '');
     const provider = rows(doc, ROW)[0], defaults = rows(doc, 'agent-default-model')[0];
@@ -236,8 +236,10 @@ export class DshTool extends OpenAICompatTool {
   // 有桌面 profile 而没有 CLI 时按桌面应用展示，不要求另外安装 npm CLI。
   isInstalled(): boolean | null { return super.isInstalled() || (hasDesktopProfile() ? null : false); }
   getLoadConfigNotes(): string[] { return [t(hasDesktopProfile() ? 'dsh_desktop_config_note' : 'dsh_config_note')]; }
-  getConfig(): Record<string, unknown> { return { configPath: patchFile(), profiles: [...PROFILES, ...(hasDesktopProfile() ? [DESKTOP_PROFILE] : [])], ...configured() }; }
-  isConfigured(): boolean { const value = configured(); return !!value.model && isQiniuBaseUrl(value.baseUrl) && !!readDotenvValue(readTextFile(envFile()) ?? '', KEY_ENV); }
+  // CLI 的 Web/Headless 与桌面配置独立判定，首次打开 Desktop 不应阻断 CLI。
+  private activeConfiguration() { return configured(this.isInstalled() === null ? [DESKTOP_PROFILE] : PROFILES); }
+  getConfig(): Record<string, unknown> { return { configPath: patchFile(), profiles: [...PROFILES, ...(hasDesktopProfile() ? [DESKTOP_PROFILE] : [])], ...this.activeConfiguration() }; }
+  isConfigured(): boolean { const value = this.activeConfiguration(); return !!value.model && isQiniuBaseUrl(value.baseUrl) && !!readDotenvValue(readTextFile(envFile()) ?? '', KEY_ENV); }
   async loadConfig(apiKey: string, baseUrl: string, models: ModelConfig): Promise<void> {
     checkTargets();
     if (![...PROFILES, DESKTOP_PROFILE].some(profile => fs.existsSync(patchFile(profile))) && ['settings.yaml', 'settings.yml'].some(name => fs.existsSync(path.join(getDshHome(), name)))) throw new Error('Legacy DSH settings format detected. Upgrade DSH to the cordis.patch.yml format before loading.');

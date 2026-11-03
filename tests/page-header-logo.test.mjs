@@ -21,7 +21,7 @@ const pages = [
   ['main menu', mainMenu, [], ['接入编码工具', '我的工具', '账号与线路', '更多', 'Esc 退出'], '\x1b'],
   ['account page', mainMenu, [[/Esc 退出/, '\x1b[B\x1b[B\x1b[B'], [/❯ +(?:\S+ )?账号与线路/, '\r']], ['配置 API Key', '配置线路', '配置档', 'Esc 返回'], ['\x1b', [/Esc 退出/, '\x1b']]],
   ['profile page', mainMenu, [[/Esc 退出/, '\x1b[B\x1b[B\x1b[B'], [/❯ +(?:\S+ )?账号与线路/, '\r'], [/配置档[^]*Esc 返回/, '\x1b[B\x1b[B'], [/❯ +(?:\S+ )?配置档/, '\r']], ['新建配置档', '返回', 'Esc 返回'], ['\x1b', [/配置 API Key[^]*Esc 返回/, '\x1b'], [/Esc 退出/, '\x1b']]],
-  ['model slot page', `${pre}const {editToolModels}=await import('./dist/lib/wizard/flows/model-slots-flow.js');await editToolModels(toolManager.get('claude-code'));`, [], ['主模型', '使用 Claude Code 内置模型', '保存并写入', 'Esc 返回'], '\x1b'],
+  ['model slot page', `${pre}const {editToolModels}=await import('./dist/lib/wizard/flows/model-slots-flow.js');await editToolModels(toolManager.get('claude-code'));`, [], ['主模型', '使用 Claude Code 内置模型', '下一步', 'Esc 返回'], '\x1b'],
 ];
 
 // 进入页面，等页面画完后按 exit 退出；返回包含全部预期内容的最后一屏（最后一次清屏之后）

@@ -1,3 +1,4 @@
+import type { ToolModelFlowContext } from '../../tools/base-tool.js';
 import { t } from '../../i18n.js';
 import { configManager } from '../../config.js';
 import {
@@ -10,7 +11,7 @@ import { uiRenderer } from '../ui/ui-renderer.js';
 export const HERMES_MANUAL_MODEL_VALUE = MANUAL_MODEL_VALUE;
 
 // 让用户选择 Hermes Agent 的默认模型，返回选中的模型 ID
-export async function runHermesModelSelectionFlow(): Promise<string | null> {
+export async function runHermesModelSelectionFlow(context: ToolModelFlowContext = {}): Promise<string | null> {
   const { apiKey, baseUrl } = configManager.getConnection('hermes');
   if (!apiKey) {
     uiRenderer.renderError(t('apikey_not_set'));
@@ -19,7 +20,7 @@ export async function runHermesModelSelectionFlow(): Promise<string | null> {
 
   const previous = configManager.getModels().hermesModel;
   if (previous) {
-    uiRenderer.renderHeader();
+    uiRenderer.renderPage(t('hermes_select_model'), context.step);
     uiRenderer.renderHint(t('hermes_current_model', { model: previous }));
     const reuse = await promptHelper.confirm(t('hermes_reuse_previous_selection'), true);
     if (reuse) {
@@ -30,7 +31,7 @@ export async function runHermesModelSelectionFlow(): Promise<string | null> {
 
   const { toolManager } = await import('../../tool-manager.js');
   const tool = toolManager.get('hermes');
-  const picked = await promptHelper.pickModel({ tools: tool ? [tool] : [], connection: configManager.getConnection('hermes'), title: t('hermes_select_model') });
+  const picked = await promptHelper.pickModel({ tools: tool ? [tool] : [], connection: configManager.getConnection('hermes'), step: context.step, title: t('hermes_select_model') });
   if (picked === 'back' || !('model' in picked)) return null;
   configManager.rememberModel(picked.model);
   return picked.model;

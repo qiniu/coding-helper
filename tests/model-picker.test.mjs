@@ -10,7 +10,7 @@ test('picker falls back to the standard catalog and shows its bound connection',
 });
 test('picker retains manual entry when both catalogs are unavailable', {skip:process.platform==='win32'},async()=>{
  const source=pickerHead+`marketModelService.fetchModels=modelService.fetchModels=async()=>{throw Error('offline')};console.log('RESULT',JSON.stringify(await pickModel({tools:[],title:'MANUAL_READY'})));`;
- const out=await runPrompt(source,[['←→','vendor/custom'],['vendor/custom','\r']]);assert.match(out,/RESULT.*"model":"vendor\/custom"/);
+ const out=await runPrompt(source,[[/请选择后续操作[^]*Esc 返回/,'\x1b[B\r'],['←→','vendor/custom'],['vendor/custom','\r']]);assert.match(out,/RESULT.*"model":"vendor\/custom"/);
 });
 for(const query of ['vision','vision 1m','thinking']) test('picker preserves capability constraints for '+query,{skip:process.platform==='win32'},async()=>{
  const source=pickerHead+`marketModelService.fetchModels=async()=>[{id:'a/text',name:'Text',features:['工具调用'],model_constraints:{context_length:200000}}];console.log('RESULT',JSON.stringify(await pickModel({tools:[],title:'CONSTRAINT_READY'})));`;

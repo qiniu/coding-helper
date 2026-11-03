@@ -4,11 +4,13 @@ import { configManager } from '../../config.js';
 import { savedModelFor } from '../../core/model-mapping.js';
 import { slotOverrides, toolSlots } from '../../core/model-slots.js';
 import type { ITool } from '../../tools/base-tool.js';
-import { uiRenderer } from '../ui/ui-renderer.js';
+import { uiRenderer, type StepInfo } from '../ui/ui-renderer.js';
 import { menuPrompt, type MenuEntry } from '../ui/prompts.js';
 import type { PlanItem } from '../../core/write-plan.js';
 import { theme } from '../ui/theme.js';
 import { builtinPlanForClaude, pickModel, planForTool } from './model-pick-flow.js';
+
+import { editBuddyModelsPlan } from './buddy-model-plan.js';
 
 const MAIN = '__main__';
 const SAVE = '__save__';
@@ -16,7 +18,8 @@ const BUILTIN = '__builtin__';
 
 // 一个工具的模型页：主模型 + 各槽位（默认跟随主模型）；回车或 → 打开选模型，最后一行「保存」。
 // 返回新的写入计划；Esc 返回 undefined
-export async function editToolModels(tool: ITool, from?: PlanItem): Promise<PlanItem | undefined> {
+export async function editToolModels(tool: ITool, from?: PlanItem, options: { step?: StepInfo } = {}): Promise<PlanItem | undefined> {
+  if (tool.name === 'codebuddy' || tool.name === 'workbuddy') return editBuddyModelsPlan(tool, from, options.step);
   const saved = configManager.getModels();
   let main = from?.main ?? savedModelFor(tool, saved) ?? tool.defaultModel;
   const original = main;
@@ -32,7 +35,7 @@ export async function editToolModels(tool: ITool, from?: PlanItem): Promise<Plan
 
   while (true) {
     // 使用内置模型时各项由 Claude Code 决定，换一句说明
-    uiRenderer.renderPage(title, undefined, builtin ? t('slots_builtin_subtitle') : slots.length ? t('slots_subtitle') : undefined);
+    uiRenderer.renderPage(title, options.step, builtin ? t('slots_builtin_subtitle') : slots.length ? t('slots_subtitle') : undefined);
     const builtinValue = theme.value(t('slots_builtin_value'));
     const entries: MenuEntry<string>[] = [
       {
@@ -120,6 +123,7 @@ export async function editToolModels(tool: ITool, from?: PlanItem): Promise<Plan
     const isMain = value === MAIN;
     const picked = await pickModel({
       tools: [tool],
+      step: options.step,
       title: isMain ? title : `${title} · ${t(slots.find((s) => s.id === value)!.labelKey)}`,
       current: isMain ? main : overrides[value],
       follow: isMain ? undefined : main ?? '',

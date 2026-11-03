@@ -222,3 +222,27 @@ test('partial restore keeps reconciled originals in the journal for the next ret
   tool.unloadConfig(); [web, patch].forEach(assertClientSettings);
   assert.equal(route(patch)[DSH_PROVIDER], undefined); assert.equal(stateStore.getFileStates('dsh').length, 0);
 });
+
+
+test('initializing or changing Desktop does not invalidate an already configured CLI', async t => {
+  reset(); t.mock.method(OpenAICompatTool.prototype, 'isInstalled', () => true);
+  await tool.loadConfig('fixture-key', url, models);
+  initialize();
+  for (const manifestText of [packageText, '{invalid']) {
+    write(manifest, manifestText);
+    assert.equal(tool.isConfigured(), true);
+    assert.equal(tool.getConfig().model, 'main');
+    assert.deepEqual(tool.getLaunchEnv('new-key', url, models), { DSH_HOME: root, CODING_HELPER_DSH_API_KEY: 'new-key' });
+  }
+  await tool.unloadConfig();
+  assert.equal(read(patch), seed); assert.equal(read(manifest), '{invalid');
+});
+
+test('Desktop-only status follows Desktop rather than the helper-created CLI profiles', async t => {
+  reset(); initialize(); t.mock.method(OpenAICompatTool.prototype, 'isInstalled', () => false);
+  await tool.loadConfig('fixture-key', url, models);
+  assert.equal(tool.isConfigured(), true);
+  write(patch, seed);
+  assert.equal(tool.isConfigured(), false);
+  assert.equal(tool.getConfig().model, undefined);
+});

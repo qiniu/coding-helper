@@ -1,4 +1,4 @@
-import { pickModel, type PickOptions, type PickResult } from '../flows/model-pick-flow.js';
+import { pickModel, pickModels, type MultiPickOptions, type PickOptions, type PickResult } from '../flows/model-pick-flow.js';
 import { t } from '../../i18n.js';
 import { menuPrompt, checkPrompt, secretPrompt, textPrompt, continuePrompt } from './prompts.js';
 
@@ -10,6 +10,7 @@ export const MANUAL_MODEL_VALUE = '__manual_model__';
 
 export const promptHelper = {
   async pickModel(options: PickOptions): Promise<PickResult> { return pickModel(options); },
+  async pickModels(options: MultiPickOptions): Promise<string[] | undefined> { return pickModels(options); },
   // hint：右侧说明（可选）
   async select<T extends string>(message: string, choices: { name: string; value: T; hint?: string }[]): Promise<T> {
     const back = choices.find(choice => ['back', 'exit', '__back__'].includes(choice.value));
@@ -25,21 +26,22 @@ export const promptHelper = {
     return result.action !== 'escape' && result.value;
   },
   async pressEnter(message?: string): Promise<void> { await continuePrompt(message ?? t('press_enter_to_continue')); },
-  async checkbox<T extends string>(message: string, choices: { name: string; value: T }[]): Promise<T[]> {
-    return await checkPrompt({ message, allowEmpty: true, items: choices.map(choice => ({ value: choice.value, label: choice.name })) }) ?? [];
+  async checkbox<T extends string>(message: string, choices: { name: string; value: T }[], options: { allowEmpty?: boolean } = {}): Promise<T[]> {
+    return await checkPrompt({ message, allowEmpty: options.allowEmpty ?? true, items: choices.map(choice => ({ value: choice.value, label: choice.name })) }) ?? [];
   },
   async searchSelect(
     message: string,
     items: ModelChoice[],
     allowSkip = false,
-  ): Promise<string | undefined> {
+  ): Promise<string | undefined | null> {
     const byId = new Map(items.map(item => [item.value, item]));
     const controls = new Set([MANUAL_MODEL_VALUE, ...(allowSkip ? [SKIP_VALUE] : [])]);
     const controlLabels = [...(byId.get(MANUAL_MODEL_VALUE) ? [byId.get(MANUAL_MODEL_VALUE)!.name] : []), ...(allowSkip ? [t('model_skip_option')] : [])];
     const modelOf = (value: string): SearchableModel => ({ ...(byId.get(value)?.model ?? { id: value, context: 0, toolCall: false, vision: false }), name: byId.get(value)?.name });
     const rows = items.map(item => ({ value: item.value, label: item.name, description: item.description }));
     const { value, action, query } = await menuPrompt({
-      message, escape: true, searchable: true, customFirst: true, pageSize: 10,
+      message, escape: true, searchable: true, pageSize: 10,
+      customFirst: q => q.trim().includes('/') && !q.trim().endsWith('/') && !byId.has(q.trim()),
       items: [...(allowSkip ? [{ value: SKIP_VALUE, label: `⊘ ${t('model_skip_option')}` }] : []), ...rows],
       filter: (item, q) => controls.has(item.value)
         ? item.label.toLowerCase().includes(q.trim().toLowerCase()) ? 50 : undefined
@@ -56,7 +58,9 @@ export const promptHelper = {
           ? t('model_custom_value', { value: resolveModelId(q, items.map(item => item.value)) }) : undefined;
       },
     });
-    if (action === 'escape' || (allowSkip && value === SKIP_VALUE)) return undefined;
+    // Esc 取消整个流程；跳过只留空当前模型角色。
+    if (action === 'escape') return null;
+    if (allowSkip && value === SKIP_VALUE) return undefined;
     return (action === 'custom' ? resolveModelId(query ?? '', items.map(item => item.value)) : value).trim() || undefined;
   },
 };

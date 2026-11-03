@@ -18,6 +18,7 @@ import { theme } from './theme.js';
 import { t } from '../../i18n.js';
 import { screen } from '../../../utils/logger.js';
 import { padVisible, visibleWidth, truncate, stripAnsi } from '../../../utils/string-width.js';
+import { resumeOnResize } from './prompt-resize.js';
 
 // 交互只依赖 ↑↓←→、回车、Esc；字母 / 数字键只作为隐藏的加速键，界面上不提示
 
@@ -159,6 +160,17 @@ function renderMenuTabs<T>(tabs: MenuTab<T>[], selected: number): string {
 }
 
 export interface MenuConfig<T> {
+  // 多选搜索共用同一绘制器；搜索和分类只改变可见项，不改变已选集合。
+  multiple?: {
+    initial: T[];
+    summary: (values: T[]) => string;
+    acceptLabel: (count: number) => string;
+    // 光标停在「下一步」时上方说明区显示的内容（如原有配置与操作说明），避免说明区留白
+    acceptDetail?: (values: T[]) => string;
+    parseCustom?: (query: string) => T[];
+    toggleable?: (item: MenuItem<T>) => boolean;
+    customItem?: (value: T) => MenuItem<T>;
+  };
   statusText?: string;
   statusUpdate?: Promise<string>;
   customFirst?: boolean | ((query: string) => boolean);
@@ -210,6 +222,7 @@ function screenRows(text: string): number {
 
 export interface MenuResult<T> {
   value: T;
+  selected?: T[];
   // 'escape' | 'custom' | 'left' | 'right' | 隐藏加速键；回车选中时为 undefined
   action?: string;
   query?: string;
@@ -224,6 +237,20 @@ function selectable<T>(entry: MenuEntry<T> | undefined): entry is MenuItem<T> {
 }
 
 const CUSTOM = Symbol('custom');
+const ACCEPT = Symbol('accept');
+
+interface MenuSession<T> {
+  query: string;
+  tab: number;
+  value?: T | typeof CUSTOM | typeof ACCEPT;
+  picked: Set<T>;
+  added: MenuItem<T>[];
+  statusText?: string;
+  details: Map<T, string | undefined>;
+  pending: Map<T, Promise<string | undefined>>;
+}
+
+type LiveMenuConfig<T> = MenuConfig<T> & { session: MenuSession<T> };
 
 function defaultFilter<T>(item: MenuItem<T>, query: string): number | undefined {
   const text = `${item.search ?? ''} ${item.label} ${String(item.value)}`.toLowerCase();
@@ -231,18 +258,28 @@ function defaultFilter<T>(item: MenuItem<T>, query: string): number | undefined 
   return index === -1 ? undefined : index;
 }
 
-const menuView = createPrompt(<T,>(config: MenuConfig<T>, done: (result: MenuResult<T>) => void) => {
-  const [query, setQuery] = useState('');
-  const [tab, setTab] = useState(0);
+const menuView = createPrompt(<T,>(config: LiveMenuConfig<T>, done: (result: MenuResult<T>) => void) => {
+  const { session } = config;
+  const [query, setQuery] = useState(session.query);
+  const [picked, setPicked] = useState(session.picked);
+  const [added, setAdded] = useState(session.added);
+  session.picked = picked;
+  session.added = added;
+  const entries = useMemo(() => {
+    const control = config.multiple ? config.items.findIndex(entry => selectable(entry) && config.multiple!.toggleable?.(entry) === false) : -1;
+    const index = control > 0 && isSeparator(config.items[control - 1]) ? control - 1 : control;
+    return index < 0 ? [...config.items, ...added] : [...config.items.slice(0, index), ...added, ...config.items.slice(index)];
+  }, [config.items, added]);
+  const [tab, setTab] = useState(session.tab);
   const [status, setStatus] = useState<'idle' | 'done' | 'cancel'>('idle');
-  const [statusText, setStatusText] = useState(config.statusText ?? '');
+  const [statusText, setStatusText] = useState(session.statusText ?? config.statusText ?? '');
   useEffect(() => {
     if (!config.statusUpdate) return;
     let active = true;
     config.statusUpdate.then(text => { if (active) setStatusText(text); }).catch(() => {});
     return () => { active = false; };
   }, [config.statusUpdate]);
-  const [details] = useState(new Map<T, string | undefined>());
+  const [details] = useState(session.details);
   const [, refreshDetails] = useState({});
 
   // 可搜索菜单在搜索框里显示闪烁光标：真实终端光标在列表重绘时会跳到末尾，这里用模拟光标；
@@ -264,17 +301,19 @@ const menuView = createPrompt(<T,>(config: MenuConfig<T>, done: (result: MenuRes
   }, []);
 
   // 搜索时跨所有标签过滤并排序；没有搜索时按当前标签筛选
-  const items = useMemo((): MenuEntry<T | typeof CUSTOM>[] => {
+  const items = useMemo((): MenuEntry<T | typeof CUSTOM | typeof ACCEPT>[] => {
     if (query) {
       const filter = config.filter ?? defaultFilter;
-      const scored = config.items
+      const scored = entries
         .filter(selectable)
         .filter((item) => !item.pinned)
         .map((item, order) => ({ item, order, score: filter(item, query) }))
         .filter((x): x is { item: MenuItem<T>; order: number; score: number } => x.score !== undefined)
         .sort((a, b) => a.score - b.score || a.order - b.order)
         .map((x) => x.item);
-      const customText = config.customLabel?.(query);
+      // 多选时搜索词已有匹配、又不像模型 ID（不含 / 或逗号）时，不再额外列出「使用自定义模型 ID」
+      const customText = config.multiple && (scored.some(item => String(item.value) === query.trim()) || (scored.length && !/[/,，]/.test(query)))
+        ? undefined : config.customLabel?.(query);
       const custom: MenuItem<typeof CUSTOM>[] = customText ? [{ value: CUSTOM, label: customText }] : [];
       const suggested = scored.length ? [] : config.suggest?.(query) ?? [];
       const preferCustom = typeof config.customFirst === 'function' ? config.customFirst(query) : config.customFirst;
@@ -282,28 +321,40 @@ const menuView = createPrompt(<T,>(config: MenuConfig<T>, done: (result: MenuRes
       return [...scored, ...suggested, ...(custom.length ? [{ separator: '' }, ...custom] : [])];
     }
     const current = config.tabs?.[tab];
-    if (!current || tab === 0) return config.items;
-    return config.items.filter((e) => !isSeparator(e) && !e.pinned && current.match(e));
-  }, [query, tab, config.items]);
+    const visible = !current || tab === 0 ? entries : entries.filter((e) => !isSeparator(e) && !e.pinned && current.match(e));
+    return config.multiple ? [
+      { value: ACCEPT, label: config.multiple.acceptLabel(picked.size), disabled: !picked.size, description: config.multiple.acceptDetail?.([...picked]) },
+      { separator: '' }, ...visible,
+    ] : visible;
+  }, [query, tab, entries, picked]);
 
   const first = items.findIndex(selectable);
   const last = items.length - 1 - [...items].reverse().findIndex(selectable);
-  const defaultIndex = config.default === undefined ? -1 : items.findIndex((e) => selectable(e) && e.value === config.default);
+  const defaultValue = session.value ?? config.default;
+  const defaultIndex = defaultValue === undefined ? -1 : items.findIndex((e) => selectable(e) && e.value === defaultValue);
   const [active, setActive] = useState(defaultIndex === -1 ? first : defaultIndex);
   const activeIndex = selectable(items[active]) ? active : first;
-  const current = activeIndex >= 0 ? items[activeIndex] as MenuItem<T | typeof CUSTOM> : undefined;
+  const current = activeIndex >= 0 ? items[activeIndex] as MenuItem<T | typeof CUSTOM | typeof ACCEPT> : undefined;
   const detailKey = current?.value;
+  session.query = query;
+  session.tab = tab;
+  session.value = current?.value;
+  session.statusText = statusText;
 
   // 选中项变化时取补充信息（只取一次，结果缓存）
   useEffect(() => {
-    if (!config.asyncDetail || !current || current.value === CUSTOM || details.has(current.value)) return;
+    if (!config.asyncDetail || !current || current.value === CUSTOM || current.value === ACCEPT || details.has(current.value)) return;
     const item = current as MenuItem<T>;
-    // Map 保留值的身份；先占位，避免切换行时重复发起尚未完成的请求。
-    details.set(item.value, undefined);
-    Promise.resolve().then(() => config.asyncDetail!(item)).then((text) => {
-      details.set(item.value, text);
-      refreshDetails({});
-    }).catch(() => {});
+    // 缩放时复用已完成缓存和进行中的只读请求；旧绘制器不再刷新，新绘制器接收结果。
+    let request = session.pending.get(item.value);
+    if (!request) {
+      request = Promise.resolve().then(() => config.asyncDetail!(item)).catch(() => undefined);
+      session.pending.set(item.value, request);
+      request.then(text => { details.set(item.value, text); session.pending.delete(item.value); });
+    }
+    let active = true;
+    request.then(() => { if (active) refreshDetails({}); });
+    return () => { active = false; };
   }, [detailKey]);
 
   const finish = (result: MenuResult<T>): void => {
@@ -319,10 +370,27 @@ const menuView = createPrompt(<T,>(config: MenuConfig<T>, done: (result: MenuRes
   useKeypress((key) => {
     cursorOn.current = true;
     lastKey.current = Date.now();
+    if (config.multiple && (key.name === 'tab' || (isEnterKey(key) && current?.value === ACCEPT))) {
+      if (picked.size) finish({ value: undefined as T, selected: [...picked], action: 'accept' });
+      return;
+    }
     if (isEnterKey(key)) {
-      if (!current) return;
+      if (!current || current.value === ACCEPT) return;
+      if (config.multiple && (current.value === CUSTOM || config.multiple.toggleable?.(current as MenuItem<T>) !== false)) {
+        const values = current.value === CUSTOM ? config.multiple.parseCustom?.(query) ?? [] : [current.value];
+        if (!values.length) return;
+        const next = new Set(picked);
+        for (const value of values) {
+          if (current.value !== CUSTOM && next.has(value)) next.delete(value); else next.add(value);
+        }
+        const extra = values.filter(value => !entries.some(entry => selectable(entry) && entry.value === value));
+        if (extra.length) setAdded([...added, ...extra.map(value => config.multiple!.customItem?.(value) ?? { value, label: String(value) })]);
+        setPicked(next);
+        updateQuery('');
+        return;
+      }
       if (current.value === CUSTOM) return finish({ value: undefined as T, action: 'custom', query });
-      return finish({ value: current.value as T, query });
+      return finish({ value: current.value as T, query, ...(config.multiple ? { selected: [...picked] } : {}) });
     }
     if (isEscape(key)) {
       // 有搜索词时 Esc 先清空搜索
@@ -358,7 +426,7 @@ const menuView = createPrompt(<T,>(config: MenuConfig<T>, done: (result: MenuRes
         setActive(0);
         return;
       }
-      if (config.arrows && current && current.value !== CUSTOM) finish({ value: current.value as T, action: key.name });
+      if (config.arrows && current && current.value !== CUSTOM && current.value !== ACCEPT) finish({ value: current.value as T, action: key.name });
       return;
     }
     if (config.searchable) {
@@ -369,9 +437,10 @@ const menuView = createPrompt(<T,>(config: MenuConfig<T>, done: (result: MenuRes
 
   });
 
-  const all = config.items.filter((e): e is MenuItem<T> => !isSeparator(e));
+  const all: MenuItem<T | typeof ACCEPT>[] = entries.filter((e): e is MenuItem<T> => !isSeparator(e));
+  if (config.multiple) all.push({ value: ACCEPT, label: config.multiple.acceptLabel(picked.size), description: config.multiple.acceptDetail?.([...picked]) });
   const labelWidth = Math.max(0, ...all.map((e) => visibleWidth(e.label)));
-  const iconWidth = Math.max(0, ...all.map((e) => (e.icon ? visibleWidth(e.icon) + 1 : 0)));
+  const iconWidth = (config.multiple ? 2 : 0) + Math.max(0, ...all.map((e) => (e.icon ? visibleWidth(e.icon) + 1 : 0)));
   const showHints = hintFits(4 + iconWidth, labelWidth, Math.max(0, ...all.map((e) => visibleWidth(e.hint ?? ''))));
   const hintOf = (item: MenuItem<unknown>): string => (showHints ? item.hint ?? '' : '');
   // 选中行底色铺满：前缀「 ❯  」4 列 + 图标 + 标签 + 4 列间距 + 右侧值 + 2 列留白
@@ -383,7 +452,7 @@ const menuView = createPrompt(<T,>(config: MenuConfig<T>, done: (result: MenuRes
   // 列表之外的各行：提示行、搜索框、标签、无结果提示、说明区与操作提示
   const detailTop = config.detailPosition === 'top';
   const searchLine = config.searchable ? (() => {
-    const matches = !query ? 0 : config.items.filter((e) => selectable(e) && !e.pinned && (config.filter ?? defaultFilter)(e, query) !== undefined).length;
+    const matches = !query ? 0 : entries.filter((e) => selectable(e) && !e.pinned && (config.filter ?? defaultFilter)(e, query) !== undefined).length;
     // 光标：输入后跟在搜索词末尾；未输入或清空后位于占位文字起始处
     const cursor = cursorOn.current ? CURSOR_ON : ' ';
     return query
@@ -391,14 +460,21 @@ const menuView = createPrompt(<T,>(config: MenuConfig<T>, done: (result: MenuRes
       : `  ${theme.subtle('⌕')} ${cursor}${theme.subtle(config.placeholder ?? t('ui_search_placeholder'))}`;
   })() : undefined;
   const tabsLine = config.tabs?.length ? renderMenuTabs(config.tabs, query ? 0 : tab) : undefined;
-  const hasMatches = query ? config.items.some((e) => selectable(e) && !e.pinned && (config.filter ?? defaultFilter)(e, query) !== undefined) : true;
+  const hasMatches = query ? entries.some((e) => selectable(e) && !e.pinned && (config.filter ?? defaultFilter)(e, query) !== undefined) : true;
   const emptyLine = hasMatches ? undefined : `  ${theme.subtle(config.emptyText?.(query) ?? t('ui_search_empty'))}`;
   // 操作提示：列表超出一页时加上翻页键
   const footerFor = (overflow: boolean): string => {
+    if (config.multiple) return `  ${renderKeyHints([
+      ['↑↓', t('ui_key_move')], ...(overflow ? [['PgUp/PgDn', t('ui_key_page')] as KeyHint] : []),
+      [t('ui_key_enter'), t('model_multi_toggle')], ['Tab', t('model_multi_continue')],
+      ['Esc', query ? t('ui_key_clear_search') : t('ui_key_back')],
+      // 超出一页时多了翻页键，省掉「←→ 切换厂商」（厂商标签就在列表上方），保持一行
+      ...(overflow ? [] : [['←→', t('ui_key_tabs')] as KeyHint]), [t('ui_key_type'), t('ui_key_search')],
+    ])}`;
     const hints = config.footer ?? standardHints({ back: !!config.escape, search: config.searchable, tabs: !!config.tabs?.length, page: overflow });
     return `  ${renderKeyHints(query ? [['Esc', t('ui_key_clear_search')], [t('ui_key_enter'), t('ui_key_confirm')]] : hints)}`;
   };
-  const extra = current && current.value !== CUSTOM ? details.get(current.value) : undefined;
+  const extra = current && current.value !== CUSTOM && current.value !== ACCEPT ? details.get(current.value) : undefined;
   const detailText = [current?.description, extra].filter(Boolean).join('\n');
   // 上方说明区按所有选项中最多的行数固定高度，移动选中项时列表不跳动；放不下的行截断，避免折行
   const detailRows = detailTop
@@ -414,7 +490,13 @@ const menuView = createPrompt(<T,>(config: MenuConfig<T>, done: (result: MenuRes
   const bottomDetailRows = !detailTop && (all.some((e) => e.description) || config.asyncDetail)
     ? 1 + Math.max(0, ...all.map((e) => (e.description ? e.description.split('\n').length : 0))) + (config.asyncDetail ? 1 : 0)
     : 0;
-  const fixedRows = (overflow: boolean): number => (statusText ? screenRows(statusText) : 0) + 1 + (searchLine ? screenRows(searchLine) : 0) + (tabsLine ? screenRows(tabsLine) : 0) + (emptyLine ? 1 : 0)
+  // 已选清单：「已选 N 个：」用品牌色加粗，模型列表用正文色，一眼区分数量与内容
+  const selectionLine = config.multiple ? (() => {
+    const text = truncate(config.multiple.summary([...picked]), Math.max(1, terminalWidth() - 4));
+    const at = text.search(/[:：]/);
+    return at < 0 ? `  ${theme.brandBold(text)}` : `  ${theme.brandBold(text.slice(0, at + 1))}${theme.value(text.slice(at + 1))}`;
+  })() : undefined;
+  const fixedRows = (overflow: boolean): number => (selectionLine ? 1 : 0) + (statusText ? screenRows(statusText) : 0) + 1 + (searchLine ? screenRows(searchLine) : 0) + (tabsLine ? screenRows(tabsLine) : 0) + (emptyLine ? 1 : 0)
     + (detailTop ? detailRows + 1 : bottomDetailRows) + (overflow ? 1 : 0) + 1 + screenRows(footerFor(overflow)) + 1;
   // 可用高度：清屏后页头与页面内容之下剩余的行数；没有跟踪时，说明在上方的菜单按整屏计算
   const available = remainingRows() ?? (detailTop ? process.stdout.rows : undefined);
@@ -433,29 +515,34 @@ const menuView = createPrompt(<T,>(config: MenuConfig<T>, done: (result: MenuRes
     loop: false,
     renderItem({ item, isActive }) {
       if (isSeparator(item)) return item.separator ? `  ${theme.subtle(item.separator)}` : '';
-      const icon = item.icon ? `${item.icon} ` : '';
+      const check = config.multiple && item.value !== ACCEPT && config.multiple.toggleable?.(item as MenuItem<T>) !== false ? (picked.has(item.value as T) ? theme.success('☑') : theme.subtle('☐')) + ' ' : '';
+      const icon = check + (item.icon ? `${item.icon} ` : '');
+      const chosen = config.multiple && item.value !== ACCEPT && picked.has(item.value as T);
       const rawLabel = query && item.value !== CUSTOM ? highlightMatch(item.label, config.highlight?.(query) ?? query) : item.label;
       const label = padVisible((visibleWidth(rawLabel) > Math.max(1, terminalWidth() - 8 - iconWidth) ? truncate(stripAnsi(rawLabel), Math.max(1, terminalWidth() - 8 - iconWidth)) : rawLabel), Math.min(labelWidth, Math.max(1, terminalWidth() - 8 - iconWidth)));
-      // 当前正在使用的项在第 3 列显示 ▪，标签仍与其他行对齐
-      const mark = item.current ? theme.brand('▪') : ' ';
+      // 当前正在使用的项在第 3 列显示 ▪，标签仍与其他行对齐；多选时已有 ☑ 与「当前」标签，不再重复标记
+      const mark = item.current && !config.multiple ? theme.brand('▪') : ' ';
       if (item.disabled) {
         return `  ${mark} ${icon}${theme.subtle(label)}    ${theme.subtle(hintOf(item))}`;
       }
       if (isActive) {
-        const text = ` ${theme.brandBold('❯')}${mark} ${icon}${chalk.bold.hex('#E8F6FF')(label)}    ${chalk.hex('#8BE9FF')(hintOf(item))}`;
+        const text = ` ${theme.brandBold('❯')}${mark} ${icon}${item.value === ACCEPT ? theme.brandBold(label) : chalk.bold.hex('#E8F6FF')(label)}    ${chalk.hex('#8BE9FF')(hintOf(item))}`;
         return highlightRow(text, width);
       }
-      return `  ${mark} ${icon}${theme.value(label)}    ${theme.subtle(hintOf(item))}`;
+      // 多选时已选的模型名用品牌色，「下一步」始终用品牌色，与普通行区分
+      const tone = item.value === ACCEPT ? theme.brandBold : chosen ? theme.brand : theme.value;
+      return `  ${mark} ${icon}${tone(label)}    ${theme.subtle(hintOf(item))}`;
     },
   });
 
   if (status === 'cancel') return '';
   if (status === 'done') {
-    return `${theme.success('✔')} ${theme.heading(config.message)} ${theme.brand(current?.value === CUSTOM ? query : current?.label ?? '')}`;
+    return `${theme.success('✔')} ${theme.heading(config.message)} ${theme.brand(config.multiple ? config.multiple.summary([...picked]) : current?.value === CUSTOM ? query : current?.label ?? '')}`;
   }
   const lines = [...(statusText ? [statusText] : []), `${theme.brand('?')} ${theme.heading(config.message)}`];
   // 说明在上方：紧跟提示行，下面一条分隔线，再是搜索框与标签
   if (detailTop && detailRows) lines.push(...detailLines, `  ${theme.border('─'.repeat(Math.max(1, Math.min(terminalWidth() - 4, 60))))}`);
+  if (selectionLine) lines.push(selectionLine);
   if (searchLine) lines.push(searchLine);
   if (tabsLine) lines.push(tabsLine);
   if (emptyLine) lines.push(emptyLine);
@@ -480,7 +567,8 @@ const menuView = createPrompt(<T,>(config: MenuConfig<T>, done: (result: MenuRes
 });
 
 export function menuPrompt<T>(config: MenuConfig<T>, context?: { signal?: AbortSignal }): Promise<MenuResult<T>> {
-  return menuView(config as MenuConfig<unknown>, context) as Promise<MenuResult<T>>;
+  const session: MenuSession<T> = { query: '', tab: 0, value: config.multiple?.initial.length ? ACCEPT : config.default, picked: new Set(config.multiple?.initial), added: [], details: new Map(), pending: new Map() };
+  return resumeOnResize(signal => menuView({ ...config, session } as LiveMenuConfig<unknown>, { signal }) as Promise<MenuResult<T>>, context?.signal);
 }
 
 // 返回勾选的值；按 Esc 返回 undefined
@@ -518,13 +606,19 @@ export interface CheckConfig<T> {
   onEnterSingle?: (value: T) => void;
 }
 
-const checkView = createPrompt(<T,>(config: CheckConfig<T>, done: (values: T[] | undefined) => void) => {
+interface CheckSession { checked?: boolean[]; active?: number; warning?: string; }
+type LiveCheckConfig<T> = CheckConfig<T> & { session: CheckSession };
+
+const checkView = createPrompt(<T,>(config: LiveCheckConfig<T>, done: (values: T[] | undefined) => void) => {
   const { items } = config;
-  const [checked, setChecked] = useState<boolean[]>(items.map((i) => !!i.checked));
+  const [checked, setChecked] = useState<boolean[]>(config.session.checked ?? items.map((i) => !!i.checked));
   // 行号：0 = 全选，1..n = 工具，n + 1 = 继续
-  const [active, setActive] = useState(Math.max(1, items.findIndex((i) => config.default !== undefined && i.value === config.default) + 1));
+  const [active, setActive] = useState(config.session.active ?? Math.max(1, items.findIndex((i) => config.default !== undefined && i.value === config.default) + 1));
   const [status, setStatus] = useState<'idle' | 'done' | 'cancel'>('idle');
-  const [warning, setWarning] = useState('');
+  const [warning, setWarning] = useState(config.session.warning ?? '');
+  config.session.checked = checked;
+  config.session.active = active;
+  config.session.warning = warning;
 
   const count = checked.filter(Boolean).length;
   const preferred = items.map((i) => i.preferred !== false);
@@ -739,7 +833,8 @@ const continueView = createPrompt((config: { message: string }, done: (value: vo
 });
 
 export function checkPrompt<T>(config: CheckConfig<T>): Promise<T[] | undefined> {
-  return checkView(config as CheckConfig<unknown>) as Promise<T[] | undefined>;
+  const session: CheckSession = {};
+  return resumeOnResize(signal => checkView({ ...config, session } as LiveCheckConfig<unknown>, { signal }) as Promise<T[] | undefined>);
 }
 
 // 返回输入的值；按 Esc 返回 undefined

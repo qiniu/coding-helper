@@ -1,3 +1,4 @@
+import { ModelCatalogHttpError } from './core/model-catalog-error.js';
 // 模型信息接口
 export interface ModelInfo {
   id: string;
@@ -40,7 +41,7 @@ class ModelService {
       clearTimeout(timeout);
 
       if (!response.ok) {
-        throw new Error(`HTTP ${response.status}`);
+        throw new ModelCatalogHttpError(response.status);
       }
 
       const data = (await response.json()) as ModelsResponse;

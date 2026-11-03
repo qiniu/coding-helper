@@ -23,7 +23,7 @@ test('real PTY slot editor cancellation returns without saving', {skip:process.p
 });
 test('slot-only incompatible model changes are probed before accepting a plan',{skip:process.platform==='win32'},async()=>{
  const source=`import {editToolModels} from './dist/lib/wizard/flows/model-slots-flow.js';import {configManager} from './dist/lib/config.js';import {marketModelService} from './dist/lib/market-model-service.js';configManager.getModels=()=>({codexModel:'main'});configManager.getConnection=()=>({apiKey:'fake',baseUrl:'https://example.com',endpoint:'china'});marketModelService.fetchModels=async()=>[{id:'bad',name:'bad',features:['工具调用']}];const probes=[];const tool={name:'codex',displayName:'SLOTS_READY',isConfigured:()=>true,checkModel:async model=>{probes.push(model);return 'test_incompatible';}};const result=await editToolModels(tool);console.log('RESULT',result===undefined?'cancel':'accepted');console.log('PROBES',JSON.stringify(probes));`;
- const out=await runPrompt(source,[['保存并写入','\x1b[B\r'],['←→','\x1b[B\r'],['bad  单独设置','\r'],['test_incompatible','\x1b']]);assert.match(out,/RESULT.*cancel/);assert.match(out,/PROBES.*\["bad"\]/);
+ const out=await runPrompt(source,[['下一步','\x1b[B\r'],['←→','\x1b[B\r'],['bad  单独设置','\r'],['test_incompatible','\x1b']]);assert.match(out,/RESULT.*cancel/);assert.match(out,/PROBES.*\["bad"\]/);
 });
 
 test('complete slot plans remove one override while preserving its sibling',async()=>{

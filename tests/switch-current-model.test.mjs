@@ -9,6 +9,7 @@ test('switch flow carries the selected tools current model into the picker',{ski
   const out=await runPrompt(source,[
     [/Select tools[^]*vendor\/z-current[^]*Esc back/,'\r'],
     [/currently uses: vendor\/z-current[^]*Type search/,text=>{frame=text;return '\x1b';}],
+    [/Select tools[^]*Esc back/,'\x1b'],
   ],130,{rows:36});
   assert.match(frame,/❯▪ +vendor\/z-current/);
   assert.match(out,/CANCEL_UNCHANGED/);

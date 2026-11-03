@@ -158,7 +158,7 @@ export async function confirmAndWrite(title: string, initial: PlanItem[], untouc
   let items = prepare(initial).map(withBaselineRow);
   const expanded = new Set<string>(items.length === 1 ? [items[0].tool.name] : []);
   let preview = await previewByTool(items);
-  // 光标默认停在「写入」：用户走到这一步就是要写入，回车即可；预演失败时写入不可用，改停在第一个工具上便于调整
+  // 确认页默认继续写入；预演失败时先聚焦工具，方便调整。
   let last: string | undefined;
   while (true) {
     const invalid = preview.results.some(result => result.status === 'failed');

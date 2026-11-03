@@ -74,9 +74,9 @@ export const uiRenderer = {
   // 页头按终端高度自动决定是否显示完整 Logo；bodyRows 为页面内容需要的行数
   renderPage(title: string, step?: StepInfo, subtitle?: string, connection?: Connection, options: { full?: boolean; bodyRows?: number } = {}): void {
     this.renderHeader({ connection, full: options.full, bodyRows: options.bodyRows });
-    if (!step) return this.renderTitle(title, subtitle);
-    this.renderSteps(step);
+    if (step) this.renderSteps(step);
     this.renderTitle(title, subtitle);
+    screen.rememberFrame(() => this.renderPage(title, step, subtitle, connection, options));
   },
 
   // 流程进度：● 语言 ── ● 线路 ── ◉ API Key ── ○ 工具 ── ○ 模型   3 / 6
@@ -129,6 +129,7 @@ export const uiRenderer = {
       logger.log(`  ${theme.brandBold('QINIU')} ${theme.heading('Coding Helper')}${header.crumb ? theme.subtle('  ›  ') + theme.value(header.crumb) : ''}`);
     }
     this.renderStatusBar(header.connection);
+    screen.rememberFrame(() => this.renderHeader(options));
   },
   renderStatusBar(connection?: Connection): void {
     const apiKey = connection ? connection.apiKey : configManager.getApiKey();
