@@ -53,3 +53,15 @@ test('getModelCapabilities uses architecture when features are absent', () => {
   });
   assert.deepEqual(caps, { toolCall: true, images: false, reasoning: true, maxInputTokens: 200000, maxOutputTokens: 8192 });
 });
+
+// 可选能力信息使用短预算；请求超时必须中止网络并释放计时器，不能阻塞基础模型选择 30 秒。
+test('optional market metadata honors an abortable short request budget', async t => {
+  const { marketModelService } = await import('../dist/lib/market-model-service.js');
+  marketModelService.clearCache();
+  let aborted = false;
+  t.mock.method(globalThis, 'fetch', async (_url, {signal}) => new Promise((resolve, reject) => {
+    signal.addEventListener('abort', () => { aborted = true; reject(signal.reason); }, {once:true});
+  }));
+  await assert.rejects(marketModelService.fetchModels('https://example.com', 'fake', {timeoutMs:20}), {name:'AbortError'});
+  assert.equal(aborted, true);
+});
