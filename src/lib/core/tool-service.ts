@@ -1,7 +1,7 @@
 import { configManager, type ModelConfig } from '../config.js';
 import { isExternallyModified, rebaselineTool } from './rebaseline.js';
 import type { ITool } from '../tools/base-tool.js';
-import { stateStore, type ToolState } from './state-store.js';
+import { stateStore } from './state-store.js';
 import { isPreview } from './safe-write.js';
 
 export interface ToolResult {
@@ -63,6 +63,7 @@ export async function applyTool(tool: ITool, connection?: { apiKey: string; base
   if (tool.launchOnly) return { tool, status: 'skipped', reason: 'setup_reason_launch_only' };
   if (isPreview() && tool.supportsPreview !== true) return { tool, status: 'failed', reason: 'setup_preview_unsupported' };
   let apiKey: string | undefined;
+  let rollbackBaseline: (() => void) | undefined;
   try {
     const resolved = connection ?? configManager.getConnection(tool.name);
     apiKey = resolved.apiKey;
@@ -70,19 +71,14 @@ export async function applyTool(tool: ITool, connection?: { apiKey: string; base
     const models = connection?.models ?? configManager.getModels();
     if (tool.requiresModelSelection && !hasSavedToolModelConfig(tool, models)) return { tool, status: 'skipped', reason: 'setup_reason_models_required' };
     // 外部已切到其他服务：直接以当前配置为还原基线（旧记录与当前文件先归档到 backups/），再接入七牛
-    let removed: Record<string, ToolState> | undefined;
     if (isExternallyModified(tool)) {
-      try { removed = rebaselineTool(tool).removed; } catch { return { tool, status: 'failed', reason: 'rebaseline_failed' }; }
+      try { rollbackBaseline = rebaselineTool(tool).rollback; } catch { return { tool, status: 'failed', reason: 'rebaseline_failed' }; }
     }
-    try {
-      await tool.loadConfig(apiKey, resolved.baseUrl, models);
-    } catch (error) {
-      // 写入失败（符号链接、权限、目录不可写等）：放回刚删除的还原记录，restore 仍按原记录工作；归档保留在 backups/rebaseline-*
-      if (removed) { try { stateStore.restoreToolRecords(tool.name, removed); } catch { /* 归档仍可手动恢复 */ } }
-      throw error;
-    }
+    await tool.loadConfig(apiKey, resolved.baseUrl, models);
     return { tool, status: 'success' };
   } catch (error) {
+    try { rollbackBaseline?.(); }
+    catch { return { tool, status: 'failed', reason: 'rebaseline_recovery_failed' }; }
     const message = error instanceof Error ? error.message : String(error);
     return { tool, status: 'failed', reason: apiKey ? message.split(apiKey).join('[REDACTED]') : message };
   }

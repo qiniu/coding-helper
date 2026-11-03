@@ -525,6 +525,7 @@
   "plan_rebaseline_before": "旧记录",
   "plan_rebaseline_after": "当前配置（已备份）",
   "rebaseline_failed": "无法以当前配置为基线，配置未改动",
+  "rebaseline_recovery_failed": "装载失败且未能恢复还原记录。请保留归档基线，完成恢复后再重试。",
   "install_title": "安装 {{tool}}",
   "install_subtitle": "在终端运行以下命令，需要网络",
   "install_command": "安装命令",

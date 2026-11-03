@@ -31,8 +31,8 @@ function urls(value: unknown, found = new Set<string>()): Set<string> {
 }
 
 // 某条记录里由助手写入的地址（写入后的值里有、原值里没有的 URL）当前是否还在文件里：
-// 'ours' = 仍在（配置仍是助手写的，可能只是线路识别变了或在另一个目录），'gone' = 都不在了（外部改过），'unknown' = 无从判断
-function recordStatus(file: string, state: ToolState): 'ours' | 'gone' | 'unknown' {
+// 'ours' = 仍在（配置仍是助手写的，可能只是线路识别变了或在另一个目录），'gone' = 都不在了（外部改过），'unknown' = 无从判断，'missing' = 有写入证据的文件已丢失
+function recordStatus(file: string, state: ToolState): 'ours' | 'gone' | 'unknown' | 'missing' {
   const evidence: { written: Set<string>; content: string | undefined }[] = [];
   const entries = state.priors?.files;
   if (Array.isArray(entries)) {
@@ -48,6 +48,8 @@ function recordStatus(file: string, state: ToolState): 'ours' | 'gone' | 'unknow
   let gone = false;
   for (const { written, content } of evidence) {
     if (!written.size) continue;
+    // 路由文件丢失不等于已切换服务；保留凭据和完整恢复记录等待修复。
+    if (content === undefined) return 'missing';
     if ([...written].some(url => content?.includes(url))) return 'ours';
     gone = true;
   }
@@ -75,11 +77,11 @@ export function isExternallyModified(tool: ITool): boolean {
     if (!states.length) return !!legacy;
     if (legacy) return false;
     const statuses = states.map(({ file, state }) => recordStatus(file, state));
-    return statuses.includes('gone') && !statuses.includes('ours');
+    return statuses.includes('gone') && !statuses.some(status => status === 'ours' || status === 'missing');
   } catch { return false; }
 }
 
-export interface RebaselineResult { backupDir?: string; files: string[]; removed?: Record<string, ToolState>; }
+export interface RebaselineResult { backupDir?: string; files: string[]; removed?: Record<string, ToolState>; rollback?: () => void; }
 
 // 以当前配置为新的还原基线：先把旧记录和当前文件归档到 backups/rebaseline-*，再删除旧记录。
 // 之后正常装载七牛时，当前配置会被记录为原值，还原会回到它。预演中只在内存视图里删除记录。
@@ -92,6 +94,7 @@ export function rebaselineTool(tool: ITool): RebaselineResult {
     if (!states.length && !legacy) return { files: [] };
     if (!isExternallyModified(tool)) throw new Error('The restore record still matches the helper-written configuration or a write was interrupted. Recover it instead of rebaselining.');
     const files = recordFiles(states);
+    const snapshots = new Map(files.map(file => [file, readTextFile(file)]));
     let backupDir: string | undefined;
     if (!isPreview()) {
       const root = backupsRoot();
@@ -99,7 +102,7 @@ export function rebaselineTool(tool: ITool): RebaselineResult {
       backupDir = fs.mkdtempSync(path.join(root, `rebaseline-${tool.name}-`));
       const copies: { source: string; backup: string | null }[] = [];
       files.forEach((file, index) => {
-        const content = readTextFile(file);
+        const content = snapshots.get(file);
         const backup = content === undefined ? null : path.join(backupDir!, `${index}-${path.basename(file)}`);
         if (backup) atomicWriteFile(backup, content!);
         copies.push({ source: file, backup });
@@ -108,7 +111,16 @@ export function rebaselineTool(tool: ITool): RebaselineResult {
       // 清单先落盘，删除记录失败时仍可从归档恢复
       atomicWriteFile(path.join(backupDir, 'manifest.json'), JSON.stringify({ tool: tool.name, createdAt: new Date().toISOString(), files: copies, records }, null, 2) + '\n');
     }
+    if (files.some(file => readTextFile(file) !== snapshots.get(file))) throw new Error('Configuration changed while establishing the restore baseline. Retry.');
     const removed = stateStore.removeToolRecords(tool.name);
-    return { backupDir, files, removed };
+    const rollback = () => stateStore.withLock(() => {
+      // 发生新写入或并发编辑时，不能把旧快照重新当成当前配置的恢复依据。
+      if (files.some(file => readTextFile(file) !== snapshots.get(file))) {
+        if (!stateStore.getRecordedTools().includes(tool.name)) throw new Error('Configuration changed without a recovery journal. Recover the archived baseline.');
+        return;
+      }
+      stateStore.restoreToolRecords(tool.name, removed);
+    });
+    return { backupDir, files, removed, rollback };
   });
 }
