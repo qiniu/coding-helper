@@ -87,7 +87,14 @@ export type PixelGrid = (string | undefined)[][];
 export function spriteGrid(id: string): PixelGrid | undefined {
   const def = SPRITES[id];
   if (!def) return undefined;
-  return def.rows.map((row) => [...row].map((ch) => (ch === '.' ? undefined : def.pal[ch])));
+  return def.rows.map((row, index) => {
+    // 七牛牛头与像素字共享渐变色标，按各自高度从浅蓝过渡到深蓝。
+    const position = index * (LOGO_GRADIENT.length - 1) / Math.max(1, def.rows.length - 1);
+    const color = id === 'qiniu'
+      ? mix(LOGO_GRADIENT[Math.floor(position)], LOGO_GRADIENT[Math.ceil(position)], position % 1)
+      : undefined;
+    return [...row].map((ch) => (ch === '.' ? undefined : color ?? def.pal[ch]));
+  });
 }
 
 export function logoGrid(): PixelGrid {
