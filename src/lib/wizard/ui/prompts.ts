@@ -16,6 +16,7 @@ import chalk from 'chalk';
 import { theme } from './theme.js';
 import { t } from '../../i18n.js';
 import { padVisible, visibleWidth, truncate, stripAnsi } from '../../../utils/string-width.js';
+import { screen } from '../../../utils/logger.js';
 
 // 交互只依赖 ↑↓←→、回车、Esc；字母 / 数字键只作为隐藏的加速键，界面上不提示
 
@@ -72,6 +73,20 @@ export function standardHints(options: { back?: boolean; search?: boolean; tabs?
 
 function terminalWidth(): number {
   return Math.max(12, Math.min(process.stdout.columns || 100, 140));
+}
+
+// 清屏后页头与页面内容之下还剩的终端行数；没有清屏或内容已滚出屏幕时返回 undefined
+function remainingRows(): number | undefined {
+  const used = screen.used();
+  const rows = process.stdout.rows;
+  if (used === undefined || !rows || used >= rows) return undefined;
+  return rows - used;
+}
+
+// 选项一页显示几行：不超过 requested，并让选项、提示与操作提示都留在当前屏内（至少 5 行）
+function fitPageSize(requested: number, overhead: number): number {
+  const remaining = remainingRows();
+  return remaining === undefined ? requested : Math.max(Math.min(5, requested), Math.min(requested, remaining - overhead));
 }
 
 // 右侧值放不下时整列隐藏（选中项的说明里仍有完整信息）
@@ -309,7 +324,11 @@ const menuView = createPrompt(<T,>(config: MenuConfig<T>, done: (result: MenuRes
   const page = usePagination({
     items,
     active: Math.max(0, activeIndex),
-    pageSize: config.pageSize ?? 14,
+    // 提示行 + 搜索框 + 标签 + 选中项说明 + 操作提示，另留 1 行给光标
+    pageSize: fitPageSize(config.pageSize ?? 14, (statusText ? statusText.split('\n').length : 0) + 1
+      + (config.searchable ? 1 : 0) + (config.tabs?.length ? 1 : 0)
+      + Math.max(0, ...all.map((e) => (e.description ? e.description.split('\n').length + 1 : 0))) + (config.asyncDetail ? 2 : 0)
+      + 3),
     loop: false,
     renderItem({ item, isActive }) {
       if (isSeparator(item)) return item.separator ? `  ${theme.subtle(item.separator)}` : '';
@@ -456,7 +475,8 @@ const checkView = createPrompt(<T,>(config: CheckConfig<T>, done: (values: T[] |
   const extraRows = warning || summary ? 2 + (warning || summary || '').split('\n').length - 1 : 0;
   // 全选、继续与操作提示固定保留，只滚动中间的选项。
   const page = usePagination({ items, active: Math.max(0, Math.min(items.length - 1, active - 1)), loop: false,
-    pageSize: Math.max(1, Math.min(14, (process.stdout.rows || 28) - 7 - footer.split('\n').length - extraRows)),
+    // 提示行、全选、继续、空行与操作提示固定占用，另留 1 行给光标
+    pageSize: fitPageSize(Math.max(1, Math.min(14, (process.stdout.rows || 28) - 7 - footer.split('\n').length - extraRows)), 5 + footer.split('\n').length + extraRows),
     renderItem({ item, index }) {
       const box = checked[index] ? theme.brand('☑') : theme.subtle('☐');
       const icon = item.icon ? `${item.icon} ` : '';
