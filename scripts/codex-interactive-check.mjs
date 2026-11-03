@@ -426,10 +426,16 @@ export function buildScenarios(tools) {
   const steps = [{ waitFor: ZH_LOCALE.menu_setup_tools, input: '\u001b[B\u001b[B\r', waitAfter: ZH_LOCALE.menu_my_tools }];
   if (tools.length) {
     tools.forEach((tool,index) => steps.push({ ...(index ? {input:'\u001b[B'} : {}), expectSelected:tool.displayName }));
-    steps.push({input:'\r',waitAfter:ZH_LOCALE.tool_configure_models});
-    steps.push({input:downToOption(toolMenuOptions(tools.at(-1)),ZH_LOCALE.tool_configure_models,ZH_LOCALE.tool_back),expectSelected:ZH_LOCALE.tool_back});
-    // 工具页返回「我的工具」列表，再 Esc 回主菜单
-    steps.push({input:'\r',waitAfter:ZH_LOCALE.menu_my_tools});
+    if (tools.at(-1).installed === false) {
+      // 未安装的工具回车进入安装页；Esc 不执行安装命令，返回「我的工具」列表
+      steps.push({input:'\r',waitAfter:ZH_LOCALE.install_subtitle});
+      steps.push({input:'\u001b',waitAfter:ZH_LOCALE.menu_my_tools});
+    } else {
+      steps.push({input:'\r',waitAfter:ZH_LOCALE.tool_configure_models});
+      steps.push({input:downToOption(toolMenuOptions(tools.at(-1)),ZH_LOCALE.tool_configure_models,ZH_LOCALE.tool_back),expectSelected:ZH_LOCALE.tool_back});
+      // 工具页返回「我的工具」列表
+      steps.push({input:'\r',waitAfter:ZH_LOCALE.menu_my_tools});
+    }
     steps.push({input:'\u001b',waitAfter:ZH_LOCALE.menu_setup_tools});
   }
   steps.push({input:'\u001b',expectExit:true});
@@ -487,10 +493,11 @@ async function main() {
     const { toolManager } = await import('../dist/lib/tool-manager.js');
     // 「我的工具」按已安装在前排序，脚本使用同一个排序函数
     const { detectSorted } = await import('../dist/lib/wizard/ui/tool-view.js');
-    const tools = detectSorted(toolManager.getAll()).map(({ tool }) => ({
+    const tools = detectSorted(toolManager.getAll()).map(({ tool, installed }) => ({
       name: tool.name,
       displayName: tool.displayName,
       launchOnly: tool.launchOnly,
+      installed,
     }));
 
     for (const scenario of buildScenarios(tools)) {
