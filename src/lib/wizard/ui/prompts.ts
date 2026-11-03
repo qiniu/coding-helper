@@ -615,8 +615,8 @@ const checkView = createPrompt(<T,>(config: CheckConfig<T>, done: (values: T[] |
       return;
     }
     if (isEnterKey(key)) {
-      // 「全选」行：回车切换全选
-      if (active === 0) return toggleAll();
+      // 「全选」行也按当前勾选继续，与底部提示一致；只有空格切换全选。
+      if (active === 0) return proceed();
       // 工具行：没勾选任何项时直接处理当前行，否则按已勾选的继续；
       // allowEmpty 时「不勾选」本身有含义（如只保存），回车按当前勾选继续
       if (active !== nextRow && count === 0 && !config.allowEmpty) return finish([items[active - 1].value]);
