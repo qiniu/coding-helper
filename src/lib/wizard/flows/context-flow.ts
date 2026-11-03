@@ -40,8 +40,8 @@ export async function runContextFlow(): Promise<void> {
   if (normal.length) {
     uiRenderer.renderPage(t('context_title'));
     uiRenderer.renderHint(t('context_preview_fallback', { tools: normal.map(plan => plan.tool.displayName).join(', ') }));
-    const confirmation = await menuPrompt({ message: t('context_targets_hint', { value: contextLabel(context) }), escape: true, default: false,
-      items: [{ value: false, label: t('confirm_no') }, { value: true, label: t('confirm_yes') }] });
+    const confirmation = await menuPrompt({ message: t('context_targets_hint', { value: contextLabel(context) }), escape: true, default: true,
+      items: [{ value: true, label: t('confirm_yes') }, { value: false, label: t('confirm_no') }] });
     if (confirmation.action === 'escape' || !confirmation.value) return;
     const written = await commitWritePlan(normal);
     results.push(...written);

@@ -27,3 +27,9 @@ test('large checkbox lists window rows around the active item', { skip: process.
  const firstFrame = out.slice(0,out.indexOf('? CHECK_READY',out.indexOf('? CHECK_READY')+1));
  assert.ok(firstFrame.split('\n').length <= 18, firstFrame);
 });
+
+test('typing letters in a checklist never toggles items', { skip: process.platform === 'win32' }, async () => {
+ // 字母不是快捷键：打 "claude"（含 a）或 n 都不改变勾选，→ 继续时只带上原本勾选的项
+ const out = await runPrompt(head + `console.log('RESULT',JSON.stringify(await checkPrompt({message:'CHECK_READY',allowEmpty:true,items:[{value:'a',label:'Alpha'},{value:'b',label:'Beta',checked:true}]})));`, [['CHECK_READY','claude' + 'n' + '\x1b[C']]);
+ assert.match(out, /RESULT.*\["b"\]/);
+});

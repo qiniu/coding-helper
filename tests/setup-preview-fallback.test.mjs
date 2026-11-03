@@ -4,7 +4,7 @@ test('initial setup sends unsupported writers through the normal flow',{skip:pro
  const out=await runPrompt(source+`toolManager.getAll=()=>[normal];await runToolSetupFlow();console.log('RESULT',JSON.stringify(count));`,[['选择要配置的工具','\r']]);assert.match(out,/RESULT.*"safe":0,"normal":1/);
 });
 test('mixed initial setup commits safe tools and separately configures unsupported writers',{skip:process.platform==='win32'},async()=>{
- const out=await runPrompt(source+`toolManager.getAll=()=>[safe,normal];await runToolSetupFlow();console.log('RESULT',JSON.stringify(count));`,[['选择要配置的工具','\x1b[A '],['❯ ☑','\x1b[C'],['←→','\r'],['确认写入','\x1b[A\x1b[A\r']]);assert.match(out,/RESULT.*"safe":1,"normal":1/);
+ const out=await runPrompt(source+`toolManager.getAll=()=>[safe,normal];await runToolSetupFlow();console.log('RESULT',JSON.stringify(count));`,[['选择要配置的工具','\x1b[A '],['❯ ☑','\x1b[C'],['←→','\r'],['确认写入','\r']]);assert.match(out,/RESULT.*"safe":1,"normal":1/);
 });
 
 test('cancelling an individual fallback reports the setup as cancelled',{skip:process.platform==='win32'},async()=>{

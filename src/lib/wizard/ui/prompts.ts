@@ -569,9 +569,7 @@ const checkView = createPrompt(<T,>(config: CheckConfig<T>, done: (values: T[] |
       if (active !== nextRow && count === 0 && !config.allowEmpty) { config.onEnterSingle?.(items[active - 1].value); return finish([items[active - 1].value]); }
       return proceed();
     }
-    // 兼容老习惯的隐藏加速键
-    if (key.name === 'a') setChecked(checked.map((value, i) => preferred[i] || value));
-    else if (key.name === 'n') setChecked(items.map(() => false));
+    // 不设字母快捷键：只用 ↑↓→、空格、回车、Esc，避免误以为能打字搜索时按到字母就全选或清空
   });
 
   const labelWidth = Math.min(Math.max(0, ...items.map((i) => visibleWidth(i.label))), Math.max(1, terminalWidth() - 12));

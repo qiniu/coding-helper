@@ -10,7 +10,7 @@ test('first-use setup can select built-in models before fetching any catalog', {
     [/Select tools[^]*Esc back/,'\r'],
     [/Use Claude Code's built-in models[^]*Esc back/,'\x1b[F\x1b[A\r'],
     [/Using Claude Code's built-in models[^]*Esc back/,'\r'],
-    [/\? Confirm[^]*Esc back/,'\x1b[A\x1b[A\r'],
+    [/\? Confirm[^]*Esc back/,'\r'],
     [/Press Enter/,'\r'],
   ],110,{rows:40});
   assert.match(out,/BUILTIN_OK/);
@@ -22,7 +22,7 @@ for(const [name,field] of [['codebuddy','codeBuddyModels'],['workbuddy','workbud
     const out=await runPrompt(source,[
       [/Select tools[^]*Esc back/,'\r'],
       [/Select models to configure[^]*Esc back/,' \x1b[B \x1b[C'],
-      [/\? Confirm[^]*Esc back/,'\x1b[A\x1b[A\r'],
+      [/\? Confirm[^]*Esc back/,'\r'],
       [/Press Enter/,'\r'],
     ],110,{rows:40});
     assert.match(out,/MULTI_OK/);

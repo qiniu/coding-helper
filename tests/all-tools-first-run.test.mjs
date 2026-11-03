@@ -20,6 +20,6 @@ for(const tool of tools)test('empty HOME first-run model configuration: '+tool.n
  if(['codebuddy','workbuddy'].includes(tool.name))steps.push([/Select models to configure[\s\S]*?Esc back/,' '+'\x1b[C']);
  else steps.push([/Type to search[\s\S]*?Type search/,'z-ai/glm-5.2\r']);
  if(tool.name==='claude-code')steps.push([/Save & write[\s\S]*?Esc back/,'\r']);
- if(tool.supportsPreview===true)steps.push([/\? Confirm[\s\S]*?Esc back/,'\x1b[A\x1b[A\r']);else steps.push([/Press Enter/,'\r']);steps.push([/Press Enter/,'\r']);
+ if(tool.supportsPreview===true)steps.push([/\? Confirm[\s\S]*?Esc back/,'\r']);else steps.push([/Press Enter/,'\r']);steps.push([/Press Enter/,'\r']);
  const out=await runPrompt(source,steps,110,{rows:40});assert.match(out,new RegExp('FIRST_RUN_VERIFIED '+tool.name));
 });

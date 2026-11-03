@@ -246,7 +246,7 @@ i18n.init('en_US');const tool=new CodexTool(),dir=path.join(os.homedir(),'.codex
 await tool.loadConfig('dummy-old','https://api.qnaigc.com',models);const value=parse(fs.readFileSync(file,'utf8'));delete value.model_provider;value.forced_login_method='chatgpt';const official=stringify(value);fs.writeFileSync(file,official);const auth=path.join(dir,'auth.json'),officialAuth='{"auth_mode":"chatgpt","tokens":{"refresh_token":"dummy-official"}}';fs.writeFileSync(auth,officialAuth);
 tool.checkModel=async()=>undefined;const results=await confirmAndWrite('CODEX_REBASE',[{tool,models,main:models.codexModel,changes:[{label:'Main model',after:models.codexModel}],connection:{apiKey:'dummy-new',baseUrl:'https://api.qnaigc.com',endpoint:'china'}}]);
 console.log('RESULT',JSON.stringify(results.map(r=>r.status)));await tool.unloadConfig();console.log('RESTORED',fs.readFileSync(file,'utf8')===official&&fs.readFileSync(auth,'utf8')===officialAuth);`;
-  const out = await runPrompt(source, [[/Restore baseline[\s\S]*?old record[\s\S]*?Esc back/, '\x1b[A\x1b[A\r']], 100, { rows: 40 });
+  const out = await runPrompt(source, [[/Restore baseline[\s\S]*?old record[\s\S]*?Esc back/, '\r']], 100, { rows: 40 });
   assert.match(out, /RESULT.*\["success"\]/);
   assert.match(out, /RESTORED true/);
   assert.doesNotMatch(out, /dummy-old|dummy-new|dummy-official|changed since loading/);
