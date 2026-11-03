@@ -3,6 +3,9 @@ import fs from 'node:fs';
 import test from 'node:test';
 import { runPrompt } from './helpers/prompt-pty.mjs';
 
+// 等待完整工具菜单，不能匹配槽位页退出时的「Select action Next」回显。
+const toolMenu = /\? Select action[^]*Configure Models[^]*Back[^]*(?:Esc back|⏎ select)/;
+
 const source = (name, accept) => `
   import fs from 'node:fs';
   import path from 'node:path';
@@ -77,8 +80,8 @@ for (const name of ['codex', 'claude-code', 'grok', 'hermes', 'droid']) {
         if (action === 'interrupt') return '\x03';
         return text.includes('Write configuration to ') ? '\x1b[B\r' : '\x1b';
       }]);
-      if (action === 'accept') steps.push([/WRITE_ACK[^]*Select action/, '\x03']);
-      else if (action !== 'interrupt') steps.push(['Select action', '\x03']);
+      if (action === 'accept') steps.push([new RegExp('WRITE_ACK[^]*' + toolMenu.source), '\x03']);
+      else if (action !== 'interrupt') steps.push([toolMenu, '\x03']);
       const out = await runPrompt(source(name, action === 'accept'), steps, 120, { rows: 42 });
       assert.match(out, /INITIAL_CONSENT_OK/);
     });
