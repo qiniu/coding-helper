@@ -161,22 +161,6 @@ class StateStore {
     });
   }
 
-  // 放回 removeToolRecords 删除的记录（写入失败时回滚重设基线）；该工具已有新记录时不覆盖，返回是否放回
-  restoreToolRecords(tool: string, records: Record<string, ToolState>): boolean {
-    return this.withLock(() => {
-      const state = this.read();
-      const owned = Object.keys(state.tools).some(key => {
-        let identity: unknown;
-        try { identity = JSON.parse(key); } catch { /* 旧版记录键就是工具名 */ }
-        return (Array.isArray(identity) && identity.length === 2 ? identity[0] : key) === tool;
-      });
-      if (owned || !Object.keys(records).length) return false;
-      for (const [key, value] of Object.entries(records)) Object.defineProperty(state.tools, key, { value: structuredClone(value), enumerable: true, configurable: true, writable: true });
-      this.write(state);
-      return true;
-    });
-  }
-
   // 一次提交删除某工具的全部记录（含旧版按工具名的记录），返回被删除的原始记录供归档
   removeToolRecords(tool: string): Record<string, ToolState> {
     return this.replaceToolRecords(tool, []);
@@ -202,6 +186,27 @@ class StateStore {
       }
       if (Object.keys(removed).length || replacements.length) this.write(state);
       return removed;
+    });
+  }
+
+  // 失败装载尚未产生新日志时，一次性放回旧记录；新日志和其他工具的记录不被覆盖。
+  restoreToolRecords(tool: string, records: Record<string, ToolState>): boolean {
+    return this.withLock(() => {
+      const state = this.read();
+      const belongsToTool = (key: string): boolean => {
+        if (key === tool) return true;
+        try {
+          const identity: unknown = JSON.parse(key);
+          return Array.isArray(identity) && identity.length === 2 && identity[0] === tool && typeof identity[1] === 'string';
+        } catch { return false; }
+      };
+      if (Object.keys(records).some(key => !belongsToTool(key))) throw new Error('Recovery records belong to another tool.');
+      if (!Object.keys(records).length || Object.keys(state.tools).some(belongsToTool)) return false;
+      for (const [key, value] of Object.entries(records)) {
+        Object.defineProperty(state.tools, key, { value: structuredClone(value), enumerable: true, configurable: true, writable: true });
+      }
+      if (Object.keys(records).length) this.write(state);
+      return true;
     });
   }
 
