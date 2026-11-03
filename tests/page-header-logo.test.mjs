@@ -3,7 +3,7 @@ import assert from 'node:assert/strict'; import test from 'node:test'; import { 
 const { toolManager } = await import('../dist/lib/tool-manager.js');
 const TOOL_COUNT = toolManager.getAll().length;
 
-// 各页面共用页头规则：终端放得下「Logo + 状态栏 + 页面内容」时显示完整像素 Logo，放不下时退到紧凑牛头，连紧凑牛头都放不下才退回一行标题；
+// 各页面共用页头规则：终端放得下「Logo + 状态栏 + 页面内容」时显示完整像素 Logo，否则退回一行标题；
 // 两种情况下页面内容（进度、选项、操作提示）都必须在一屏内
 const strip = text => text.replace(/\x1B(?:[@-Z\\-_a-z]|\[[0-?]*[ -/]*[@-~])/g, '');
 const pre = `const fs=await import('node:fs');const os=await import('node:os');const path=await import('node:path');
@@ -35,9 +35,8 @@ async function page(source, steps, expected, exit, columns, rows) {
 }
 
 for (const [name, source, steps, expected, exit] of pages) {
-  // 100×24：主菜单只有 11 行内容，放得下紧凑牛头；其余页面内容较多，退回一行标题
-  for (const [columns, rows, logo] of [[100, 40, true], [100, 24, name === 'main menu']]) {
-    test(`${name} at ${columns}x${rows} ${logo ? 'shows the pixel mark' : 'falls back to the one-line title'} and keeps the page on one screen`, { skip: process.platform === 'win32' }, async () => {
+  for (const [columns, rows, logo] of [[100, 40, true], [100, 24, false]]) {
+    test(`${name} at ${columns}x${rows} ${logo ? 'shows the pixel logo' : 'falls back to the one-line title'} and keeps the page on one screen`, { skip: process.platform === 'win32' }, async () => {
       const screen = await page(source, steps, expected, exit, columns, rows);
       assert.ok(screen, `page content not found for ${name}`);
       const body = screen.split('? 请')[0];
@@ -52,10 +51,10 @@ for (const [name, source, steps, expected, exit] of pages) {
   }
 }
 
-// 列表页：放得下完整 Logo 与整个列表时显示完整 Logo，否则依次退到紧凑牛头、一行标题，保证全部工具都在一屏内
-// （14 个工具时：46 行放得下完整 Logo + 整个列表，40 行改用紧凑牛头）
-for (const [rows, logo] of [[46, true], [40, true]]) {
-  test(`tool checklist at 100x${rows} ${logo ? 'shows the pixel mark with' : 'drops the logo to keep'} every tool visible`, { skip: process.platform === 'win32' }, async () => {
+// 列表页：放得下 Logo 与整个列表时才显示 Logo，否则退回一行标题，保证全部工具都在一屏内
+// （13～14 个工具时：46 行放得下 Logo + 整个列表，40 行放不下）
+for (const [rows, logo] of [[46, true], [40, false]]) {
+  test(`tool checklist at 100x${rows} ${logo ? 'shows the logo with' : 'drops the logo to keep'} every tool visible`, { skip: process.platform === 'win32' }, async () => {
     const source = `${pre}const {WIZARD_STEP_KEYS}=await import('./dist/lib/wizard/ui/ui-renderer.js');const m=await import('./dist/lib/wizard/flows/tool-setup-flow.js');await m.runToolSetupFlow(undefined,{first:4,total:6,keys:WIZARD_STEP_KEYS});`;
     const raw = await runPrompt(source, [[/4 \/ 6[^]*Esc 返回/, '\x1b']], 100, { rows, raw: true });
     const screen = strip(raw.split('\x1Bc').findLast(chunk => strip(chunk).includes('4 / 6')));

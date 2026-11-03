@@ -27,6 +27,8 @@ export interface HeaderOptions {
   connection?: Connection;
   // 页面内容需要的行数（含操作提示），默认 PAGE_BODY_ROWS
   bodyRows?: number;
+  // 初始化欢迎页在短终端优先显示紧凑的七牛标志。
+  brandMark?: boolean;
 }
 
 // 首次向导的步骤
@@ -108,32 +110,20 @@ export const uiRenderer = {
     renderLogoArt(toolName);
   },
 
-  // 终端能否在紧凑牛头与状态栏之下放下 bodyRows 行
-  compactLogoFits(bodyRows = PAGE_BODY_ROWS, connection?: Connection): boolean {
-    return (process.stdout.columns || 80) >= COMPACT_LOGO_MIN_COLUMNS
-      && (process.stdout.rows || 0) >= COMPACT_LOGO_HEIGHT + this.statusBarRows(connection) + bodyRows + 1;
-  },
-
-  // 页头会用哪一档：完整 Logo → 紧凑牛头 → 一行标题。所有页面共用这一规则，按实际剩余空间逐级回退
-  headerMode(options: HeaderOptions = {}, toolName?: string): 'full' | 'compact' | 'title' {
-    if (options.full === true) return 'full';
-    if (options.full === undefined && this.logoFits(options.bodyRows, options.connection, toolName)) return 'full';
-    return this.compactLogoFits(options.bodyRows, options.connection) ? 'compact' : 'title';
-  },
-
-  // 统一页面头部：清屏 + 页头 + 状态栏。放得下完整 Logo、状态栏与页面内容时显示完整 Logo；
-  // 放不下时退到紧凑牛头；连紧凑牛头都放不下才退回一行标题，保证选项、进度与操作提示可见。
-  // 传工具名时完整 Logo 旁显示该工具的角色，一行标题带上工具名
+  // 统一页面头部：清屏 + 完整 Logo（终端够高时）或一行标题 + 状态栏。所有页面共用这一规则：
+  // 放得下 Logo、状态栏与页面内容时显示 Logo，只有空间不足时才退回一行标题。
+  // 传工具名时 Logo 旁显示该工具的角色，一行标题带上工具名
   renderHeader(options: string | HeaderOptions = {}): void {
     const toolName = typeof options === 'string' ? options : undefined;
     // 一行标题里的「› 工具名」用显示名（如 Claude Code）
     const crumb = toolName ? registeredTools().find(tool => tool.name === toolName)?.displayName ?? toolName : undefined;
     const header: HeaderOptions = typeof options === 'string' ? { crumb } : options;
-    const mode = this.headerMode(header, toolName);
+    const full = header.full ?? this.logoFits(header.bodyRows, header.connection, toolName);
     this.clearScreen();
-    if (mode === 'full') this.renderLogo(toolName);
-    else if (mode === 'compact') {
-      renderCompactLogo(header.crumb);
+    if (full) this.renderLogo(toolName);
+    else if (header.brandMark && (process.stdout.columns || 80) >= COMPACT_LOGO_MIN_COLUMNS
+      && (process.stdout.rows || 0) >= COMPACT_LOGO_HEIGHT + this.statusBarRows(header.connection) + (header.bodyRows ?? PAGE_BODY_ROWS) + 1) {
+      renderCompactLogo();
     } else {
       logger.newLine();
       logger.log(`  ${theme.brandBold('QINIU')} ${theme.heading('Coding Helper')}${header.crumb ? theme.subtle('  ›  ') + theme.value(header.crumb) : ''}`);

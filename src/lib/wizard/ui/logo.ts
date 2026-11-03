@@ -11,15 +11,13 @@ import { compactQiniuGrid, logoGrid, renderGrid, renderSprite, joinBlocks, pixel
 export const COMPACT_LOGO_HEIGHT = 6;
 export const COMPACT_LOGO_MIN_COLUMNS = 38;
 
-// crumb 为当前工具名等面包屑，显示在版本号下一行
-export function renderCompactLogo(crumb?: string): void {
+export function renderCompactLogo(): void {
   logger.newLine();
   const mark = renderGrid(compactQiniuGrid());
   const columns = process.stdout.columns || 80;
   for (const [index, line] of mark.entries()) {
-    const raw = index === 1 ? 'Coding Helper' : index === 2 ? `v${VERSION}` : index === 3 && crumb ? `› ${crumb}` : '';
-    const text = truncate(raw, columns - 21);
-    const label = index === 1 ? chalk.bold(text) : index === 3 ? chalk.hex('#E8F6FF')(text) : chalk.dim(text);
+    const text = truncate(index === 2 ? 'Coding Helper' : index === 3 ? `v${VERSION}` : '', columns - 21);
+    const label = index === 2 ? chalk.bold(text) : chalk.dim(text);
     logger.log(`  ${line}   ${label}`);
   }
 }
