@@ -67,7 +67,7 @@ function modelTable(table: string, model: string, baseUrl: string, apiKey: strin
   ].join('\n');
 }
 
-// 写入 [model.qiniu] 自带模型（BYOK），并把 [models] default 指向它；
+// 主对话、会话标题和摘要默认共用所选七牛模型，避免辅助请求落到内置模型。
 export function applyGrokConfig(
   existing: string,
   baseUrl: string,
@@ -79,11 +79,11 @@ export function applyGrokConfig(
   const newline = existing.includes('\r\n') ? '\r\n' : '\n';
   let content = removeTomlTable(existing, MODEL_TABLE);
   content = upsertTomlTableKey(content, 'models', 'default', '"qiniu"');
-  if (summary) {
-    content = removeTomlTable(content, 'model.qiniu-summary');
-    content = upsertTomlTableKey(content, 'models', 'session_summary', JSON.stringify(summary.model === model ? MODEL_ID : 'qiniu-summary'));
-  }
-  const extra = summary && summary.model !== model ? modelTable('model.qiniu-summary', summary.model, baseUrl, apiKey, summary.contextWindow ?? contextWindow).replace(/\n/g, newline) : '';
+  // 会话标题和摘要默认跟随主模型（#129），单独设置摘要槽位时才使用 qiniu-summary
+  summary ??= { model };
+  content = removeTomlTable(content, 'model.qiniu-summary');
+  content = upsertTomlTableKey(content, 'models', 'session_summary', JSON.stringify(summary.model === model ? MODEL_ID : 'qiniu-summary'));
+  const extra = summary.model !== model ? modelTable('model.qiniu-summary', summary.model, baseUrl, apiKey, summary.contextWindow ?? contextWindow).replace(/\n/g, newline) : '';
   const next = normalizeToml(content.trimEnd() + newline + newline + modelTable(MODEL_TABLE, model, baseUrl, apiKey, contextWindow).replace(/\n/g, newline) + extra);
   validateToml(next); return next;
 }
