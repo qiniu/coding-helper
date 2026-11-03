@@ -556,9 +556,14 @@
   "model_catalog_retry": "Retry fetching models",
   "model_manual_multiple": "Enter model IDs (separated by commas or spaces)",
   "model_multi_current": "Currently configured: {{models}}",
-  "model_multi_selected": "Selected {{count}}: {{models}}",
+  "model_multi_selected": "Selected {{count}}: ",
   "model_multi_next": "Next →  {{count}} models",
   "model_multi_toggle": "add / remove",
   "model_multi_accept_hint": "Enter or Tab to continue; type to search, Enter to add or remove",
+  "model_multi_more": "+{{count}} more",
+  "model_tab_selected": "Selected {{count}}",
+  "model_multi_selected_empty": "No models selected yet. Switch to All or type to search and add",
+  "model_multi_current_prefix": "Currently configured: ",
+  "model_multi_more_browse": "+{{count}} more · ← to view all",
   "model_multi_continue": "Next"
 }

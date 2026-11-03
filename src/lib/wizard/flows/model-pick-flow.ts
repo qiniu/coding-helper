@@ -1,3 +1,4 @@
+import { visibleWidth } from '../../../utils/string-width.js';
 import { modelConfigFor, savedModelFor } from '../../core/model-mapping.js';
 import { slotOverrides, toolSlots } from '../../core/model-slots.js';
 import type { PlanItem, PlanChange } from '../../core/write-plan.js';
@@ -137,6 +138,26 @@ function modelRow(m: PickerModel, options: PickOptions, extra: Partial<MenuItem<
   };
 }
 
+// 已选清单压成一行：模型名去掉厂商前缀（短名重复时保留完整 ID），放不下的折成「+N 个」，完整清单见「已选」分类
+// browse 为 true 时，折叠的部分提示可按 ← 到「已选」分类查看完整清单
+export function selectionSummary(values: string[], width = Infinity, prefix = t('model_multi_selected', { count: String(values.length) }), browse = false): string {
+  if (!values.length) return `${prefix}—`;
+  const short = (id: string): string => id.slice(id.lastIndexOf('/') + 1) || id;
+  const names = values.map(id => values.filter(other => short(other) === short(id)).length > 1 ? id : short(id));
+  const sep = ' · ';
+  for (let shown = names.length; shown > 0; shown--) {
+    const rest = names.length - shown;
+    const text = prefix + names.slice(0, shown).join(sep) + (rest ? `  ${t(browse ? 'model_multi_more_browse' : 'model_multi_more', { count: String(rest) })}` : '');
+    if (visibleWidth(text) <= width) return text;
+  }
+  // 一个都放不下时依次退：带查看提示 → 只写数量 → 只留「已选 N 个」
+  const fallbacks = [
+    ...(browse ? [`${prefix}${t('model_multi_more_browse', { count: String(names.length) })}`] : []),
+    `${prefix}${t('model_multi_more', { count: String(names.length) })}`,
+  ];
+  return fallbacks.find(text => visibleWidth(text) <= width) ?? prefix.replace(/[:：]\s*$/, '');
+}
+
 // 只根据接口的推荐 / 热门标签排序，不为本地固定模型添加推荐标记。
 function featured(model: PickerModel): boolean {
   return 'hot_tags' in model && (model.hot_tags ?? []).some(tag => tag === '推荐' || tag === '热门');
@@ -221,10 +242,13 @@ async function chooseModels(options: PickOptions, selected?: string[]): Promise<
     const { value, action, query, selected: chosen } = await menuPrompt<string>({
       ...(selected !== undefined ? { multiple: {
         initial: selected,
-        summary: (values: string[]) => t('model_multi_selected', { count: String(values.length), models: values.join(', ') || '—' }),
+        summary: (values: string[], width?: number, final?: boolean) => selectionSummary(values, width, undefined, !final),
+        selectedTab: (count: number) => t('model_tab_selected', { count: String(count) }),
+        selectedEmpty: t('model_multi_selected_empty'),
         acceptLabel: (count: number) => t('model_multi_next', { count: String(count) }),
         acceptDetail: () => [
-          theme.subtle(currentSummary ?? ''),
+          // 原有配置同样压成一行，模型多时不折行
+          theme.subtle(currentModels.length ? selectionSummary(currentModels.map(item => item.model).filter((model): model is string => !!model), Math.max(1, (process.stdout.columns || 80) - 4), t('model_multi_current_prefix')) : currentSummary ?? ''),
           theme.subtle(t('model_multi_accept_hint')),
         ].join('\n'),
         parseCustom: customIds,
