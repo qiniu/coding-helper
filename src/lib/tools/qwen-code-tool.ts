@@ -1,9 +1,10 @@
 import os from 'node:os';
 import path from 'node:path';
+import { isDeepStrictEqual } from 'node:util';
 import type { ModelConfig } from '../config.js';
 import { isQiniuBaseUrl } from '../endpoints.js';
 import { readTextFile, formatJsonLike } from '../core/safe-write.js';
-import { applyConfigEdits, parseConfigObject } from '../core/config-transaction.js';
+import { applyConfigEdits, canonicalConfigPath, parseConfigObject, restoreConfigEdits, type ConfigReconciler } from '../core/config-transaction.js';
 import { stateStore } from '../core/state-store.js';
 import { OpenAICompatTool, fetchModelLimits, effectiveContextLimit, getPath, isRecord, openAIBaseUrl, setPath } from './openai-compat-tool.js';
 import { setDotenvValue, readDotenvValue } from '../core/dotenv-edit.js';
@@ -117,6 +118,20 @@ export class QwenCodeTool extends OpenAICompatTool {
     return [path.join(dir, 'settings.json'), path.join(dir, '.env')];
   }
 
+  // Qwen 启动时会补写配置版本。仅允许该元数据变化，模型、路由、凭据及其他字段仍严格保护。
+  // 重载从当前文件构建，保留新版本；还原仍使用最初保存的完整原文（含注释）。
+  private reconcileSettingsVersion: ConfigReconciler = (file, current, original, applied) => {
+    if (file !== canonicalConfigPath(this.settingsFile())) return undefined;
+    try {
+      const actual = parseQwenSettings(current);
+      const expected = parseQwenSettings(applied);
+      if (!Number.isSafeInteger(actual.$version) || (actual.$version as number) < 1 || actual.$version === expected.$version) return undefined;
+      delete actual.$version;
+      delete expected.$version;
+      return isDeepStrictEqual(actual, expected) ? original : undefined;
+    } catch { return undefined; }
+  };
+
   // 在同一状态锁内确认旧事务仍属于当前目录，防止遗留凭据后误报卸载成功。
   private assertRecordedDirectory(files: string[]): void {
     const recorded = stateStore.getFileStates(this.name);
@@ -154,14 +169,14 @@ export class QwenCodeTool extends OpenAICompatTool {
           return formatJsonLike(content?.replace(/^\uFEFF/, ''), applyQwenSettings(settings, baseUrl, model, effectiveContextLimit(limits, known)));
         } },
         { file: files[1], build: content => setDotenvValue(content ?? '', QWEN_ENV_KEY, apiKey) },
-      ]);
+      ], { reconcile: this.reconcileSettingsVersion });
     });
   }
   unloadConfig(): void {
     stateStore.withLock(() => {
       const files = this.configFiles();
       this.assertRecordedDirectory(files);
-      this.restoreManagedConfig(files);
+      if (!restoreConfigEdits(this.name, files, { reconcile: this.reconcileSettingsVersion })) this.restoreManagedConfig(files);
     });
   }
 }
