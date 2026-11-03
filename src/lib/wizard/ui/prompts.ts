@@ -504,7 +504,11 @@ const menuView = createPrompt(<T,>(config: LiveMenuConfig<T>, done: (result: Men
   const selectionLine = config.multiple ? (() => {
     const text = truncate(config.multiple.summary([...picked], Math.max(1, terminalWidth() - 4)), Math.max(1, terminalWidth() - 4));
     const at = text.search(/[:：]/);
-    return at < 0 ? `  ${theme.brandBold(text)}` : `  ${theme.brandBold(text.slice(0, at + 1))}${theme.value(text.slice(at + 1))}`;
+    if (at < 0) return `  ${theme.brandBold(text)}`;
+    // 折叠提示（「  +N …」）用弱化色，与模型名区分
+    const body = text.slice(at + 1);
+    const fold = body.search(/(^|\s{2})\+\d/);
+    return `  ${theme.brandBold(text.slice(0, at + 1))}${theme.value(fold < 0 ? body : body.slice(0, fold))}${fold < 0 ? '' : theme.subtle(body.slice(fold))}`;
   })() : undefined;
   const fixedRows = (overflow: boolean): number => (selectionLine ? 1 : 0) + (statusText ? screenRows(statusText) : 0) + 1 + (searchLine ? screenRows(searchLine) : 0) + (tabsLine ? screenRows(tabsLine) : 0) + (emptyLine ? 1 : 0)
     + (detailTop ? detailRows + 1 : bottomDetailRows) + (overflow ? 1 : 0) + 1 + screenRows(footerFor(overflow)) + 1;
