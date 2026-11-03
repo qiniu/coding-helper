@@ -84,7 +84,7 @@ export function isExternallyModified(tool: ITool): boolean {
   } catch { return false; }
 }
 
-export interface RebaselineResult { backupDir?: string; files: string[]; }
+export interface RebaselineResult { backupDir?: string; files: string[]; removed?: Record<string, ToolState>; }
 
 // 先归档旧记录和当前文件，再以当前内容建立事务基线，保留配置档等已托管文件的归属。
 // 字段式记录由下次装载重新捕获；预演只更新内存视图。
@@ -125,7 +125,7 @@ export function rebaselineTool(tool: ITool): RebaselineResult {
       atomicWriteFile(path.join(backupDir, 'manifest.json'), JSON.stringify({ tool: tool.name, createdAt: new Date().toISOString(), files: copies, records }, null, 2) + '\n');
     }
     if (files.some(file => readTextFile(file) !== snapshots.get(file))) throw new Error('Configuration changed while establishing the restore baseline. Retry.');
-    stateStore.replaceToolRecords(tool.name, replacements);
-    return { backupDir, files };
+    const removed = stateStore.replaceToolRecords(tool.name, replacements);
+    return { backupDir, files, removed };
   });
 }
