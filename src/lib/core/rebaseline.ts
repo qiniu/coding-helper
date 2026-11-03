@@ -79,7 +79,7 @@ export function isExternallyModified(tool: ITool): boolean {
   } catch { return false; }
 }
 
-export interface RebaselineResult { backupDir?: string; files: string[]; }
+export interface RebaselineResult { backupDir?: string; files: string[]; removed?: Record<string, ToolState>; }
 
 // 以当前配置为新的还原基线：先把旧记录和当前文件归档到 backups/rebaseline-*，再删除旧记录。
 // 之后正常装载七牛时，当前配置会被记录为原值，还原会回到它。预演中只在内存视图里删除记录。
@@ -108,7 +108,7 @@ export function rebaselineTool(tool: ITool): RebaselineResult {
       // 清单先落盘，删除记录失败时仍可从归档恢复
       atomicWriteFile(path.join(backupDir, 'manifest.json'), JSON.stringify({ tool: tool.name, createdAt: new Date().toISOString(), files: copies, records }, null, 2) + '\n');
     }
-    stateStore.removeToolRecords(tool.name);
-    return { backupDir, files };
+    const removed = stateStore.removeToolRecords(tool.name);
+    return { backupDir, files, removed };
   });
 }
