@@ -119,3 +119,17 @@ test('a legacy record with an externally switched config is archived and the wri
   assert.ok(archive, 'legacy record must be archived');
   await tool.unloadConfig(); assert.equal(fs.readFileSync(settings, 'utf8'), deepseek);
 });
+
+test('a failed write after rebaselining puts the removed restore records back', async () => {
+  const { applyTool } = await import('../dist/lib/core/tool-service.js');
+  await switchedToDeepSeek();
+  const recordsBefore = JSON.stringify(stateStore.getFileStates('claude-code'));
+  const archivesBefore = new Set(fs.existsSync(backupsRoot()) ? fs.readdirSync(backupsRoot()) : []);
+  // 模拟写入失败（符号链接、权限、目录不可写等）
+  const failing = Object.create(tool); failing.loadConfig = async () => { throw new Error('EACCES: permission denied'); };
+  const result = await applyTool(failing, { apiKey: 'sk-qiniu-new', baseUrl: 'https://api.qnaigc.com', models });
+  assert.equal(result.status, 'failed');
+  assert.equal(JSON.stringify(stateStore.getFileStates('claude-code')), recordsBefore, 'restore records must be put back');
+  assert.ok(fs.readdirSync(backupsRoot()).some(name => !archivesBefore.has(name) && name.startsWith('rebaseline-claude-code-')), 'archive is kept');
+  assert.equal(isExternallyModified(tool), true);
+});
