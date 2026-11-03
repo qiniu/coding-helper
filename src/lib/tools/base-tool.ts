@@ -46,6 +46,9 @@ export interface ITool {
   // 只检查持久配置是否接入七牛，不探测网络或泄露 Key。
   isConfigured?(): boolean;
 
+  // 根据同一事务中的配置快照确认当前已切换 provider；未选中的旧定义不作为使用中的证据。
+  hasSwitchedProvider?(files: readonly { file: string; applied: string; original?: string | null }[]): boolean;
+
   // 清除模型配置
   clearModelConfig(): void | Promise<void>;
 

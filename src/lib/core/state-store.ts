@@ -163,6 +163,11 @@ class StateStore {
 
   // 一次提交删除某工具的全部记录（含旧版按工具名的记录），返回被删除的原始记录供归档
   removeToolRecords(tool: string): Record<string, ToolState> {
+    return this.replaceToolRecords(tool, []);
+  }
+
+  // 归档后一次性替换基线，避免清除旧记录与保存新基线之间中断而丢失文件归属。
+  replaceToolRecords(tool: string, replacements: { file: string; state: ToolState }[]): Record<string, ToolState> {
     return this.withLock(() => {
       const state = this.read();
       const removed: Record<string, ToolState> = {};
@@ -174,7 +179,12 @@ class StateStore {
         Object.defineProperty(removed, key, { value: state.tools[key], enumerable: true, configurable: true, writable: true });
         delete state.tools[key];
       }
-      if (Object.keys(removed).length) this.write(state);
+      for (const replacement of replacements) {
+        const key = this.key(tool, replacement.file);
+        if (Object.hasOwn(state.tools, key)) throw new Error('Conflicting replacement restoration records.');
+        Object.defineProperty(state.tools, key, { value: replacement.state, enumerable: true, configurable: true, writable: true });
+      }
+      if (Object.keys(removed).length || replacements.length) this.write(state);
       return removed;
     });
   }

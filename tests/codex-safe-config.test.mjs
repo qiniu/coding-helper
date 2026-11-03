@@ -15,13 +15,13 @@ test('Codex preserves skills array tables and replaces equivalent managed provid
   await tool.unloadConfig();assert.equal(fs.readFileSync(config,'utf8'),original);
  }
 });
-test('Codex removes obsolete active selector and uses file API auth while preserving originals', async()=>{
+test('Codex uses API auth without locking the global login method and restores original restrictions', async()=>{
  const {parse}=await import('smol-toml');
  const original='profile = "work"\ncli_auth_credentials_store="ephemeral"\nforced_login_method="chatgpt"\n[profiles.work]\nmodel = "other-model"\nmodel_provider = "other"\n[model_providers.other]\nbase_url = "https://example.test"\n';
  fs.writeFileSync(config,original);fs.writeFileSync(auth,'{}');
  await tool.loadConfig('key','https://api.qnaigc.com',{});
  const loaded=parse(fs.readFileSync(config,'utf8'));
- assert.equal(loaded.profile,undefined);assert.equal(loaded.model_provider,'qnaigc');assert.equal(loaded.cli_auth_credentials_store,'file');assert.equal(loaded.forced_login_method,'api');assert.deepEqual(loaded.profiles.work,{model:'other-model',model_provider:'other'});
+ assert.equal(loaded.profile,undefined);assert.equal(loaded.model_provider,'qnaigc');assert.equal(loaded.cli_auth_credentials_store,'file');assert.equal(loaded.forced_login_method,undefined);assert.deepEqual(loaded.profiles.work,{model:'other-model',model_provider:'other'});
  await tool.unloadConfig();assert.equal(fs.readFileSync(config,'utf8'),original);
 });
 test('Codex preserves legal multiline sandbox settings and strings through load and unload', async()=>{

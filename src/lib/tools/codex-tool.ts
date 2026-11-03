@@ -2,13 +2,14 @@ import { slotModel } from '../core/model-slots.js';
 import { stateStore } from '../core/state-store.js';
 import { findCommand, commandVersion } from '../../utils/find-command.js';
 import { parse } from 'smol-toml';
-import { readTextFile } from '../core/safe-write.js';
+import { backupsRoot, readTextFile } from '../core/safe-write.js';
 import { applyConfigEdits, restoreConfigEdits, parseConfigObject, canonicalConfigPath } from '../core/config-transaction.js';
 import { validateToml, upsertTomlTableKey, upsertTopLevelTomlKey, removeTopLevelTomlKey, removeTomlTable as removeSharedTomlTable } from '../core/toml-edit.js';
 import { capContextWindow, fetchModelLimits, isRecord } from './openai-compat-tool.js';
 import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
+import { isDeepStrictEqual } from 'node:util';
 import type { ITool } from './base-tool.js';
 import { configManager, type ModelConfig } from '../config.js';
 import { DEFAULT_ENDPOINT, getBaseUrl, isQiniuBaseUrl } from '../endpoints.js';
@@ -72,13 +73,25 @@ export class CodexTool implements ITool {
   }
 
   isConfigured(): boolean {
-    const config = parse(readTextFile(CODEX_CONFIG_FILE) ?? '');
-    const profile = typeof config.profile === 'string' && isRecord(config.profiles) ? config.profiles[config.profile] : undefined;
-    const provider = isRecord(profile)
-      ? profile.model_provider ?? config.model_provider : config.model_provider;
-    if (typeof provider !== 'string') return false;
-    const entry = isRecord(config.model_providers) ? config.model_providers[provider] : undefined;
-    return isRecord(entry) && isQiniuBaseUrl(entry.base_url);
+    const content = readTextFile(CODEX_CONFIG_FILE) ?? '';
+    validateToml(content);
+    // 状态页允许尚未补全的路由显示为未接入；是否能替换基线仍由严格解析确认。
+    try { return isQiniuBaseUrl(activeCodexProvider(content)); }
+    catch { return false; }
+  }
+
+  hasSwitchedProvider(files: readonly { file: string; applied: string; original?: string | null }[]): boolean {
+    const configFile = canonicalConfigPath(CODEX_CONFIG_FILE);
+    const known = new Set([CODEX_CONFIG_FILE, CODEX_AUTH_FILE, CODEX_CATALOG_FILE].map(canonicalConfigPath));
+    // 不能用当前目录的选择替另一个目录或未知目标的恢复记录作决定。
+    if (files.some(({ file }) => !known.has(file) && (path.dirname(file) !== path.dirname(configFile) || !/^qn-[A-Za-z0-9_-]{1,32}\.config\.toml$/.test(path.basename(file))))) return false;
+    const entry = files.find(({ file }) => file === configFile);
+    const current = readTextFile(CODEX_CONFIG_FILE);
+    if (!entry || current === undefined) return false;
+    const currentProvider = activeCodexProvider(current);
+    const previousProvider = activeCodexProvider(entry.applied);
+    // 基线已保存而后续装载失败时，还没有 helper 改动；允许用户修正官方设置或刷新凭据后重试。
+    return currentProvider !== previousProvider || files.every(file => file.original === file.applied);
   }
 
   clearModelConfig(): void {
@@ -99,6 +112,8 @@ export class CodexTool implements ITool {
     const profiles = configManager.listProfiles().filter(profile => !!profile.apiKey);
     const generated = new Map(profiles.map(profile => [path.join(CODEX_DIR, codexProfileName(profile.name) + '.config.toml'), buildCodexProfileFile(profile.name, model, CODEX_CATALOG_FILE)]));
     const recordedFiles = codexTransactionFiles();
+    // 还原基线可能本来就带着未启用的 helper 配置档；只能凭归档中的准确快照重新认领。
+    recordedFiles.push(...archivedCodexProfileFiles([...generated.keys()], new Set(recordedFiles.map(canonicalConfigPath))));
     const recorded = new Set(recordedFiles.map(canonicalConfigPath));
     // 只有事务记录中的配置档文件能证明同名 provider 由 helper 管理。
     const managedProviders = new Set(recordedFiles.filter(file => file.endsWith('.config.toml')).map(file => codexProviderName(path.basename(file).slice(3, -'.config.toml'.length))));
@@ -162,6 +177,30 @@ export class CodexTool implements ITool {
   renderModelConfigSummary(): void {
     uiRenderer.renderConfigItem(t('config_view_codex_model'), configManager.getModels().codexModel || this.defaultModel);
   }
+}
+
+// 只解析持久配置当前选中的线路；默认是官方 OpenAI，旧版内嵌 profile 的覆盖优先于顶层。
+// 缺失的自定义 provider、无效 profile 或 URL 不能证明切换成功，保留恢复记录并报错。
+function activeCodexProvider(content: string): string {
+  const config = parse(content);
+  let profile: Record<string, unknown> | undefined;
+  if (config.profile !== undefined) {
+    const selected = typeof config.profile === 'string' && isRecord(config.profiles) ? config.profiles[config.profile] : undefined;
+    if (!isRecord(selected)) throw new Error('Invalid active Codex profile.');
+    profile = selected;
+  }
+  const provider = profile?.model_provider ?? config.model_provider ?? 'openai';
+  if (typeof provider !== 'string' || !provider) throw new Error('Invalid active Codex provider.');
+  const entry = isRecord(config.model_providers) ? config.model_providers[provider] : undefined;
+  const baseUrl = provider === 'openai'
+    ? profile?.openai_base_url ?? config.openai_base_url ?? (isRecord(entry) ? entry.base_url : undefined)
+    : isRecord(entry) ? entry.base_url : undefined;
+  if (baseUrl === undefined && provider === 'openai') return 'https://api.openai.com/v1';
+  if (baseUrl === undefined && ['ollama', 'lmstudio'].includes(provider)) return `builtin:${provider}`;
+  if (typeof baseUrl !== 'string') throw new Error('Active Codex provider has no base URL.');
+  const url = new URL(baseUrl);
+  if (!['https:', 'http:'].includes(url.protocol) || url.username || url.password) throw new Error('Invalid active Codex provider URL.');
+  return url.toString().replace(/\/+$/, '');
 }
 
 export function isCodexCompatibleStream(text: string): boolean {
@@ -369,10 +408,11 @@ export function mergeCodexConfig(existing: string, baseUrl: string, model: strin
   const newline = existing.includes('\r\n') ? '\r\n' : '\n';
   validateToml(existing);
   let content = removeSharedTomlTable(removeSharedTomlTable(existing, 'model_providers.qnaigc'), 'profiles.qn-gpt');
-  // 新版 Codex 不再接受顶层 profile；直接使用顶层路由并统一文件式 API Key 认证。
+  // 新版 Codex 使用顶层路由；接入时不锁定全局登录方式，允许用户之后切回官方登录。
   content = removeTopLevelTomlKey(content, 'profile');
+  content = removeTopLevelTomlKey(content, 'forced_login_method');
   for (const [key, value] of Object.entries({ model, model_provider: PROVIDER_NAME, model_catalog_json: catalogPath,
-    cli_auth_credentials_store: 'file', forced_login_method: 'api' })) {
+    cli_auth_credentials_store: 'file' })) {
     content = upsertTopLevelTomlKey(content, key, JSON.stringify(value));
   }
   const generated = buildCodexConfig('', baseUrl, model, catalogPath);
@@ -419,6 +459,46 @@ function codexTransactionFiles(): string[] {
     }
   }
   return base;
+}
+
+// 基线还原后事务记录会清除，但归档仍能证明旧配置档的归属。文件和 provider 都须与
+// 已归档的写入快照一致；仅有相同名字或显示名称，不能授权覆盖用户自己的凭据。
+function archivedCodexProfileFiles(candidates: string[], recorded: ReadonlySet<string>): string[] {
+  const remaining = new Map(candidates.filter(file => !recorded.has(canonicalConfigPath(file)) && readTextFile(file) !== undefined).map(file => [canonicalConfigPath(file), file]));
+  const root = backupsRoot();
+  if (!remaining.size || !fs.existsSync(root)) return [];
+  const current = parse(readTextFile(CODEX_CONFIG_FILE) ?? '');
+  const configFile = canonicalConfigPath(CODEX_CONFIG_FILE);
+  const found: string[] = [];
+  for (const name of fs.readdirSync(root).filter(name => name.startsWith('rebaseline-codex-'))) {
+    const content = readTextFile(path.join(root, name, 'manifest.json'));
+    if (!content) continue;
+    let manifest: unknown;
+    try { manifest = JSON.parse(content); } catch { continue; }
+    if (!isRecord(manifest) || manifest.tool !== 'codex' || !isRecord(manifest.records)) continue;
+    for (const state of Object.values(manifest.records)) {
+      const entries = isRecord(state) && isRecord(state.priors) ? state.priors.files : undefined;
+      if (!Array.isArray(entries)) continue;
+      const config = entries.find(entry => isRecord(entry) && entry.file === configFile);
+      if (!isRecord(config) || typeof config.applied !== 'string') continue;
+      let applied: unknown;
+      try { applied = parse(config.applied); } catch { continue; }
+      if (!isRecord(applied)) continue;
+      for (const entry of entries) {
+        if (!isRecord(entry) || typeof entry.file !== 'string' || typeof entry.applied !== 'string') continue;
+        const file = remaining.get(entry.file);
+        if (!file || readTextFile(file) !== entry.applied) continue;
+        const provider = codexProviderName(path.basename(file).slice(3, -'.config.toml'.length));
+        const expected = isRecord(applied.model_providers) ? applied.model_providers[provider] : undefined;
+        const actual = isRecord(current.model_providers) ? current.model_providers[provider] : undefined;
+        if (!isRecord(expected) || actual !== undefined && !isDeepStrictEqual(expected, actual)) continue;
+        found.push(file);
+        remaining.delete(entry.file);
+      }
+    }
+    if (!remaining.size) break;
+  }
+  return found;
 }
 
 export function applyCodexSlots(content: string, slots: Record<'review' | 'subagent' | 'memory', string>): string {
