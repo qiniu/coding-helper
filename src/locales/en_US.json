@@ -530,6 +530,7 @@
   "plan_rebaseline_before": "old record",
   "plan_rebaseline_after": "current config (backed up)",
   "rebaseline_failed": "Cannot use current config as baseline; nothing changed",
+  "rebaseline_recovery_failed": "Loading failed and recovery records could not be restored. Keep the archived baseline and recover it before retrying.",
   "install_title": "Install {{tool}}",
   "install_subtitle": "Runs this command in the terminal (network required)",
   "install_command": "Command",
