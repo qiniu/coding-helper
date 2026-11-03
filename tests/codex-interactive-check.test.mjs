@@ -177,3 +177,7 @@ test('selector visits every tool beyond the visible page and supports launch-onl
   for(const tool of tools)assert.ok(selector.steps.some(step=>step.expectSelected===tool.displayName));
   const launch=scenarios.at(-1);assert.equal(launch.steps[0].expectSelected,'启动工具');assert.equal(launch.steps[2].input,'\u001b[B'.repeat(4));
 });
+
+test('interactive evidence rejects echoed arrow-key input',()=>{
+ assert.equal(analyzeTranscript('menu ^[[B').ok,false);assert.equal(analyzeTranscript('menu \x1b[2B').ok,true);
+});
