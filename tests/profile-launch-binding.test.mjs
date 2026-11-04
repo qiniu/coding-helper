@@ -15,8 +15,8 @@ for(const tool of toolManager.getAll()){tool.isConfigured=()=>false;tool.isInsta
 const copilot=toolManager.get('copilot');copilot.isInstalled=()=>true;
 `;
 
-test('profiles count an installed and ready launch-only tool', {skip:process.platform==='win32'}, async () => {
-  const out = await runPrompt(source + `assert.deepEqual(toolsUsingProfile('work'),['copilot']);copilot.isInstalled=()=>false;assert.deepEqual(toolsUsingProfile('work'),[]);console.log('BINDING_COUNT_OK');`, []);
+test('profiles count ready and explicitly bound launch-only tools', {skip:process.platform==='win32'}, async () => {
+  const out = await runPrompt(source + `assert.deepEqual(toolsUsingProfile('work'),['copilot']);copilot.isInstalled=()=>false;assert.deepEqual(toolsUsingProfile('work'),['copilot']);console.log('BINDING_COUNT_OK');`, []);
   assert.match(out, /BINDING_COUNT_OK/);
 });
 

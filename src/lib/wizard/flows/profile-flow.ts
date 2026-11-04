@@ -17,10 +17,12 @@ import { logger } from '../../../utils/logger.js';
 import { padVisible, visibleWidth } from '../../../utils/string-width.js';
 import { t } from '../../i18n.js';
 
-// 使用该配置档的工具：只算已接入七牛的工具（未接入的工具不受配置档影响）
+// 使用该配置档的工具：已接入七牛的工具（含启动器），以及单独绑定到该配置档的工具
 export function toolsUsingProfile(name: string): string[] {
+  // 启动器（如 Copilot）也算；单独绑定到该配置档的工具无论是否就绪都算，删除配置档前必须提示，避免静默丢失绑定
   const connected = connectedToolNames({ includeLaunchOnly: true });
-  return toolManager.getAll().filter(tool => connected.includes(tool.name) && configManager.getConnection(tool.name).profile === name).map(tool => tool.name);
+  return toolManager.getAll().filter(tool => configManager.getToolProfile(tool.name) === name ||
+    (connected.includes(tool.name) && configManager.getConnection(tool.name).profile === name)).map(tool => tool.name);
 }
 
 function displayNames(names: string[]): string {
