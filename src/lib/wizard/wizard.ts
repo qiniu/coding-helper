@@ -11,29 +11,35 @@ import { runToolSetupFlow } from './flows/tool-setup-flow.js';
 export class Wizard {
   // 运行首次初始化向导
   async runInitWizard(): Promise<boolean> {
-    // 清屏后显示欢迎界面（首次使用固定中文提示选择语言）
-    uiRenderer.renderHeader();
-    uiRenderer.renderWelcome(
-      t('welcome'),
-      t('welcome_description'),
-      t('privacy_notice'),
-    );
+    const firstRun = configManager.isFirstRun();
+    try {
+      // 清屏后显示欢迎界面（首次使用固定中文提示选择语言）
+      uiRenderer.renderHeader();
+      uiRenderer.renderWelcome(
+        t('welcome'),
+        t('welcome_description'),
+        t('privacy_notice'),
+      );
 
-    // 1. 选择语言
-    if (!await runLanguageFlow()) return false;
+      // 1. 选择语言
+      if (!await runLanguageFlow()) return false;
 
-    // 2. 选择线路
-    if (!await runEndpointSelectionFlow()) return false;
+      // 2. 选择线路
+      if (!await runEndpointSelectionFlow()) return false;
 
-    // 3. 输入 API Key
-    if (!await runApiKeyFlow()) return false;
+      // 3. 输入 API Key
+      if (!await runApiKeyFlow()) return false;
 
-    // 4. 选择工具并引导配置（配置模型 → 装载配置 → 提示就绪）
-    if (!await runToolSetupFlow()) return false;
+      // 4. 选择工具并引导配置（配置模型 → 装载配置 → 提示就绪）
+      if (!await runToolSetupFlow()) return false;
 
-    // 初始化完成
-    uiRenderer.renderSuccess(t('init_complete'));
-    return true;
+      // 初始化完成
+      uiRenderer.renderSuccess(t('init_complete'));
+      return true;
+    } finally {
+      // 首次向导在密钥步骤前退出时撤销临时偏好，确保下次仍进入初始化。
+      if (firstRun && !configManager.getApiKey()) configManager.clearConfig();
+    }
   }
 
   // 进入主菜单
