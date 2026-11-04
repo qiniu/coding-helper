@@ -19,7 +19,7 @@ import { t } from '../../i18n.js';
 
 // 使用该配置档的工具：只算已接入七牛的工具（未接入的工具不受配置档影响）
 export function toolsUsingProfile(name: string): string[] {
-  const connected = connectedToolNames();
+  const connected = connectedToolNames({ includeLaunchOnly: true });
   return toolManager.getAll().filter(tool => connected.includes(tool.name) && configManager.getConnection(tool.name).profile === name).map(tool => tool.name);
 }
 
