@@ -11,24 +11,30 @@ import { runToolSetupFlow } from './flows/tool-setup-flow.js';
 export class Wizard {
   // 运行首次初始化向导
   async runInitWizard(): Promise<boolean> {
-    const total = WIZARD_STEP_KEYS.length;
-    const step = (current: number) => ({ current, total, keys: WIZARD_STEP_KEYS });
+    const firstRun = configManager.isFirstRun();
+    try {
+      const total = WIZARD_STEP_KEYS.length;
+      const step = (current: number) => ({ current, total, keys: WIZARD_STEP_KEYS });
 
-    // 1. 选择语言（第一页带欢迎卡片）
-    if (!await runLanguageFlow(step(1))) return false;
+      // 1. 选择语言（第一页带欢迎卡片）
+      if (!await runLanguageFlow(step(1))) return false;
 
-    // 2. 选择线路
-    if (!await runEndpointSelectionFlow(step(2))) return false;
+      // 2. 选择线路
+      if (!await runEndpointSelectionFlow(step(2))) return false;
 
-    // 3. 输入 API Key
-    if (!await runApiKeyFlow(false, step(3))) return false;
+      // 3. 输入 API Key
+      if (!await runApiKeyFlow(false, step(3))) return false;
 
-    // 4-6. 选择工具 → 选模型 → 确认写入
-    if (!await runToolSetupFlow(undefined, { first: 4, total, keys: WIZARD_STEP_KEYS })) return false;
+      // 4-6. 选择工具 → 选模型 → 确认写入
+      if (!await runToolSetupFlow(undefined, { first: 4, total, keys: WIZARD_STEP_KEYS })) return false;
 
-    // 初始化完成
-    uiRenderer.renderSuccess(t('init_complete'));
-    return true;
+      // 初始化完成
+      uiRenderer.renderSuccess(t('init_complete'));
+      return true;
+    } finally {
+      // 首次向导在密钥步骤前退出时撤销临时偏好，确保下次仍进入初始化。
+      if (firstRun && !configManager.getApiKey()) configManager.clearConfig();
+    }
   }
 
   // 进入主菜单
