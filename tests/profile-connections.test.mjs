@@ -93,3 +93,13 @@ test('tool configuration details display the bound key and endpoint together',as
  assert.equal(items[0][1],'https://details.example/proxy');assert.equal(items[1][1],uiRenderer.maskApiKey('private-bound-key'));
  assert.equal(JSON.stringify(items).includes('private-bound-key'),false);
 });
+
+// 单独绑定到配置档的启动器（如 Copilot）即使未就绪也算「使用中」，删除配置档前会提示，不会静默丢失绑定
+test('profiles count launch-only tools that are bound to them', async () => {
+  const { toolsUsingProfile } = await import('../dist/lib/wizard/flows/profile-flow.js');
+  configManager.saveProfile('team', 'sk-team', 'china'); configManager.saveProfile('solo', 'sk-solo', 'china');
+  configManager.useProfile('solo'); configManager.setToolProfile('copilot', 'team');
+  assert.ok(toolsUsingProfile('team').includes('copilot'));
+  assert.ok(!toolsUsingProfile('solo').includes('copilot'));
+  configManager.setToolProfile('copilot', undefined);
+});
