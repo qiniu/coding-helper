@@ -128,7 +128,14 @@ export async function quickCommand(target: string, rest: string[], options: Quic
       renderToolResults(results, apiKey, !!options.dryRun);
       if (saveFailed) uiRenderer.renderError(t('quick_save_failed'));
       if (options.dryRun) for (const change of publicPlannedChanges(planned.changes)) console.log(JSON.stringify(change));
-      else if (!saveFailed) for (const { tool } of successful) uiRenderer.renderHint(`${t('quick_start')}: ${tool.launchOnly ? `coding-helper run ${tool.name}` : [tool.command, ...(tool.launchArgs ?? [])].join(' ')}`);
+      else if (!saveFailed) for (const { tool } of successful) {
+        let installed: boolean | null = true;
+        try { if (typeof tool.isInstalled === 'function') installed = tool.isInstalled(); }
+        catch { continue; }
+        // 只有桌面应用时提示重启，不能推荐不存在的 CLI 命令。
+        uiRenderer.renderHint(installed === null ? t('result_restart_app', { tool: tool.displayName })
+          : `${t('quick_start')}: ${tool.launchOnly ? `coding-helper run ${tool.name}` : [tool.command, ...(tool.launchArgs ?? [])].join(' ')}`);
+      }
     }
     process.exitCode = exitCode;
   } catch (error) {

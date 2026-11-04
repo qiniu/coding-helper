@@ -32,7 +32,10 @@ export function jsonToolResults(results: ToolResult[]): object[] {
 
 export function renderToolResults(results: ToolResult[], apiKey?: string, preview = false): void {
   for (const { tool, status, reason } of results) {
-    if (status === 'success') uiRenderer.renderSuccess(t(preview ? 'setup_preview_ready' : 'tool_config_loaded', { tool: tool.displayName }));
+    if (status === 'success') {
+      uiRenderer.renderSuccess(t(preview ? 'setup_preview_ready' : 'tool_config_loaded', { tool: tool.displayName }));
+      if (!preview) for (const note of tool.getLoadConfigNotes?.() ?? []) uiRenderer.renderHint(note);
+    }
     else if (status === 'skipped') uiRenderer.renderHint(`${tool.displayName}: ${t(reason ?? '')}`);
     else {
       const message = t(reason ?? 'tool_config_load_failed', { tool: tool.displayName });
