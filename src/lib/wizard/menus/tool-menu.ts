@@ -13,7 +13,8 @@ import { theme } from '../ui/theme.js';
 import type { ITool } from '../../tools/base-tool.js';
 import { logger } from '../../../utils/logger.js';
 import { fetchLatestVersion, isNewerVersion } from '../../version-service.js';
-import type { ModelConfig } from '../../config.js';
+import { applyTool, removeTool, hasSavedToolModelConfig } from '../../core/tool-service.js';
+export { hasSavedToolModelConfig } from '../../core/tool-service.js';
 
 // 工具菜单操作
 type ToolMenuAction =
@@ -139,7 +140,8 @@ export async function unloadToolConfig(tool: ITool): Promise<void> {
   uiRenderer.renderHeader();
   if (!await promptHelper.confirm(t('tool_config_unload_confirm', { tool: tool.displayName }))) return;
   try {
-    await tool.unloadConfig();
+    const result = await removeTool(tool);
+    if (result.status !== 'success') throw new Error(t(result.reason ?? 'tool_config_unload_failed', { tool: tool.displayName }));
     uiRenderer.renderHeader();
     uiRenderer.renderSuccess(t('tool_config_unloaded', { tool: tool.displayName }));
   } catch (error: unknown) {
@@ -155,35 +157,6 @@ export function isLatestVersionFetchPending(state: {
   fetchCompleted: boolean;
 }): state is { fetchPromise: Promise<string | null>; fetchCompleted: false } {
   return Boolean(state.fetchPromise && !state.fetchCompleted);
-}
-
-// 判断 coding-helper 自身是否保存过该工具的模型配置状态
-export function hasSavedToolModelConfig(
-  tool: Pick<ITool, 'name'>,
-  models: ModelConfig,
-): boolean {
-  switch (tool.name) {
-    case 'claude-code':
-      return !!(
-        models.claudeCode?.useDefaultModels ||
-        models.claudeCode?.haikuModel ||
-        models.claudeCode?.sonnetModel ||
-        models.claudeCode?.opusModel ||
-        models.claudeCode?.subagentModel
-      );
-    case 'codex':
-      return !!models.codexModel;
-    case 'codebuddy':
-      return !!models.codeBuddyModels?.length;
-    case 'workbuddy':
-      return !!models.workbuddyModels?.length;
-    case 'opencode':
-      return !!(models.toolModels?.[tool.name] ?? models.defaultModel);
-    case 'hermes':
-      return !!models.hermesModel;
-    default:
-      return !!(models.toolModels?.[tool.name] ?? models.defaultModel);
-  }
 }
 
 async function runInitialToolSetup(tool: ITool): Promise<void> {
@@ -278,9 +251,9 @@ async function applyConfig(tool: ITool): Promise<void> {
     return;
   }
 
-  const models = configManager.getModels();
   try {
-    await tool.loadConfig(apiKey, configManager.baseUrl, models);
+    const result = await applyTool(tool);
+    if (result.status !== 'success') throw new Error(t(result.reason ?? 'tool_config_load_failed', { tool: tool.displayName }));
     uiRenderer.renderHeader();
     uiRenderer.renderSuccess(t('tool_config_loaded', { tool: tool.displayName }));
     for (const note of tool.getLoadConfigNotes?.() ?? []) uiRenderer.renderHint(note);

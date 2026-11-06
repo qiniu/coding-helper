@@ -8,6 +8,7 @@ import { uiRenderer } from '../lib/wizard/ui/ui-renderer.js';
 import { runApiKeyFlow } from '../lib/wizard/flows/api-key-flow.js';
 import { promptHelper } from '../lib/wizard/ui/prompt-helper.js';
 import ora from 'ora';
+import { applyTool } from '../lib/core/tool-service.js';
 
 // 拼接已注册工具名称及别名，用于 auth reload 的提示文案
 function formatAvailableTools(): string {
@@ -36,12 +37,14 @@ export async function authCommand(tokenOrAction?: string): Promise<void> {
     const toolName = process.argv[4];
     const availableTools = formatAvailableTools();
     if (!toolName) {
+      process.exitCode = 1;
       uiRenderer.renderError(t('auth_reload_usage'));
       uiRenderer.renderHint(t('auth_reload_tools', { tools: availableTools }));
       return;
     }
     const tool = toolManager.get(toolName);
     if (!tool) {
+      process.exitCode = 1;
       uiRenderer.renderError(t('auth_unknown_tool', { tool: toolName }));
       uiRenderer.renderHint(t('auth_reload_tools', { tools: availableTools }));
       return;
@@ -52,6 +55,7 @@ export async function authCommand(tokenOrAction?: string): Promise<void> {
       return;
     }
     if (!apiKey) {
+      process.exitCode = 1;
       uiRenderer.renderError(t('apikey_not_set'));
       return;
     }
@@ -61,10 +65,13 @@ export async function authCommand(tokenOrAction?: string): Promise<void> {
         const confirmed = await promptHelper.confirm(t('tool_config_load_confirm', { tool: tool.displayName }));
         if (!confirmed) return;
       }
-      await tool.loadConfig(apiKey, configManager.baseUrl, configManager.getModels());
+      const result = await applyTool(tool);
+      process.exitCode = result.status === 'success' ? 0 : 1;
+      if (result.status !== 'success') throw new Error(t(result.reason ?? 'tool_config_load_failed', { tool: tool.displayName }));
       uiRenderer.renderSuccess(t('tool_config_loaded', { tool: tool.displayName }));
       for (const note of tool.getLoadConfigNotes?.() ?? []) uiRenderer.renderHint(note);
     } catch (err: unknown) {
+      process.exitCode = 1;
       uiRenderer.renderError(
         err instanceof Error ? err.message : t('tool_config_load_failed', { tool: tool.displayName }),
       );

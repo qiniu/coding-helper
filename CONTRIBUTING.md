@@ -70,6 +70,10 @@ To add support for a new AI coding assistant:
 2. Register it in `src/lib/tool-manager.ts`
 3. The tool will automatically appear in the wizard menus
 
+Configuration entry points use `applyTool` and `removeTool` in `src/lib/core/tool-service.ts`.
+Adapters own their restoration journals and remove records only after a successful restore;
+the service reports their results without replacing or clearing those records.
+
 ## Adding Translations
 
 Translation files are in `src/locales/`. To add or modify translations:
