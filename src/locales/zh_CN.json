@@ -19,6 +19,7 @@
   "account_unusable": "API Key 有效，但当前无法调用模型。",
   "account_billing_suspended": "API Key 有效，但七牛账户因欠费已暂停，模型调用会失败。请到七牛控制台充值后再使用",
   "restore_title": "还原客户端配置",
+  "restore_failed_safe": "无法安全还原配置。请检查客户端配置和恢复记录是否损坏，修复或从已知备份恢复后重试。",
   "restore_nothing": "没有可自动还原的工具，可用 status 检查配置状态。",
   "restore_empty_tools": "请至少提供一个工具名称。",
   "restore_confirm": "还原 {{tools}} 的原有配置？",

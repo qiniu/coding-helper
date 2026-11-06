@@ -19,6 +19,7 @@
   "account_unusable": "The API Key is valid, but models cannot be called right now.",
   "account_billing_suspended": "The API Key is valid, but the Qiniu account is suspended for billing, so model calls will fail. Top up in the Qiniu console first",
   "restore_title": "Restore client settings",
+  "restore_failed_safe": "Cannot safely restore the configuration. Check the client configuration and recovery records for invalid content; repair them or recover a known backup before retrying.",
   "restore_nothing": "No automatic restore targets found. Use status to inspect client configuration.",
   "restore_empty_tools": "Provide at least one tool name.",
   "restore_confirm": "Restore previous settings for {{tools}}?",

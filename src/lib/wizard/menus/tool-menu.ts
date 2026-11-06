@@ -195,7 +195,7 @@ export async function unloadToolConfig(tool: ITool): Promise<void> {
   } catch (error: unknown) {
     uiRenderer.renderHeader(tool.name);
     uiRenderer.renderError(t('tool_config_unload_failed', { tool: tool.displayName }));
-    if (error instanceof Error && error.message) uiRenderer.renderError(error.message);
+    uiRenderer.renderError(t(safeToolFailureReason(error instanceof Error ? error.message : undefined, 'restore_failed_safe')));
   }
   await promptHelper.pressEnter();
 }

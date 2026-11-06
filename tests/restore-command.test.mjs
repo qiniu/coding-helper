@@ -103,7 +103,7 @@ test('conflicts preserve edited files and restoration journals', async () => {
   const journal = fs.readFileSync(stateFile, 'utf8');
   const result = cli('codex', '--yes');
   assert.equal(result.code, 1);
-  assert.match(result.stdout + result.stderr, /changed since loading/);
+  assert.match(result.stdout + result.stderr, /Managed configuration changed/);
   assert.equal(fs.readFileSync(configFile, 'utf8'), edited);
   assert.equal(fs.readFileSync(stateFile, 'utf8'), journal);
 });
@@ -183,5 +183,19 @@ for (const confirmed of [false, true]) {
     assert.equal(fs.readFileSync(configFile, 'utf8'), confirmed ? original : before);
     if (confirmed) assert.deepEqual(stateStore.getRecordedTools(), []);
     else assert.equal(fs.readFileSync(stateFile, 'utf8'), journal);
+  });
+}
+
+for (const target of ['client', 'journal']) {
+  test(`restore hides parser excerpts from a corrupt ${target} and preserves files`, () => {
+    reset();
+    const file = target === 'client' ? path.join(home, '.config/opencode/opencode.json') : stateFile;
+    const secret = 'sk-SECRET-restore-fixture';
+    write(file, secret);
+    const result = target === 'client' ? cli('opencode', '--yes') : cli('--yes');
+    assert.equal(result.code, 1);
+    assert.doesNotMatch(result.stdout + result.stderr, /sk-SECRET|Unexpected token|Cannot parse/);
+    assert.match(result.stdout + result.stderr, /Cannot safely restore/);
+    assert.equal(fs.readFileSync(file, 'utf8'), secret);
   });
 }

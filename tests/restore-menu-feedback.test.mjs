@@ -8,9 +8,16 @@ for(const partial of [false,true])test(`restore menu ${partial?'partial':'comple
   [/Restore[\s\S]*Esc back/,'\x1b[B\r'],
   [/OpenCode[\s\S]*Esc back/,'\x1b[A '],
   ['❯ ☑','\x1b[C'],
-  [/Recoverable restore conflict[\s\S]*Press Enter/,'\r'],
+  [/Configuration ownership or names conflict[\s\S]*Press Enter/,'\r'],
   [/Restore[\s\S]*Esc back/,'\x1b'],
   [/Connect coding tools[\s\S]*Esc Exit/,'\x1b'],
  ]);
  assert.match(out,new RegExp('RESULT.*"exitCode":'+(partial?2:0)+',"writes":'+(partial?2:1)));
+});
+
+test('tool unload menu hides arbitrary adapter errors containing old credentials', { skip: process.platform === 'win32' }, async () => {
+ const source = `import {i18n} from './dist/lib/i18n.js';import {promptHelper} from './dist/lib/wizard/ui/prompt-helper.js';import {unloadToolConfig} from './dist/lib/wizard/menus/tool-menu.js';i18n.init('en_US');promptHelper.confirm=async()=>true;await unloadToolConfig({name:'fixture',displayName:'Fixture',unloadConfig:()=>{throw Error('sk-SECRET-old-provider');}});console.log('DONE');`;
+ const out = await runPrompt(source, [[/Cannot safely restore[\s\S]*Press Enter/, '\r']]);
+ assert.doesNotMatch(out, /sk-SECRET|old-provider/);
+ assert.match(out, /DONE/);
 });
