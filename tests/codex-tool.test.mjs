@@ -60,7 +60,8 @@ test('buildCodexConfig replaces existing TOML to avoid configuration conflicts',
   assert.match(next, /requires_openai_auth = true/);
   assert.match(next, /model_catalog_json = "\/tmp\/qnaigc\.json"/);
   assert.doesNotMatch(next, /env_key = "QINIU_API_KEY"/);
-  assert.match(next, /\[profiles\.qn-gpt\]\nmodel_provider = "qnaigc"\nmodel = "openai\/gpt-5\.2"/);
+  // Codex 0.134+：config.toml 里的旧式 [profiles.qn-gpt] 会让 `codex --profile qn-gpt` 报错，不能再写
+  assert.doesNotMatch(next, /\[profiles\.qn-gpt\]/);
   assert.doesNotMatch(next, /\[profiles\.keep\]/);
   assert.doesNotMatch(next, /https:\/\/old\.example/);
   assert.doesNotMatch(next, /model = "old-model"/);
@@ -203,4 +204,13 @@ test('buildCodexAuthJson stores the API key in Codex API key auth mode and prese
     tokens: { refresh_token: 'keep-refresh-token' },
     last_refresh: '2026-05-20T00:00:00Z',
   });
+});
+
+test('writing Codex config drops a legacy [profiles.qn-gpt] table so `codex --profile` keeps working', async () => {
+  const { mergeCodexConfig } = await import('../dist/lib/tools/codex-tool.js');
+  const existing = ['model = "old"', '', '[profiles.qn-gpt]', 'model_provider = "qnaigc"', 'model = "old"', '', '[profiles.mine]', 'model = "keep"', ''].join('\n');
+  const next = mergeCodexConfig(existing, 'https://api.qnaigc.com', 'z-ai/glm-5.2', '/tmp/qnaigc.json');
+  assert.doesNotMatch(next, /\[profiles\.qn-gpt\]/);
+  assert.match(next, /\[profiles\.mine\]\nmodel = "keep"/);
+  assert.match(next, /^model_provider = "qnaigc"$/m);
 });

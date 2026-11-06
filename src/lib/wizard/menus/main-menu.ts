@@ -4,6 +4,7 @@ import { uiRenderer, connectedToolNames, launchOnlyTools, checklistRows } from '
 import chalk from 'chalk';
 import { menuPrompt, type MenuEntry } from '../ui/prompts.js';
 import { currentToolModel, detectSorted, formatConfiguredBadge, formatInstallState, toolIcon } from '../ui/tool-view.js';
+import { isExternallyModified } from '../../core/rebaseline.js';
 import { padVisible, visibleWidth } from '../../../utils/string-width.js';
 import type { ToolDetection } from '../../core/tool-service.js';
 import { runLanguageFlow } from '../flows/language-flow.js';
@@ -11,7 +12,7 @@ import { runEndpointSelectionFlow } from '../flows/endpoint-selection-flow.js';
 import { runApiKeyFlow } from '../flows/api-key-flow.js';
 import { runContextFlow, contextMenuHint } from '../flows/context-flow.js';
 import { runProfileFlow } from '../flows/profile-flow.js';
-import { showToolMenu } from './tool-menu.js';
+import { showToolMenu, installTool } from './tool-menu.js';
 import { toolManager } from '../../tool-manager.js';
 import { configManager, type ModelConfig } from '../../config.js';
 import { getRestoreTargets } from '../../core/tool-service.js';
@@ -51,12 +52,12 @@ export async function showMainMenu(): Promise<void> {
       default: last,
       escape: true,
       items: [
-        { value: 'setup', label: t('menu_setup_tools'), hint: pending > 0 ? t('menu_hint_pending', { count: String(pending) }) : t('menu_hint_all_connected') },
-        { value: 'model', label: t('menu_switch_model'), hint: currentModelHint(connected, models) },
-        { value: 'tools', label: t('menu_my_tools'), hint: myToolsHint(connectedCount, total) },
-        { value: 'account', label: t('menu_account'), hint: apiKey ? `${uiRenderer.maskApiKey(apiKey)} · ${uiRenderer.endpointLabel()}` : t('config_view_not_set') },
-        { value: 'doctor', label: t('menu_doctor') },
-        { value: 'more', label: t('menu_more'), hint: t('menu_more_hint') },
+        { value: 'setup', icon: theme.icon('+'), label: t('menu_setup_tools'), hint: pending > 0 ? t('menu_hint_pending', { count: String(pending) }) : t('menu_hint_all_connected') },
+        { value: 'model', icon: theme.icon('◆'), label: t('menu_switch_model'), hint: currentModelHint(connected, models) },
+        { value: 'tools', icon: theme.icon('≡'), label: t('menu_my_tools'), hint: myToolsHint(connectedCount, total) },
+        { value: 'account', icon: theme.icon('◎'), label: t('menu_account'), hint: apiKey ? `${uiRenderer.maskApiKey(apiKey)} · ${uiRenderer.endpointLabel()}` : t('config_view_not_set') },
+        { value: 'doctor', icon: theme.dimIcon('✓'), label: t('menu_doctor') },
+        { value: 'more', icon: theme.dimIcon('…'), label: t('menu_more'), hint: t('menu_more_hint') },
       ],
       footer: [['↑↓', t('ui_key_move')], [t('ui_key_enter'), t('ui_key_confirm')], ['Esc', t('menu_exit')]],
     });
@@ -101,10 +102,11 @@ async function showAccountMenu(): Promise<void> {
       default: last as 'apikey' | undefined,
       escape: true,
       items: [
-        { value: 'apikey', label: t('menu_configure_apikey'), hint: apiKey ? uiRenderer.maskApiKey(apiKey) : t('config_view_not_set'), description: theme.subtle(t('account_apikey_desc')) },
-        { value: 'endpoint', label: t('menu_configure_endpoint'), hint: uiRenderer.endpointLabel(), description: theme.subtle(t('account_endpoint_desc')) },
+        { value: 'apikey', icon: theme.icon('◇'), label: t('menu_configure_apikey'), hint: apiKey ? uiRenderer.maskApiKey(apiKey) : t('config_view_not_set'), description: theme.subtle(t('account_apikey_desc')) },
+        { value: 'endpoint', icon: theme.icon('⇄'), label: t('menu_configure_endpoint'), hint: uiRenderer.endpointLabel(), description: theme.subtle(t('account_endpoint_desc')) },
         {
           value: 'profile',
+          icon: theme.icon('▣'),
           label: t('menu_profiles'),
           hint: profiles.length ? t('account_profile_hint', { name: active ?? '—', count: String(profiles.length) }) : t('menu_hint_profile_none'),
           description: theme.subtle(t('account_profile_desc')),
@@ -131,11 +133,11 @@ async function showMoreMenu(): Promise<boolean> {
       default: last,
       escape: true,
       items: [
-        { value: 'context', label: t('menu_context'), hint: contextMenuHint(connected) },
-        { value: 'restore', label: t('menu_restore'), hint: restorable.length ? t('menu_hint_restore', { count: String(restorable.length) }) : '' },
-        { value: 'language', label: t('menu_configure_language'), hint: i18n.getLocale() === 'zh_CN' ? '简体中文' : 'English' },
-        { value: 'update', label: t('menu_update_helper') },
-        { value: 'clear_config', label: t('menu_clear_config') },
+        { value: 'context', icon: theme.icon('↔'), label: t('menu_context'), hint: contextMenuHint(connected) },
+        { value: 'restore', icon: theme.icon('↺'), label: t('menu_restore'), hint: restorable.length ? t('menu_hint_restore', { count: String(restorable.length) }) : '' },
+        { value: 'language', icon: theme.dimIcon('◐'), label: t('menu_configure_language'), hint: i18n.getLocale() === 'zh_CN' ? '简体中文' : 'English' },
+        { value: 'update', icon: theme.dimIcon('△'), label: t('menu_update_helper') },
+        { value: 'clear_config', icon: theme.danger('✕'), label: t('menu_clear_config') },
       ],
     });
     if (action === 'escape') return false;
@@ -230,10 +232,12 @@ function toolEntry(detection: ToolDetection, nameWidth: number): MenuEntry<strin
   const connection = configManager.getConnection(tool.name);
   // 是否接入以检测结果为准；接入但没有 helper 保存的模型（如使用工具默认模型）时显示「工具默认」
   const description = !installed
-    ? `${theme.subtle(t('tool_detail_install'))}  ${theme.value(tool.installCommand)}`
+    ? `${theme.brand(t('tool_detail_install_enter'))}\n${theme.subtle(t('tool_detail_install'))}  ${theme.value(tool.installCommand)}`
     // 启动接入的工具不写配置文件，说明用 coding-helper run 启动
     : tool.launchOnly
       ? `${theme.subtle(t('tool_detail_launch_only'))}  ${theme.value(`coding-helper run ${tool.name}`)}`
+    : isExternallyModified(tool)
+      ? theme.warning(t('tool_detail_external'))
     : !detection.configured
       ? theme.subtle(t('tool_detail_not_connected'))
       : [
@@ -278,7 +282,12 @@ async function showToolSelector(): Promise<void> {
     if (action === 'escape') return;
     last = value;
     const tool = toolManager.get(value);
-    if (tool) await showToolMenu(tool);
+    if (!tool) continue;
+    // 未安装的命令行工具：回车先安装，装好后可直接进入配置。安装检测抛错时按无法判断处理，直接进入工具页
+    let installState: boolean | null = null;
+    try { installState = tool.isInstalled(); } catch { /* 与列表的 quickDetect 一致：检测失败不打断菜单 */ }
+    if (installState === false) { if (await installTool(tool)) await showToolMenu(tool); continue; }
+    await showToolMenu(tool);
   }
 }
 

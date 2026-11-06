@@ -13,6 +13,6 @@ test('cancelling an individual fallback reports the setup as cancelled',{skip:pr
 
 // 首次仅选择 Copilot 也应完成初始化，且不调用持久配置 writer。
 test('initial setup keeps Copilot selectable and reports launcher readiness without writing',{skip:process.platform==='win32'},async()=>{
- const out=await runPrompt(source+`const copilot=toolManager.get('copilot');let models=0,writes=0;copilot.runModelConfigFlow=async()=>{models++;return true;};copilot.loadConfig=async()=>{writes++;throw new Error('must not write');};toolManager.getAll=()=>[copilot];const completed=await runToolSetupFlow();console.log('RESULT',JSON.stringify({completed,models,writes}));`,[[/选择要配置的工具[\s\S]*GitHub Copilot CLI[\s\S]*Esc 返回/,'\r']]);
+ const out=await runPrompt(source+`const copilot=toolManager.get('copilot');let models=0,writes=0;copilot.runModelConfigFlow=async()=>{models++;return true;};copilot.loadConfig=async()=>{writes++;throw new Error('must not write');};toolManager.getAll=()=>[copilot];const completed=await runToolSetupFlow();console.log('RESULT',JSON.stringify({completed,models,writes}));`,[[/选择要配置的工具[\s\S]*GitHub Copilot CLI[\s\S]*Esc 返回/,'\r'],[/安装 GitHub Copilot CLI[\s\S]*?Esc 返回/,'\x1b[B\r']]);
  assert.match(out,/coding-helper run copilot/);assert.match(out,/RESULT.*"completed":true,"models":1,"writes":0/);
 });

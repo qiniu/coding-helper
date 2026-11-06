@@ -115,7 +115,9 @@ export const uiRenderer = {
   // 传工具名时 Logo 旁显示该工具的角色，一行标题带上工具名
   renderHeader(options: string | HeaderOptions = {}): void {
     const toolName = typeof options === 'string' ? options : undefined;
-    const header: HeaderOptions = typeof options === 'string' ? { crumb: toolName } : options;
+    // 一行标题里的「› 工具名」用显示名（如 Claude Code）
+    const crumb = toolName ? registeredTools().find(tool => tool.name === toolName)?.displayName ?? toolName : undefined;
+    const header: HeaderOptions = typeof options === 'string' ? { crumb } : options;
     const full = header.full ?? this.logoFits(header.bodyRows, header.connection, toolName);
     this.clearScreen();
     if (full) this.renderLogo(toolName);

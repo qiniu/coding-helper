@@ -161,6 +161,45 @@ class StateStore {
     });
   }
 
+  // 一次提交删除某工具的全部记录（含旧版按工具名的记录），返回被删除的原始记录供归档
+  removeToolRecords(tool: string): Record<string, ToolState> {
+    return this.withLock(() => {
+      const state = this.read();
+      const removed: Record<string, ToolState> = {};
+      for (const key of Object.keys(state.tools)) {
+        let identity: unknown;
+        try { identity = JSON.parse(key); } catch { /* 旧版记录键就是工具名 */ }
+        const owner = Array.isArray(identity) && identity.length === 2 ? identity[0] : key;
+        if (owner !== tool) continue;
+        Object.defineProperty(removed, key, { value: state.tools[key], enumerable: true, configurable: true, writable: true });
+        delete state.tools[key];
+      }
+      if (Object.keys(removed).length) this.write(state);
+      return removed;
+    });
+  }
+
+  // 失败装载尚未产生新日志时，一次性放回旧记录；新日志和其他工具的记录不被覆盖。
+  restoreToolRecords(tool: string, records: Record<string, ToolState>): boolean {
+    return this.withLock(() => {
+      const state = this.read();
+      const belongsToTool = (key: string): boolean => {
+        if (key === tool) return true;
+        try {
+          const identity: unknown = JSON.parse(key);
+          return Array.isArray(identity) && identity.length === 2 && identity[0] === tool && typeof identity[1] === 'string';
+        } catch { return false; }
+      };
+      if (Object.keys(records).some(key => !belongsToTool(key))) throw new Error('Recovery records belong to another tool.');
+      if (!Object.keys(records).length || Object.keys(state.tools).some(belongsToTool)) return false;
+      for (const [key, value] of Object.entries(records)) {
+        Object.defineProperty(state.tools, key, { value: structuredClone(value), enumerable: true, configurable: true, writable: true });
+      }
+      if (Object.keys(records).length) this.write(state);
+      return true;
+    });
+  }
+
   getPriors(tool: string, file?: string): PriorValues | undefined {
     tool = this.key(tool, file);
     const tools = this.read().tools;
