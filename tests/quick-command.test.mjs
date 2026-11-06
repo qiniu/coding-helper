@@ -8,19 +8,28 @@ import test from 'node:test';
 import { promisify } from 'node:util';
 const execute = promisify(execFile);
 const homes = [];
+const preferredProbes = [];
 const server = http.createServer(async (req, res) => {
   const region = req.url.split('/')[1];
   const route = req.url.split('?')[0].replace(/^\/(cn|intl)/, '');
   const key = req.headers.authorization?.replace('Bearer ', '');
   const send = (status, body) => { res.writeHead(status, { 'content-type': 'application/json' }); res.end(JSON.stringify(body)); };
-  const valid = region === 'intl' ? key === 'sk-intl' : ['sk-cn','sk-billing','qiniu-key'].includes(key);
+  const valid = region === 'intl' ? key === 'sk-intl' : ['sk-cn','sk-billing','qiniu-key','sk-preferred'].includes(key);
   if (!valid) return send(401, { error: { code: 'invalid_key' } });
   if (route === '/v2/stat/usage') return send(200, {});
-  if (route === '/v1/models') return send(200, { data: [{ id: 'vendor/chat' }, { id: 'vendor/vision' }] });
+  if (route === '/v1/models') return send(200, { data: (key === 'sk-preferred' ? ['qwen-turbo', 'vendor/chat'] : ['vendor/chat', 'vendor/vision']).map(id => ({ id })) });
   if (route === '/v1/market/models') return send(200, { status: true, data: ['vendor/chat','vendor/vision'].map(id => ({
     id, features: id.endsWith('chat') ? ['工具调用'] : [], architecture: { input_modalities: ['text'], function_calling: { supported: false }, reasoning: { supported: false } }, model_constraints: { context_length: 128000, max_tokens: 8192 },
   })) });
-  if (route === '/v1/chat/completions') return key === 'sk-billing' ? send(403, { error: { code: 'account_billing_suspended' } }) : send(200, { choices: [] });
+  if (route === '/v1/chat/completions') {
+    if (key === 'sk-preferred') {
+      let body = ''; for await (const chunk of req) body += chunk;
+      const model = JSON.parse(body).model;
+      preferredProbes.push(model);
+      if (model === 'qwen-turbo') return send(502, { error: { type: 'upstream_error', message: 'Model has been retired' } });
+    }
+    return key === 'sk-billing' ? send(403, { error: { code: 'account_billing_suspended' } }) : send(200, { choices: [] });
+  }
   if (route === '/bypass/openai/v1/responses') {
     let body = ''; for await (const chunk of req) body += chunk;
     const model = JSON.parse(body).model;
@@ -190,4 +199,16 @@ test('helper-save failure reports the committed client and preserves a complete 
   execFileSync(process.execPath,['--require',preload,path.resolve('dist/cli.js'),'restore','opencode','--yes'],{env,encoding:'utf8',stdio:'pipe',timeout:10000});
   assert.equal(fs.readFileSync(client,'utf8'),clientBefore);
   assert.deepEqual(JSON.parse(fs.readFileSync(path.join(home,'.coding-helper/state.json'),'utf8')).tools,{});
+});
+
+test('quick account checks use the resolved requested or saved model', async () => {
+  for (const args of [['chat'], []]) {
+    const before = preferredProbes.length;
+    const result = await runQuick(['opencode', 'sk-preferred', ...args, '--dry-run', '--json'], {}, home => {
+      fs.appendFileSync(path.join(home, '.coding-helper/config.yaml'), 'toolModels:\n  opencode: vendor/chat\n');
+    });
+    assert.equal(result.code, 0, result.stdout + result.stderr);
+    assert.equal(JSON.parse(result.stdout).model, 'vendor/chat');
+    assert.deepEqual(preferredProbes.slice(before), ['vendor/chat']);
+  }
 });
