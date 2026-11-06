@@ -10,17 +10,17 @@ for (const name of ['codebuddy','workbuddy']) {
   const selection = head+`const {${fn}:select}=await import('./dist/lib/wizard/flows/${name}-model-selection-flow.js');`;
   test(`${name} falls back to standard API without guessing capability tags`,pty,async()=>{
     const source=selection+`marketModelService.fetchModels=async()=>{throw Error('market unavailable');};modelService.fetchModels=async()=>[{id:'vendor/model'}];assert.deepEqual(await select({step}),['vendor/model']);assert.equal(fs.readFileSync(configManager.configFile,'utf8'),before);console.log('FALLBACK_OK');`;
-    const out=await runPrompt(source,[[/vendor\/model[^]*Type search/,'\r'],[/Selected 1:[^]*Type search/,'\t']],110,{rows:40});
+    const out=await runPrompt(source,[[/vendor\/model[^]*Type search/,' '],[/Selected 1:[^]*Type search/,'\t']],110,{rows:40});
     assert.match(out,/5 \/ 6/);assert.match(out,/FALLBACK_OK/);assert.doesNotMatch(out,/\[Tool calls\]/);
   });
   test(`${name} offers retry after both APIs fail and retry defaults forward`,pty,async()=>{
     const source=selection+`let tries=0;marketModelService.fetchModels=async()=>{if(++tries===1)throw Error('secret-backend');return[{id:'a',name:'Recovered',features:['工具调用']}];};modelService.fetchModels=async()=>{throw Error('secret-backend');};assert.deepEqual(await select({step}),['a']);assert.equal(tries,2);console.log('RETRY_OK');`;
-    const out=await runPrompt(source,[[recovery,'\r'],[/Recovered[^]*Type search/,'\r'],[/Selected 1:[^]*Type search/,'\t']],110,{rows:40});
+    const out=await runPrompt(source,[[recovery,'\r'],[/Recovered[^]*Type search/,' '],[/Selected 1:[^]*Type search/,'\t']],110,{rows:40});
     assert.match(out,/RETRY_OK/);assert.doesNotMatch(out,/secret-backend/);
   });
   test(`${name} manual recovery preserves multiple models without premature writes`,pty,async()=>{
     const source=selection+`marketModelService.fetchModels=modelService.fetchModels=async()=>{throw Error('offline');};assert.deepEqual(await select({step}),['one/a','two/b']);assert.equal(fs.readFileSync(configManager.configFile,'utf8'),before);console.log('MANUAL_OK');`;
-    const out=await runPrompt(source,[[recovery,'\x1b[B\r'],[/Type search/,'one/a,two/b,one/a\r'],[/Selected 2:[^]*Type search/,'\t']],110,{rows:40});assert.match(out,/MANUAL_OK/);
+    const out=await runPrompt(source,[[recovery,'\x1b[B\r'],[/Type search/,'one/a,two/b,one/a\x1b[B '],[/Selected 2:[^]*Type search/,'\t']],110,{rows:40});assert.match(out,/MANUAL_OK/);
   });
 }
 

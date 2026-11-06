@@ -245,6 +245,8 @@ const ACCEPT = Symbol('accept');
 
 interface MenuSession<T> {
   query: string;
+  editing?: boolean;
+  pasting?: boolean;
   tab: number;
   value?: T | typeof CUSTOM | typeof ACCEPT;
   picked: Set<T>;
@@ -265,6 +267,14 @@ function defaultFilter<T>(item: MenuItem<T>, query: string): number | undefined 
 const menuView = createPrompt(<T,>(config: LiveMenuConfig<T>, done: (result: MenuResult<T>) => void) => {
   const { session } = config;
   const [query, setQuery] = useState(session.query);
+  const [editing, setEditing] = useState(session.editing ?? false);
+  session.editing = editing;
+  // 开启终端粘贴标记，粘贴中的空格和换行只能进入搜索框，不能勾选或确认。
+  useEffect(() => {
+    if (!config.searchable || !config.multiple) return;
+    process.stdout.write('\x1b[?2004h');
+    return () => { process.stdout.write('\x1b[?2004l'); };
+  }, []);
   const [picked, setPicked] = useState(session.picked);
   const [added, setAdded] = useState(session.added);
   session.picked = picked;
@@ -379,11 +389,22 @@ const menuView = createPrompt(<T,>(config: LiveMenuConfig<T>, done: (result: Men
   useKeypress((key) => {
     cursorOn.current = true;
     lastKey.current = Date.now();
-    if (config.multiple && (key.name === 'tab' || (isEnterKey(key) && current?.value === ACCEPT))) {
+    if (config.multiple && config.searchable) {
+      if (sequenceOf(key) === '\x1b[200~') { session.pasting = true; setEditing(true); return; }
+      if (sequenceOf(key) === '\x1b[201~') { session.pasting = false; return; }
+      if (session.pasting) {
+        if (isPrintable(key)) updateQuery(query + sequenceOf(key));
+        else if (isEnterKey(key) || key.name === 'tab') updateQuery(query + ' ');
+        return;
+      }
+      if (editing && isSpaceKey(key)) { updateQuery(query + ' '); return; }
+    }
+    const control = current && current.value !== CUSTOM && current.value !== ACCEPT && config.multiple?.toggleable?.(current as MenuItem<T>) === false;
+    if (config.multiple && (key.name === 'tab' || (isEnterKey(key) && !control))) {
       if (picked.size) finish({ value: undefined as T, selected: [...picked], action: 'accept' });
       return;
     }
-    if (isEnterKey(key)) {
+    if (isEnterKey(key) || (config.multiple && isSpaceKey(key))) {
       if (!current || current.value === ACCEPT) return;
       if (config.multiple && (current.value === CUSTOM || config.multiple.toggleable?.(current as MenuItem<T>) !== false)) {
         const values = current.value === CUSTOM ? config.multiple.parseCustom?.(query) ?? [] : [current.value];
@@ -411,11 +432,12 @@ const menuView = createPrompt(<T,>(config: LiveMenuConfig<T>, done: (result: Men
     }
     if (isEscape(key)) {
       // 有搜索词时 Esc 先清空搜索
-      if (query) return updateQuery('');
+      if (query) { setEditing(false); return updateQuery(''); }
       if (config.escape) finish({ value: current?.value as T, action: 'escape' });
       return;
     }
     if (isUpKey(key) || isDownKey(key)) {
+      if (config.multiple && editing) { setEditing(false); return; }
       if (activeIndex < 0) return;
       const offset = isUpKey(key) ? -1 : 1;
       let next = activeIndex;
@@ -427,6 +449,7 @@ const menuView = createPrompt(<T,>(config: LiveMenuConfig<T>, done: (result: Men
     }
     // 长列表翻页：PageUp / PageDown 一次移动一页，Home / End 跳到首尾（落在最近的可选项上）
     if (['pageup', 'pagedown', 'home', 'end'].includes(key.name)) {
+      setEditing(false);
       if (activeIndex < 0) return;
       const target = key.name === 'home' ? first : key.name === 'end' ? last
         : Math.max(first, Math.min(last, activeIndex + (key.name === 'pageup' ? -pageSize : pageSize)));
@@ -447,8 +470,8 @@ const menuView = createPrompt(<T,>(config: LiveMenuConfig<T>, done: (result: Men
       return;
     }
     if (config.searchable) {
-      if (isBackspaceKey(key)) return updateQuery([...query].slice(0, -1).join(''));
-      if (isPrintable(key)) return updateQuery(query + sequenceOf(key));
+      if (isBackspaceKey(key)) { setEditing(true); return updateQuery([...query].slice(0, -1).join('')); }
+      if (isPrintable(key)) { setEditing(true); return updateQuery(query + sequenceOf(key)); }
       return;
     }
 
@@ -484,7 +507,9 @@ const menuView = createPrompt(<T,>(config: LiveMenuConfig<T>, done: (result: Men
   const footerFor = (overflow: boolean): string => {
     if (config.multiple) return `  ${renderKeyHints([
       ['↑↓', t('ui_key_move')], ...(overflow ? [['PgUp/PgDn', t('ui_key_page')] as KeyHint] : []),
-      [t('ui_key_enter'), t('model_multi_toggle')], ['Tab', t('model_multi_continue')],
+      [t('ui_key_space'), t(editing ? 'model_multi_search_space' : 'model_multi_toggle')],
+      ...(editing ? [['↓', t('model_multi_browse')] as KeyHint] : []),
+      [t('ui_key_enter'), t(current && current.value !== CUSTOM && current.value !== ACCEPT && config.multiple.toggleable?.(current as MenuItem<T>) === false ? 'ui_key_confirm' : 'model_multi_continue')],
       ['Esc', query ? t('ui_key_clear_search') : t('ui_key_back')],
       // 超出一页时多了翻页键，省掉「←→ 切换厂商」（厂商标签就在列表上方），保持一行
       ...(overflow ? [] : [['←→', t('ui_key_tabs')] as KeyHint]), [t('ui_key_type'), t('ui_key_search')],
@@ -590,7 +615,9 @@ const menuView = createPrompt(<T,>(config: LiveMenuConfig<T>, done: (result: Men
 });
 
 export function menuPrompt<T>(config: MenuConfig<T>, context?: { signal?: AbortSignal }): Promise<MenuResult<T>> {
-  const session: MenuSession<T> = { query: '', tab: 0, value: config.multiple?.initial.length ? ACCEPT : config.default, picked: new Set(config.multiple?.initial), added: [], details: new Map(), pending: new Map() };
+  // 已选模型首次进入仍聚焦确认；过滤操作重开菜单时保持操作行焦点。
+  const controlDefault = config.multiple && config.items.some(entry => selectable(entry) && entry.value === config.default && config.multiple!.toggleable?.(entry) === false);
+  const session: MenuSession<T> = { query: '', tab: 0, value: config.multiple?.initial.length && !controlDefault ? ACCEPT : config.default, picked: new Set(config.multiple?.initial), added: [], details: new Map(), pending: new Map() };
   return resumeOnResize(signal => menuView({ ...config, session } as LiveMenuConfig<unknown>, { signal }) as Promise<MenuResult<T>>, context?.signal);
 }
 
