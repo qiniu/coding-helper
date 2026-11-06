@@ -198,6 +198,34 @@ function recoverPending(file: string, saved: ToolState | undefined, content: str
   return recovered;
 }
 
+// 按客户端全局文件优先级合并；未明确选模型、过滤器禁用路由或配置损坏都不能证明外部切换。
+function activeOpenCodeRoute(): { provider: string; baseURL?: string } | undefined {
+  const files = getOpenCodeConfigFiles();
+  let effective: Record<string, unknown> = {};
+  for (const file of [path.join(path.dirname(files[0]), 'config.json'), ...files]) {
+    const layer = readJsonObjectStrict(file);
+    validateConfig(layer);
+    effective = mergeConfig(effective, layer);
+  }
+  if (typeof effective.model !== 'string' || !/^[^/\s]+\/\S+$/.test(effective.model)) return undefined;
+  const provider = effective.model.slice(0, effective.model.indexOf('/'));
+  if (Array.isArray(effective.enabled_providers) && !effective.enabled_providers.includes(provider) ||
+      Array.isArray(effective.disabled_providers) && effective.disabled_providers.includes(provider)) return undefined;
+  const entry = isRecord(effective.provider) ? effective.provider[provider] : undefined;
+  if (entry !== undefined && !isRecord(entry)) throw new Error('Invalid OpenCode provider.');
+  const options = isRecord(entry) ? entry.options : undefined;
+  if (options !== undefined && !isRecord(options)) throw new Error('Invalid OpenCode provider options.');
+  const baseURL = isRecord(options) ? options.baseURL : undefined;
+  if (baseURL !== undefined) {
+    if (typeof baseURL !== 'string') throw new Error('Invalid OpenCode provider URL.');
+    const parsed = new URL(baseURL);
+    if (!['http:', 'https:'].includes(parsed.protocol) || parsed.username || parsed.password) throw new Error('Invalid OpenCode provider URL.');
+  }
+  // qiniu 是助手添加的自定义 provider，缺失 URL 不等于已成功切到其他服务。
+  if (provider === PROVIDER_ID && !baseURL) return undefined;
+  return { provider, baseURL: baseURL as string | undefined };
+}
+
 export class OpenCodeTool extends OpenAICompatTool {
   supportsPreview = true;
   name = 'opencode';
@@ -223,7 +251,16 @@ export class OpenCodeTool extends OpenAICompatTool {
   }
 
   isConfigured(): boolean {
-    return isQiniuBaseUrl(getPath(readJsonObjectStrict(getOpenCodeConfigFile()), `provider.${PROVIDER_ID}.options.baseURL`));
+    return isQiniuBaseUrl(activeOpenCodeRoute()?.baseURL);
+  }
+
+  hasSwitchedManagedFields(file: string, applied: Record<string, unknown>): boolean {
+    // 不用新目录或更高优先级文件的路由替旧文件丢弃恢复依据。
+    if (file !== getOpenCodeConfigFile() || readTextFile(file) === undefined) return false;
+    if (typeof applied.model !== 'string' || !applied.model.startsWith(PROVIDER_ID + '/') ||
+        !isRecord(applied.provider) || !isRecord(applied.provider.options) || typeof applied.provider.options.baseURL !== 'string') return false;
+    const current = activeOpenCodeRoute();
+    return !!current && (current.provider !== PROVIDER_ID || current.baseURL?.replace(/\/+$/, '') !== applied.provider.options.baseURL.replace(/\/+$/, ''));
   }
 
   async loadConfig(apiKey: string, baseUrl: string, models: ModelConfig): Promise<void> {

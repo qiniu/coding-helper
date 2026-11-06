@@ -128,7 +128,7 @@ test('OpenClaw unset override reports recovery through the menu without claiming
   promptHelper.confirm=async()=>true;promptHelper.pressEnter=async()=>{};
   try {
     await unloadToolConfig(tool);
-    assert.ok(messages.some(([kind,text])=>kind==='renderError'&&text.includes('OpenClaw configuration path changed')));
+    assert.ok(messages.some(([kind,text])=>kind==='renderError'&&text.includes('configuration path changed. Switch back to the recorded path')));
     assert.equal(messages.some(([kind])=>kind==='renderSuccess'),false);assert.equal(read(file),applied);
     assert.equal(fs.existsSync(files[0]),false);assert.equal(stateStore.getFileStates(tool.name).length,1);
   } finally {

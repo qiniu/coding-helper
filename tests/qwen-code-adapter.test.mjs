@@ -137,7 +137,7 @@ test('Qwen directory drift reports an error through the unload menu and preserve
   promptHelper.confirm=async()=>true; promptHelper.pressEnter=async()=>{};
   try {
     await unloadToolConfig(tool);
-    assert.ok(messages.some(([kind,text])=>kind==='renderError'&&text.includes('Qwen configuration directory changed')));
+    assert.ok(messages.some(([kind,text])=>kind==='renderError'&&text.includes('configuration path changed. Switch back to the recorded path')));
     assert.equal(messages.some(([kind])=>kind==='renderSuccess'),false);
     await assert.rejects(load(),/Qwen configuration directory changed/);
     assert.equal(read(path.join(oldDir,'.env')),credential);
@@ -159,7 +159,7 @@ test('Qwen legacy unload menu displays unchanged guidance instead of successful 
   promptHelper.confirm=async()=>true;promptHelper.pressEnter=async()=>{};write(files[1],'QINIU_API_KEY=legacy-key');
   try {
     await unloadToolConfig(tool);
-    assert.ok(messages.some(([kind,text])=>kind==='renderError'&&text.includes('Configuration is unchanged')));
+    assert.ok(messages.some(([kind,text])=>kind==='renderError'&&text.includes('No restoration record is available. Recover a known backup')));
     assert.equal(messages.some(([kind])=>kind==='renderSuccess'),false);
     assert.equal(read(files[1]),'QINIU_API_KEY=legacy-key');
   } finally {Object.assign(uiRenderer,old);promptHelper.confirm=oldConfirm;promptHelper.pressEnter=oldEnter;fs.rmSync(files[1]);}

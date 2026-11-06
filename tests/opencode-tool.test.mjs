@@ -739,10 +739,11 @@ test('OpenCode: unmanaged global JSON, JSONC and legacy files produce recovery e
   assert.doesNotThrow(()=>new OpenCodeTool().unloadConfig());
 });
 test('OpenCode: menu reports unchanged legacy credentials without success', async () => {
+  const { i18n } = await import('../dist/lib/i18n.js'); i18n.init('en_US');
   const file=freshConfig('unmanaged-menu',{provider:{qiniu:{options:{apiKey:'legacy'}}}});const before=fs.readFileSync(file,'utf8');
   const {unloadToolConfig}=await import('../dist/lib/wizard/menus/tool-menu.js');const {promptHelper}=await import('../dist/lib/wizard/ui/prompt-helper.js');const {uiRenderer}=await import('../dist/lib/wizard/ui/ui-renderer.js');
   const oldConfirm=promptHelper.confirm,oldEnter=promptHelper.pressEnter;const names=['renderHeader','renderSuccess','renderError'];const old=Object.fromEntries(names.map(n=>[n,uiRenderer[n]]));const messages=[];
   for(const n of names)uiRenderer[n]=(...args)=>messages.push([n,...args]);promptHelper.confirm=async()=>true;promptHelper.pressEnter=async()=>{};
-  try {await unloadToolConfig(new OpenCodeTool());assert.equal(messages.some(([kind])=>kind==='renderSuccess'),false);assert.ok(messages.some(([kind,text])=>kind==='renderError'&&text.includes('Configuration is unchanged')));assert.equal(fs.readFileSync(file,'utf8'),before);}
+  try {await unloadToolConfig(new OpenCodeTool());assert.equal(messages.some(([kind])=>kind==='renderSuccess'),false);assert.ok(messages.some(([kind,text])=>kind==='renderError'&&text.includes('No restoration record is available. Recover a known backup')));assert.equal(fs.readFileSync(file,'utf8'),before);}
   finally{Object.assign(uiRenderer,old);promptHelper.confirm=oldConfirm;promptHelper.pressEnter=oldEnter;}
 });

@@ -47,6 +47,10 @@ function recordStatus(tool: ITool, file: string, state: ToolState): 'ours' | 'go
       evidence.push({ written: new Set([...urls(entry.applied)].filter(url => !original.has(url))), content: readTextFile(entry.file) });
     }
   } else {
+    if (tool.hasSwitchedManagedFields) {
+      if (!state.applied) return 'unknown';
+      return tool.hasSwitchedManagedFields(file, state.applied) ? 'gone' : 'ours';
+    }
     const original = urls(state.priors);
     evidence.push({ written: new Set([...urls(state.applied)].filter(url => !original.has(url))), content: readTextFile(file) });
   }
@@ -82,7 +86,7 @@ export function isExternallyModified(tool: ITool): boolean {
     if (!states.length) return !!legacy;
     if (legacy) return false;
     const statuses = states.map(({ file, state }) => recordStatus(tool, file, state));
-    return statuses.includes('gone') && (tool.hasSwitchedProvider ? statuses.every(status => status === 'gone') : !statuses.some(status => status === 'ours' || status === 'missing'));
+    return statuses.includes('gone') && ((tool.hasSwitchedProvider || tool.hasSwitchedManagedFields) ? statuses.every(status => status === 'gone') : !statuses.some(status => status === 'ours' || status === 'missing'));
   } catch { return false; }
 }
 

@@ -18,7 +18,7 @@ function capture(){
 test('unload shows actionable legacy error and never reports successful removal',async()=>{
  const ui=capture();promptHelper.confirm=async()=>true;
  try{await unloadToolConfig({displayName:'Buddy',unloadConfig:async()=>{throw Error('No restoration record. Configuration is unchanged; remove legacy credentials manually.');}});
- assert.ok(ui.messages.some(([kind,text])=>kind==='renderError'&&text.includes('Configuration is unchanged')));assert.equal(ui.messages.some(([kind])=>kind==='renderSuccess'),false);
+ assert.ok(ui.messages.some(([kind,text])=>kind==='renderError'&&text.includes('No restoration record is available. Recover a known backup')));assert.equal(ui.messages.some(([kind])=>kind==='renderSuccess'),false);
  }finally{ui.restore();}
 });
 test('cancelled unload performs no write',async()=>{
