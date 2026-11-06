@@ -45,3 +45,15 @@ export function savedModelFor(tool: Pick<ITool, 'name'>, models: ModelConfig): s
       return models.toolModels?.[tool.name] ?? models.defaultModel;
   }
 }
+
+// 合并各工具成功应用的模型，保留多个通用工具各自的映射。
+export function mergeModelConfigs(...patches: ModelConfig[]): ModelConfig {
+  let models: ModelConfig = {};
+  for (const patch of patches) {
+    const previous = models;
+    models = { ...models, ...patch };
+    if (patch.toolModels) models.toolModels = { ...previous.toolModels, ...patch.toolModels };
+    if (patch.claudeCode) models.claudeCode = { ...previous.claudeCode, ...patch.claudeCode };
+  }
+  return models;
+}
