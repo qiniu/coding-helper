@@ -108,15 +108,27 @@ export function renderResultSummary(results: ToolResult[], options: { undoComman
   const models = configManager.getModels();
   uiRenderer.renderTable(
     [t('setup_col_tool'), t('setup_col_result'), t('result_col_model'), t('result_col_launch')],
-    results.map(result => [
-      `${toolIcon(result.tool.name)} ${theme.value(result.tool.displayName)}`,
-      statusText(result),
-      result.status === 'success'
-        // 模型原值完整交给表格，放不下时由 renderTable 按字段换行；失败原因在表内截断，完整内容列在表下方
-        ? chalk.hex('#8BE9FF')(savedModelFor(result.tool, models) ?? result.tool.defaultModel ?? '—')
-        : theme.subtle(truncate(reasonText(result), 32)),
-      result.status === 'success' ? theme.brand(launchHint(result.tool)) : '',
-    ]),
+    results.map(result => {
+      // 失败/跳过时不格式化模型；配置损坏不能让失败结果页再次抛错。
+      let modelText = '—';
+      if (result.status === 'success') {
+        const selected = result.appliedModels ?? (result.tool.name === 'codebuddy' ? models.codeBuddyModels
+          : result.tool.name === 'workbuddy' ? models.workbuddyModels : undefined);
+        const ids = Array.isArray(selected) ? selected.filter((id): id is string => typeof id === 'string') : [];
+        modelText = ids.length ? ids.join(', ')
+          : ['codebuddy', 'workbuddy'].includes(result.tool.name) ? '—'
+          : savedModelFor(result.tool, models) ?? result.tool.defaultModel ?? '—';
+      }
+      return [
+        `${toolIcon(result.tool.name)} ${theme.value(result.tool.displayName)}`,
+        statusText(result),
+        result.status === 'success'
+          // 模型原值完整交给表格，放不下时由 renderTable 按字段换行；失败原因在表内截断，完整内容列在表下方
+          ? chalk.hex('#8BE9FF')(modelText)
+          : theme.subtle(truncate(reasonText(result), 32)),
+        result.status === 'success' ? theme.brand(launchHint(result.tool)) : '',
+      ];
+    }),
   );
   // 表格里截断的失败原因完整列在下方
   for (const result of results.filter(item => item.status !== 'success' && visibleWidth(reasonText(item)) > 32)) {
@@ -124,6 +136,7 @@ export function renderResultSummary(results: ToolResult[], options: { undoComman
   }
   logger.newLine();
   for (const result of ok) {
+    if (result.skippedModels?.length) uiRenderer.renderWarning(t('result_models_skipped', { tool: result.tool.displayName, models: result.skippedModels.join(', ') }));
     for (const note of result.tool.getLoadConfigNotes?.() ?? []) uiRenderer.renderHint(note);
   }
   if (ok.length) {

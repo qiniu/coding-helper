@@ -1,7 +1,7 @@
 import { capContextWindow } from './openai-compat-tool.js';
 import path from 'node:path';
 import os from 'node:os';
-import type { ITool, ToolModelFlowContext } from './base-tool.js';
+import type { ITool, ToolModelFlowContext, ToolLoadResult } from './base-tool.js';
 import { configManager, type ModelConfig } from '../config.js';
 import { configurationModelCatalog, configurationCapabilities, type CatalogModel } from '../core/model-catalog.js';
 import { t } from '../i18n.js';
@@ -72,7 +72,7 @@ export class WorkBuddyTool implements ITool {
   }
 
   // 根据 models.workbuddyModels 中的 ID 列表，从市场获取详情后写入
-  async loadConfig(apiKey: string, baseUrl: string, models: ModelConfig): Promise<void> {
+  async loadConfig(apiKey: string, baseUrl: string, models: ModelConfig): Promise<ToolLoadResult> {
     const modelIds = models.workbuddyModels;
     if (!modelIds || modelIds.length === 0) {
       throw new Error(t('workbuddy_models_not_configured'));
@@ -100,6 +100,7 @@ export class WorkBuddyTool implements ITool {
 
     const qiniuModels = selectedModels.map(m => this.toWorkBuddyModel(m, apiKey, normalizedBaseUrl));
     loadModelsJson(this.name, WORKBUDDY_MODELS_FILE, qiniuModels);
+    return { appliedModels: qiniuModels.map(model => model.id), skippedModels: missingIds };
   }
 
   async unloadConfig(): Promise<void> {

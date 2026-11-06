@@ -495,6 +495,7 @@
   "dry_run_modify": "修改",
   "dry_run_delete": "删除",
   "dry_run_no_changes": "没有需要修改的文件",
+  "result_models_skipped": "{{tool}}：以下模型不可用，未写入：{{models}}",
   "result_restart_app": "重启 {{tool}}",
   "plan_view_changes_hint": "{{count}} 个文件 · 只显示路径与行数，不显示文件内容",
   "plan_files_title": "将要改动的文件（预演，尚未写入）",
