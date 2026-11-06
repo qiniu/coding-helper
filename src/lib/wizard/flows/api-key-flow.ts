@@ -17,6 +17,7 @@ export async function runApiKeyFlow(forceSync = false): Promise<boolean> {
   // 循环直到成功或用户取消
   while (true) {
     const apiKey = await promptHelper.password(t('apikey_prompt'));
+    if (apiKey === undefined) return false;
 
     if (!apiKey.trim()) {
       uiRenderer.renderError(t('apikey_empty'));
