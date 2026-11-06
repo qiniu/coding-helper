@@ -1,4 +1,6 @@
 {
+  "sync_select_tools": "Select Qiniu clients to update; select none to keep their settings",
+  "sync_cli_hint": "Key/endpoint saved. Use auth <key> --sync to update connected Qiniu clients.",
   "setup_select_tools": "Select tools to configure",
   "setup_no_key": "Set an API key first or use --key-stdin.",
   "setup_reason_models_required": "Select a model before configuring this tool.",

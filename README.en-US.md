@@ -34,6 +34,8 @@
 
 ## ✨ Features
 
+`coding-helper auth <key> --sync` updates clients still configured for Qiniu and returns nonzero on failures; the same key can be retried. Without `--sync`, non-interactive calls only save the key, while terminals offer a tool selection. Other providers are preserved.
+
 `coding-helper setup --tools claude,codex --yes` configures selected tools using saved models; omit `--tools` to select installed tools. Supports `--json` and `--key-stdin`; a stdin key is saved only after a successful tool configuration. Tools requiring an unselected model are skipped.
 
 - **🎯 Interactive Wizard** — Guided step-by-step setup for language, endpoint, API Key, and model on first run

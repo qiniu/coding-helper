@@ -34,6 +34,8 @@
 
 ## ✨ 功能特性
 
+换 Key 时，`coding-helper auth <key> --sync` 同步仍接入七牛的客户端；失败返回非零，重复同一 Key 可重试。未加 `--sync` 的非交互调用只保存 Key，交互终端允许勾选要更新的工具。切到其他服务商的配置不会被强制改回。
+
 `coding-helper setup --tools claude,codex --yes` 批量装载已保存的模型配置；省略 `--tools` 时选择已安装工具。支持 `--json` 和 `--key-stdin`；stdin Key 仅在有工具成功装载后保存。缺少必选模型的工具会跳过。
 
 - **🎯 交互式向导** — 首次运行引导配置语言、线路、API Key 和模型，步步引导

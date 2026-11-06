@@ -1,4 +1,6 @@
 {
+  "sync_select_tools": "选择要同步的七牛客户端；不选择则保留客户端配置",
+  "sync_cli_hint": "Key/线路已保存，可用 auth <key> --sync 更新仍接入七牛的客户端。",
   "setup_select_tools": "选择要配置的工具",
   "setup_no_key": "请先设置 API Key，或使用 --key-stdin。",
   "setup_reason_models_required": "请先为该工具选择模型。",
