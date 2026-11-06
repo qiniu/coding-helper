@@ -379,11 +379,11 @@ const menuView = createPrompt(<T,>(config: LiveMenuConfig<T>, done: (result: Men
   useKeypress((key) => {
     cursorOn.current = true;
     lastKey.current = Date.now();
-    if (config.multiple && (key.name === 'tab' || (isEnterKey(key) && current?.value === ACCEPT))) {
+    if (config.multiple && (key.name === 'tab' || isEnterKey(key))) {
       if (picked.size) finish({ value: undefined as T, selected: [...picked], action: 'accept' });
       return;
     }
-    if (isEnterKey(key)) {
+    if (isEnterKey(key) || (config.multiple && isSpaceKey(key))) {
       if (!current || current.value === ACCEPT) return;
       if (config.multiple && (current.value === CUSTOM || config.multiple.toggleable?.(current as MenuItem<T>) !== false)) {
         const values = current.value === CUSTOM ? config.multiple.parseCustom?.(query) ?? [] : [current.value];
@@ -484,7 +484,7 @@ const menuView = createPrompt(<T,>(config: LiveMenuConfig<T>, done: (result: Men
   const footerFor = (overflow: boolean): string => {
     if (config.multiple) return `  ${renderKeyHints([
       ['↑↓', t('ui_key_move')], ...(overflow ? [['PgUp/PgDn', t('ui_key_page')] as KeyHint] : []),
-      [t('ui_key_enter'), t('model_multi_toggle')], ['Tab', t('model_multi_continue')],
+      [t('ui_key_space'), t('model_multi_toggle')], [t('ui_key_enter'), t('model_multi_continue')],
       ['Esc', query ? t('ui_key_clear_search') : t('ui_key_back')],
       // 超出一页时多了翻页键，省掉「←→ 切换厂商」（厂商标签就在列表上方），保持一行
       ...(overflow ? [] : [['←→', t('ui_key_tabs')] as KeyHint]), [t('ui_key_type'), t('ui_key_search')],

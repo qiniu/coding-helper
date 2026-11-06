@@ -21,9 +21,9 @@ for(const [name,field] of [['codebuddy','codeBuddyModels'],['workbuddy','workbud
     const source=head(name)+`marketModelService.fetchModels=async()=>[{id:'a/model',name:'Model A',features:['工具调用']},{id:'b/model',name:'Model B',features:['工具调用']}];const result=await runToolSetupFlow([tool]);assert.equal(result,true);assert.equal(writes,1);assert.deepEqual(JSON.parse(fs.readFileSync(process.env.HOME+'/client.json','utf8')).${field},['a/model','b/model']);assert.deepEqual(configManager.getModels().${field},['a/model','b/model']);console.log('MULTI_OK');`;
     const out=await runPrompt(source,[
       [/Select tools[^]*Esc back/,'\r'],
-      [/Select models to configure[^]*Type search/,'a/model\r'],
+      [/Select models to configure[^]*Type search/,'a/model '],
       [/Selected 1:[^]*Type search/,'\x1b'],
-      [/Type search/,'b/model\r'],
+      [/Type search/,'b/model '],
       [/Selected 2:[^]*Type search/,'\t'],
       [/\? Confirm[^]*Esc back/,'\r'],
       [/Press Enter/,'\r'],

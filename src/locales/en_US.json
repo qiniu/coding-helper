@@ -561,7 +561,7 @@
   "model_multi_selected": "Selected {{count}}: ",
   "model_multi_next": "Next →  {{count}} models",
   "model_multi_toggle": "add / remove",
-  "model_multi_accept_hint": "Enter or Tab to continue; type to search, Enter to add or remove",
+  "model_multi_accept_hint": "Space to add or remove, Enter to confirm and continue; type to search",
   "model_multi_more": "+{{count}} more",
   "model_tab_selected": "Selected {{count}}",
   "model_multi_selected_empty": "No models selected yet. Switch to All or type to search and add",
