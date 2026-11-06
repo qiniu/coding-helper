@@ -29,6 +29,7 @@ export function createProgram(): Command {
   program
     .argument('[tool]', 'tool name or alias for quick configuration')
     .argument('[values...]', 'API key and model ID in either order')
+    .option('--context <tokens>', 'context cap for selected tools: 64k, 1m or auto')
     .option('--intl', 'prefer the international endpoint')
     .option('--json', 'print quick configuration results as JSON')
     .option('--key <key>', 'explicit API key, including non-sk formats')

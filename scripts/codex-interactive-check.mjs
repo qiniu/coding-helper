@@ -374,6 +374,7 @@ const MAIN_MENU_OPTIONS = [
   ZH_LOCALE.menu_configure_tools,
   ZH_LOCALE.menu_clear_config,
   ZH_LOCALE.menu_update_helper,
+  ZH_LOCALE.context_title,
   ZH_LOCALE.menu_exit,
 ];
 const TOOL_MENU_OPTIONS = [
@@ -497,6 +498,22 @@ export function buildScenarios(tools) {
           ZH_LOCALE.menu_configure_endpoint,
           ZH_LOCALE.menu_exit,
         ],
+      },
+    },
+    {
+      name: 'context menu without configured targets',
+      args: ['enter'],
+      steps: [
+        { waitFor: ZH_LOCALE.menu_main_title, input: downToOption(MAIN_MENU_OPTIONS, ZH_LOCALE.menu_configure_language, ZH_LOCALE.context_title), expectSelected: ZH_LOCALE.context_title },
+        { input: '\r', waitAfter: ZH_LOCALE.context_no_tools },
+        { input: '\r', waitAfter: ZH_LOCALE.menu_main_title },
+        { input: downToOption(MAIN_MENU_OPTIONS, ZH_LOCALE.menu_configure_language, ZH_LOCALE.menu_exit), expectSelected: ZH_LOCALE.menu_exit },
+        { input: '\r', expectExit: true },
+      ],
+      analysis: {
+        repeatedRenderPattern: ZH_LOCALE.menu_select_action,
+        maxRepeatedRenders: 30,
+        expectedPatterns: [ZH_LOCALE.context_no_tools, ZH_LOCALE.menu_main_title],
       },
     },
     {
