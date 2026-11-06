@@ -164,3 +164,43 @@ test('Qwen legacy unload menu displays unchanged guidance instead of successful 
     assert.equal(read(files[1]),'QINIU_API_KEY=legacy-key');
   } finally {Object.assign(uiRenderer,old);promptHelper.confirm=oldConfirm;promptHelper.pressEnter=oldEnter;fs.rmSync(files[1]);}
 });
+
+for (const action of ['reload', 'restore']) {
+ test(`Qwen runtime version metadata permits ${action} and preserves the original restoration bytes`, async () => {
+  const {previewWrites}=await import('../dist/lib/core/safe-write.js');
+  process.env.QWEN_HOME=path.join(home,'runtime-version-'+action);
+  const targets=['settings.json','.env'].map(file=>path.join(process.env.QWEN_HOME,file));
+  const original='{\n // original comment\n "model":{"name":"original"},"custom":true\n}\n';
+  write(targets[0],original);write(targets[1],'OTHER=keep\n');
+  try {
+   await load();const current=tool.getConfig();current.$version=4;write(targets[0],JSON.stringify(current,null,2)+'\n');
+   const before=targets.map(read),records=stateStore.getFileStates(tool.name);
+   await previewWrites(()=>load('preview-key'));
+   assert.deepEqual(targets.map(read),before);assert.deepEqual(stateStore.getFileStates(tool.name),records);
+   if(action==='reload') {await load('next-key');assert.equal(tool.getConfig().$version,4);assert.match(read(targets[1]),/QINIU_API_KEY=next-key/);}
+   tool.unloadConfig();assert.equal(read(targets[0]),original);assert.equal(read(targets[1]),'OTHER=keep\n');
+   assert.equal(stateStore.getFileStates(tool.name).length,0);
+  } finally {delete process.env.QWEN_HOME;}
+ });
+}
+
+for (const edit of ['model','endpoint','credential','unrelated','invalid-version']) {
+ test(`Qwen version metadata does not conceal an external ${edit} edit`,async()=>{
+  process.env.QWEN_HOME=path.join(home,'version-conflict-'+edit);
+  const targets=['settings.json','.env'].map(file=>path.join(process.env.QWEN_HOME,file));
+  write(targets[0],'{"custom":true}');write(targets[1],'OTHER=keep\n');
+  try {
+   await load();const applied=targets.map(read),records=stateStore.getFileStates(tool.name),current=tool.getConfig();current.$version=4;
+   if(edit==='model')current.model.name='user/model';
+   if(edit==='endpoint')current.model.baseUrl='https://user.example/v1';
+   if(edit==='unrelated')current.custom=false;
+   if(edit==='invalid-version')current.$version={unexpected:true};
+   write(targets[0],JSON.stringify(current));
+   if(edit==='credential')write(targets[1],'QINIU_API_KEY=user-key\n');
+   const modified=targets.map(read);
+   await assert.rejects(load('next-key'),/changed/);assert.throws(()=>tool.unloadConfig(),/changed/);
+   assert.deepEqual(targets.map(read),modified);assert.deepEqual(stateStore.getFileStates(tool.name),records);
+   targets.forEach((file,i)=>write(file,applied[i]));tool.unloadConfig();
+  } finally {delete process.env.QWEN_HOME;}
+ });
+}
