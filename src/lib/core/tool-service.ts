@@ -7,6 +7,8 @@ import { isPreview } from './safe-write.js';
 export interface ToolResult {
   tool: ITool;
   status: 'success' | 'skipped' | 'failed';
+  appliedModels?: string[];
+  skippedModels?: string[];
   // 跳过原因是翻译键，失败原因是翻译键或适配器错误信息。
   reason?: string;
 }
@@ -74,8 +76,8 @@ export async function applyTool(tool: ITool, connection?: { apiKey: string; base
     if (isExternallyModified(tool)) {
       try { rollbackBaseline = rebaselineTool(tool).rollback; } catch { return { tool, status: 'failed', reason: 'rebaseline_failed' }; }
     }
-    await tool.loadConfig(apiKey, resolved.baseUrl, models);
-    return { tool, status: 'success' };
+    const written = await tool.loadConfig(apiKey, resolved.baseUrl, models);
+    return { tool, status: 'success', ...(written ? { appliedModels: written.appliedModels, skippedModels: written.skippedModels } : {}) };
   } catch (error) {
     try { rollbackBaseline?.(); }
     catch { return { tool, status: 'failed', reason: 'rebaseline_recovery_failed' }; }

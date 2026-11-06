@@ -3,6 +3,9 @@ import { type ModelConfig } from '../config.js';
 // 向导上下文只用于展示进度，不改变工具配置的保存规则。
 export interface ToolModelFlowContext { step?: { current: number; total: number; keys?: string[] }; }
 
+// 写入器返回本次实际落盘的模型，结果页不从保存的选择推测成功项。
+export interface ToolLoadResult { appliedModels: string[]; skippedModels: string[]; }
+
 // 工具接口定义
 export interface ITool {
   name: string;
@@ -59,7 +62,7 @@ export interface ITool {
   clearModelConfig(): void | Promise<void>;
 
   // 将完整配置写入工具
-  loadConfig(apiKey: string, baseUrl: string, models: ModelConfig): Promise<void>;
+  loadConfig(apiKey: string, baseUrl: string, models: ModelConfig): Promise<void | ToolLoadResult>;
 
   // 配置装载完成后需要在成功页展示的补充信息
   getLoadConfigNotes?(): string[];

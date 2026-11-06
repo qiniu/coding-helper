@@ -109,11 +109,16 @@ export function renderResultSummary(results: ToolResult[], options: { undoComman
   uiRenderer.renderTable(
     [t('setup_col_tool'), t('setup_col_result'), t('result_col_model'), t('result_col_launch')],
     results.map(result => {
-      // Buddy 支持多模型，结果页展示完整列表，不能只取默认的第一项。
-      const selected = result.tool.name === 'codebuddy' ? models.codeBuddyModels
-        : result.tool.name === 'workbuddy' ? models.workbuddyModels : undefined;
-      const modelText = selected?.length ? selected.join(', ')
-        : savedModelFor(result.tool, models) ?? result.tool.defaultModel ?? '—';
+      // 失败/跳过时不格式化模型；配置损坏不能让失败结果页再次抛错。
+      let modelText = '—';
+      if (result.status === 'success') {
+        const selected = result.appliedModels ?? (result.tool.name === 'codebuddy' ? models.codeBuddyModels
+          : result.tool.name === 'workbuddy' ? models.workbuddyModels : undefined);
+        const ids = Array.isArray(selected) ? selected.filter((id): id is string => typeof id === 'string') : [];
+        modelText = ids.length ? ids.join(', ')
+          : ['codebuddy', 'workbuddy'].includes(result.tool.name) ? '—'
+          : savedModelFor(result.tool, models) ?? result.tool.defaultModel ?? '—';
+      }
       return [
         `${toolIcon(result.tool.name)} ${theme.value(result.tool.displayName)}`,
         statusText(result),
@@ -131,6 +136,7 @@ export function renderResultSummary(results: ToolResult[], options: { undoComman
   }
   logger.newLine();
   for (const result of ok) {
+    if (result.skippedModels?.length) uiRenderer.renderWarning(t('result_models_skipped', { tool: result.tool.displayName, models: result.skippedModels.join(', ') }));
     for (const note of result.tool.getLoadConfigNotes?.() ?? []) uiRenderer.renderHint(note);
   }
   if (ok.length) {

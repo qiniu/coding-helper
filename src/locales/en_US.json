@@ -495,6 +495,7 @@
   "dry_run_modify": "modify",
   "dry_run_delete": "delete",
   "dry_run_no_changes": "No files would change",
+  "result_models_skipped": "{{tool}}: not written (unavailable models): {{models}}",
   "result_restart_app": "restart {{tool}}",
   "plan_view_changes_hint": "{{count}} files · paths and line counts only, no file contents",
   "plan_files_title": "Files to change (preview, nothing written yet)",
