@@ -59,3 +59,16 @@ test('result summary launch hint includes default launch arguments', t => {
   const out = capture(t, () => renderResultSummary([{ tool: { ...base, name: 'dsh', displayName: 'DeepSeek Harness', command: 'dsh', launchArgs: ['web'], isInstalled: () => true }, status: 'success' }]));
   assert.match(out, /dsh web/);
 });
+
+for (const name of ['codebuddy', 'workbuddy']) {
+ for (const columns of [40, 160]) {
+  test(`${name} result summary retains every selected model at ${columns} columns`, {skip:process.platform==='win32'}, async () => {
+   const models = ['qwen/qwen3.7-plus', 'deepseek/deepseek-v3.2', 'vendor/another-long-model-name'];
+   const field = name === 'codebuddy' ? 'codeBuddyModels' : 'workbuddyModels';
+   const source = `import {i18n} from './dist/lib/i18n.js';import {configManager} from './dist/lib/config.js';import {renderResultSummary} from './dist/lib/wizard/ui/tool-view.js';i18n.init('en_US');configManager.setModels({${field}:${JSON.stringify(models)}});renderResultSummary([{tool:{name:'${name}',displayName:'Buddy',command:'buddy',isInstalled:()=>null},status:'success'}]);`;
+   const out = await runPrompt(source, [], columns, {rows:40});
+   const compact = out.replace(/\s/g, '');
+   for (const model of models) assert.ok(compact.includes(model), model);
+  });
+ }
+}
