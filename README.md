@@ -451,4 +451,6 @@ The shared terminal menu supports arrows, Enter, Esc, searchable rows, vendor ta
 Shared prompts distinguish Esc cancellation from empty input. Checkbox selection and masked secret entry are available for the new menu flows; secrets are never echoed in full.
 
 Model search matches vendor aliases, punctuation-free model IDs, context sizes such as 200k, and vision capability. Exact/prefix matches rank before recommendations and recent selections; unmatched input offers nearby model IDs.
+
+Model slots follow the main model unless explicitly overridden. Main-model changes retain slot overrides, and clearing one tool leaves other tools unchanged.
 When model metadata is offline, context caps only narrow already verified client limits and retain known modality metadata. A 64k cap cannot expand a client limit already known to be 32k.
