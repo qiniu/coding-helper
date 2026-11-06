@@ -66,6 +66,7 @@ export function createProgram(): Command {
     .option('-y, --yes', 'skip interactive tool and model selection')
     .option('--json', 'print results as JSON')
     .option('--key-stdin', 'read an API key from standard input')
+    .option('--dry-run', 'preview files without writing client settings or journals')
     .action(async (options: import('../commands/setup.js').SetupOptions) => { await setupCommand(options); });
 
   // status - 只读查询安装与配置状态

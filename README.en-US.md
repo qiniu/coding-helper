@@ -34,6 +34,8 @@
 
 ## ✨ Features
 
+`coding-helper setup --tools codex --dry-run --json` previews transactions in memory and reports file paths, operations and line counts without creating client directories, backups, locks or journals. Configuration contents are omitted to protect existing credentials. MiniMax's external writer does not support safe previews and reports failure explicitly.
+
 Quick setup: `coding-helper opencode [API key] [model ID]`; keys can also come from `QINIU_API_KEY` or saved settings. Supports `--intl` and `--json`. Use `--key` for any key format and `--model` to avoid positional ambiguity. Helper settings are saved only after validation and successful client configuration. Codex compatibility is checked using a minimal Responses request.
 
 `coding-helper auth <key> --sync` updates clients still configured for Qiniu and returns nonzero on failures; the same key can be retried. Without `--sync`, non-interactive calls only save the key, while terminals offer a tool selection. Other providers are preserved.

@@ -54,6 +54,7 @@ export function applyGrokConfig(
 }
 
 export class GrokTool extends OpenAICompatTool {
+  supportsPreview = true;
   name = 'grok';
   displayName = 'Grok CLI';
   command = 'grok';

@@ -73,6 +73,9 @@ To add support for a new AI coding assistant:
 Configuration entry points use `applyTool` and `removeTool` in `src/lib/core/tool-service.ts`.
 Adapters own their restoration journals and remove records only after a successful restore;
 the service reports their results without replacing or clearing those records.
+Preview support is opt-in through `supportsPreview: true`. Enable it only when all
+persistent writes use the shared write layer and external writers or permission
+changes are disabled during preview. Extensions without this capability remain usable normally.
 
 ## Adding Translations
 

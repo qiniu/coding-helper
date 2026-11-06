@@ -36,6 +36,7 @@ export function applyDroidSettings(settings: Record<string, unknown>, baseUrl: s
 }
 
 export class DroidTool extends OpenAICompatTool {
+  supportsPreview = true;
   name = 'droid';
   displayName = 'Factory Droid';
   command = 'droid';

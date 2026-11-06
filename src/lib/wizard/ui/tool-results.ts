@@ -5,12 +5,12 @@ import { uiRenderer } from './ui-renderer.js';
 // 机器输出不携带可能包含配置正文和旧凭据的原始解析异常。
 export function jsonToolResults(results: ToolResult[]): object[] {
   return results.map(({ tool, status, reason }) => ({ tool: tool.name, status,
-    ...(reason ? { reason: status === 'failed' ? 'configuration_failed' : reason } : {}) }));
+    ...(reason ? { reason: status === 'failed' && reason !== 'setup_preview_unsupported' ? 'configuration_failed' : reason } : {}) }));
 }
 
-export function renderToolResults(results: ToolResult[], apiKey?: string): void {
+export function renderToolResults(results: ToolResult[], apiKey?: string, preview = false): void {
   for (const { tool, status, reason } of results) {
-    if (status === 'success') uiRenderer.renderSuccess(t('tool_config_loaded', { tool: tool.displayName }));
+    if (status === 'success') uiRenderer.renderSuccess(t(preview ? 'setup_preview_ready' : 'tool_config_loaded', { tool: tool.displayName }));
     else if (status === 'skipped') uiRenderer.renderHint(`${tool.displayName}: ${t(reason ?? '')}`);
     else {
       const message = t(reason ?? 'tool_config_load_failed', { tool: tool.displayName });

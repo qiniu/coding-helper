@@ -77,6 +77,33 @@ test('malformed helper settings fail closed instead of being replaced', () => {
   } finally { fs.writeFileSync(configManager.configFile, before); configManager.reload(); }
 });
 
+test('CLI dry-run with a replacement stdin key preserves every user file and omits old credentials', () => {
+  const isolated = fs.mkdtempSync(path.join(os.tmpdir(), 'setup-preview-cli-'));
+  try {
+    fs.mkdirSync(path.join(isolated, '.coding-helper'));
+    fs.mkdirSync(path.join(isolated, '.config/opencode'), { recursive: true });
+    const helper = path.join(isolated, '.coding-helper/config.yaml');
+    const client = path.join(isolated, '.config/opencode/opencode.json');
+    const helperBefore = 'lang: en_US\napi_key: old-helper-secret\ndefaultModel: model\n';
+    const clientBefore = '{"provider":{"other":{"options":{"apiKey":"old-client-secret"}}}}';
+    fs.writeFileSync(helper, helperBefore); fs.writeFileSync(client, clientBefore);
+    const preload = path.join(isolated, 'mock.cjs');
+    fs.writeFileSync(preload, "require('node:child_process').spawnSync=()=>({status:0,stdout:'1.2.3',stderr:''});globalThis.fetch=async url=>new Response(JSON.stringify(url.endsWith('/v1/models')?{data:[{id:'model'}]}:{choices:[]}));\n");
+    const text = execFileSync(process.execPath, ['--require', preload, path.resolve('dist/cli.js'), 'setup', '--tools', 'opencode', '--key-stdin', '--dry-run', '--json'], {
+      env: { HOME: isolated, USERPROFILE: isolated, XDG_CONFIG_HOME: path.join(isolated,'.config'), PATH: '/usr/bin:/bin' }, input: 'sk-replacement\n', encoding: 'utf8', timeout: 10000,
+    });
+    const output = JSON.parse(text);
+    assert.equal(output.dryRun, true);
+    assert.equal(output.results[0].status, 'success');
+    assert.equal(output.changes[0].operation, 'modify');
+    for (const secret of ['old-helper-secret','old-client-secret','sk-replacement']) assert.equal(text.includes(secret), false);
+    assert.equal(fs.readFileSync(helper,'utf8'), helperBefore);
+    assert.equal(fs.readFileSync(client,'utf8'), clientBefore);
+    assert.deepEqual(fs.readdirSync(path.dirname(helper)), ['config.yaml']);
+    assert.deepEqual(fs.readdirSync(path.dirname(client)), ['opencode.json']);
+  } finally { fs.rmSync(isolated,{recursive:true,force:true}); }
+});
+
 test('setup JSON remains machine-readable when helper configuration is corrupt', () => {
   const isolated=fs.mkdtempSync(path.join(os.tmpdir(),'setup-corrupt-json-'));
   try {

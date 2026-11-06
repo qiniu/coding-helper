@@ -143,6 +143,7 @@ export function applyOpenClawConfig(
 }
 
 export class OpenClawTool extends OpenAICompatTool {
+  supportsPreview = true;
   name = 'openclaw';
   displayName = 'OpenClaw';
   command = 'openclaw';

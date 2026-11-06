@@ -46,6 +46,7 @@ const GPT_MODELS: CodexCatalogModel[] = [
 
 // Codex 工具实现
 export class CodexTool implements ITool {
+  supportsPreview = true;
   name = 'codex';
   displayName = 'Codex';
   defaultModel = CODEX_MODEL;

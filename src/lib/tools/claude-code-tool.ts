@@ -36,6 +36,7 @@ const CLAUDE_JSON_FILE = path.join(os.homedir(), '.claude.json');
 
 // Claude Code 工具实现
 export class ClaudeCodeTool implements ITool {
+  supportsPreview = true;
   name = 'claude-code';
   displayName = 'Claude Code';
   command = 'claude';

@@ -1,4 +1,5 @@
 import { stateStore } from '../core/state-store.js';
+import { isPreview, readTextFile } from '../core/safe-write.js';
 import { isQiniuBaseUrl } from '../endpoints.js';
 import { findCommand, commandVersion } from '../../utils/find-command.js';
 import { applyConfigEdits, restoreConfigEdits } from '../core/config-transaction.js';
@@ -20,6 +21,7 @@ const MANAGED_MODEL_KEYS = ['provider', 'default', 'base_url', 'api_key'] as con
 
 // Hermes Agent 工具实现
 export class HermesTool implements ITool {
+  supportsPreview = true;
   requiresModelSelection = true;
   name = 'hermes';
   displayName = 'Hermes Agent';
@@ -100,11 +102,11 @@ export function removeManagedHermesConfig(existing: string): string {
 }
 
 function readHermesConfig(): string {
-  try { return fs.readFileSync(HERMES_CONFIG_FILE, 'utf8'); }
-  catch (error) { if ((error as NodeJS.ErrnoException).code === 'ENOENT') return ''; throw error; }
+  return readTextFile(HERMES_CONFIG_FILE) ?? '';
 }
 
 export function applyHermesConfigPermissions(configDir: string, configFile: string): void {
+  if (isPreview()) return;
   if (process.platform === 'win32') {
     return;
   }
