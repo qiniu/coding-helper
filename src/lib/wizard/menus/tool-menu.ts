@@ -5,6 +5,9 @@ import { runCommand } from '../../../commands/run.js';
 import { LauncherShutdown } from '../../../utils/launcher-shutdown.js';
 import chalk from 'chalk';
 import select from '@inquirer/select';
+import { editToolModels } from '../flows/model-slots-flow.js';
+import { toolSlots } from '../../core/model-slots.js';
+import { renderToolResults, safeToolFailureReason } from '../ui/tool-results.js';
 import { t } from '../../i18n.js';
 import { configManager } from '../../config.js';
 import { promptHelper } from '../ui/prompt-helper.js';
@@ -13,8 +16,38 @@ import { theme } from '../ui/theme.js';
 import type { ITool } from '../../tools/base-tool.js';
 import { logger } from '../../../utils/logger.js';
 import { fetchLatestVersion, isNewerVersion } from '../../version-service.js';
-import { applyTool, removeTool, hasSavedToolModelConfig } from '../../core/tool-service.js';
+import { applyTool, removeTool, hasSavedToolModelConfig, exitCodeFor } from '../../core/tool-service.js';
 export { hasSavedToolModelConfig } from '../../core/tool-service.js';
+
+// 首次配置与菜单编辑使用同一判定；Buddy 多选也需要先生成待确认草稿。
+function usesModelPlan(tool: ITool): boolean {
+  return toolSlots(tool.name).length > 0 || tool.name === 'codebuddy' || tool.name === 'workbuddy';
+}
+
+// 槽位与 Buddy 多选共用确认流程；后续确认页继续复用完整计划。
+async function configureToolModelSlots(tool: ITool): Promise<void> {
+  try {
+    const plan = await editToolModels(tool);
+    if (!plan) return;
+    const connection = plan.connection ?? configManager.getConnection(tool.name);
+    if (!connection.apiKey) { uiRenderer.renderError(t('apikey_not_set')); process.exitCode = 1; await promptHelper.pressEnter(); return; }
+    // 模型页的下一步只完成编辑；真正写入前仍需明确确认。
+    if (!await promptHelper.confirm(t('tool_config_load_confirm', { tool: tool.displayName }))) return;
+    const result = await applyTool(tool, { apiKey: connection.apiKey, baseUrl: connection.baseUrl, models: plan.models });
+    if (result.status === 'success') {
+      try { configManager.saveToolSettings(plan.models ?? {}, {}, plan.main); }
+      catch { result.status = 'failed'; result.reason = 'quick_save_failed'; }
+    } else if (result.status === 'failed') result.reason = safeToolFailureReason(result.reason);
+    renderToolResults([result]);
+    process.exitCode = exitCodeFor([result]);
+    await promptHelper.pressEnter();
+  } catch (error) {
+    if (error instanceof Error && ['ExitPromptError', 'AbortPromptError'].includes(error.name)) throw error;
+    uiRenderer.renderError(t(safeToolFailureReason(error instanceof Error ? error.message : undefined), { tool: tool.displayName }));
+    process.exitCode = 1;
+    await promptHelper.pressEnter();
+  }
+}
 
 // 工具菜单操作
 type ToolMenuAction =
@@ -99,7 +132,8 @@ export async function showToolMenu(tool: ITool): Promise<void> {
 
     switch (action) {
       case 'models':
-        await tool.runModelConfigFlow();
+        if (usesModelPlan(tool)) await configureToolModelSlots(tool);
+        else await tool.runModelConfigFlow();
         break;
 
       case 'load':
@@ -160,6 +194,8 @@ export function isLatestVersionFetchPending(state: {
 }
 
 async function runInitialToolSetup(tool: ITool): Promise<void> {
+  // 首次配置也使用完整模型草稿，拒绝或中断确认时不提前保存 helper。
+  if (usesModelPlan(tool)) return configureToolModelSlots(tool);
   const completed = await tool.runModelConfigFlow();
   if (!completed || tool.launchOnly) return;
 
