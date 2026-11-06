@@ -31,6 +31,8 @@ export function analyzeTranscript(transcript, options = {}) {
     }
   }
 
+  if (/\^\[\[[0-9;]*[A-D]/.test(clean)) failures.push('Terminal transcript contains echoed arrow-key escape sequences.');
+
   const pattern = options.repeatedRenderPattern;
   const count = pattern ? clean.split(pattern).length - 1 : 0;
   const maxRepeatedRenders = options.maxRepeatedRenders ?? Number.POSITIVE_INFINITY;
@@ -368,16 +370,7 @@ function ensureDisableFetchPreload(homeDir) {
 }
 
 const ZH_LOCALE = JSON.parse(fs.readFileSync(new URL('../src/locales/zh_CN.json', import.meta.url), 'utf8'));
-const MAIN_MENU_OPTIONS = [
-  ZH_LOCALE.menu_configure_language,
-  ZH_LOCALE.menu_configure_endpoint,
-  ZH_LOCALE.menu_configure_apikey,
-  ZH_LOCALE.menu_configure_tools,
-  ZH_LOCALE.menu_clear_config,
-  ZH_LOCALE.menu_update_helper,
-  ZH_LOCALE.context_title,
-  ZH_LOCALE.menu_exit,
-];
+const MAIN_MENU_OPTIONS = [ZH_LOCALE.menu_setup_tools, ZH_LOCALE.menu_switch_model, ZH_LOCALE.menu_my_tools, ZH_LOCALE.menu_account, ZH_LOCALE.menu_doctor, ZH_LOCALE.menu_more];
 const TOOL_MENU_OPTIONS = [
   ZH_LOCALE.tool_configure_models,
   ZH_LOCALE.tool_load_config,
@@ -430,105 +423,29 @@ function createToolMenuScenario(tool) {
 }
 
 export function buildScenarios(tools) {
-  const toolNames = tools.map((tool) => tool.displayName);
-  const toolSelectorTarget = tools.at(-1);
-  const toolSelectorSteps = toolSelectorTarget
-    ? [
-        {
-          waitFor: ZH_LOCALE.menu_main_title,
-          input: `${downToOption(MAIN_MENU_OPTIONS, ZH_LOCALE.menu_configure_language, ZH_LOCALE.menu_configure_tools)}\r`,
-          pauseMs: 200,
-        },
-        { waitFor: ZH_LOCALE.menu_configure_tools, pauseMs: 200 },
-      ]
-    : [
-        {
-          waitFor: ZH_LOCALE.menu_main_title,
-          input: downToOption(MAIN_MENU_OPTIONS, ZH_LOCALE.menu_configure_language, ZH_LOCALE.menu_exit),
-          expectSelected: ZH_LOCALE.menu_exit,
-        },
-        { input: '\r', expectExit: true },
-      ];
-
-  if (toolSelectorTarget) {
-    tools.forEach((tool, index) => toolSelectorSteps.push({
-      ...(index ? { input: '\u001B[B' } : {}),
-      expectSelected: tool.displayName,
-    }));
-    toolSelectorSteps.push({
-      input: '\r',
-      waitAfter: ZH_LOCALE.tool_configure_models,
-    });
-    toolSelectorSteps.push({
-      input: downToOption(toolMenuOptions(toolSelectorTarget), ZH_LOCALE.tool_configure_models, ZH_LOCALE.tool_back),
-      expectSelected: ZH_LOCALE.tool_back,
-    });
-    toolSelectorSteps.push({
-      input: '\r',
-      waitAfter: ZH_LOCALE.menu_main_title,
-    });
-    toolSelectorSteps.push({
-      input: downToOption(MAIN_MENU_OPTIONS, ZH_LOCALE.menu_configure_language, ZH_LOCALE.menu_exit),
-      expectSelected: ZH_LOCALE.menu_exit,
-    });
-    toolSelectorSteps.push({
-      input: '\r',
-      expectExit: true,
-    });
+  const steps = [{ waitFor: ZH_LOCALE.menu_setup_tools, input: '\u001b[B\u001b[B\r', waitAfter: ZH_LOCALE.menu_my_tools }];
+  if (tools.length) {
+    tools.forEach((tool,index) => steps.push({ ...(index ? {input:'\u001b[B'} : {}), expectSelected:tool.displayName }));
+    steps.push({input:'\r',waitAfter:ZH_LOCALE.tool_configure_models});
+    steps.push({input:downToOption(toolMenuOptions(tools.at(-1)),ZH_LOCALE.tool_configure_models,ZH_LOCALE.tool_back),expectSelected:ZH_LOCALE.tool_back});
+    steps.push({input:'\r',waitAfter:ZH_LOCALE.menu_setup_tools});
   }
-
+  steps.push({input:'\u001b',expectExit:true});
   return [
-    {
-      name: 'main menu keyboard navigation',
-      args: ['enter'],
-      steps: [
-        { waitFor: ZH_LOCALE.menu_main_title, input: '\u001B[B', expectSelected: ZH_LOCALE.menu_configure_endpoint },
-        { input: '\u001B[A', expectSelected: ZH_LOCALE.menu_configure_language },
-        {
-          input: downToOption(MAIN_MENU_OPTIONS, ZH_LOCALE.menu_configure_language, ZH_LOCALE.menu_exit),
-          expectSelected: ZH_LOCALE.menu_exit,
-        },
-        { input: '\r', expectExit: true },
-      ],
-      analysis: {
-        repeatedRenderPattern: ZH_LOCALE.menu_select_action,
-        maxRepeatedRenders: 20,
-        expectedPatterns: [
-          ZH_LOCALE.menu_main_title,
-          ZH_LOCALE.menu_configure_language,
-          ZH_LOCALE.menu_configure_endpoint,
-          ZH_LOCALE.menu_exit,
-        ],
-      },
-    },
-    {
-      name: 'context menu without configured targets',
-      args: ['enter'],
-      steps: [
-        { waitFor: ZH_LOCALE.menu_main_title, input: downToOption(MAIN_MENU_OPTIONS, ZH_LOCALE.menu_configure_language, ZH_LOCALE.context_title), expectSelected: ZH_LOCALE.context_title },
-        { input: '\r', waitAfter: ZH_LOCALE.context_no_tools },
-        { input: '\r', waitAfter: ZH_LOCALE.menu_main_title },
-        { input: downToOption(MAIN_MENU_OPTIONS, ZH_LOCALE.menu_configure_language, ZH_LOCALE.menu_exit), expectSelected: ZH_LOCALE.menu_exit },
-        { input: '\r', expectExit: true },
-      ],
-      analysis: {
-        repeatedRenderPattern: ZH_LOCALE.menu_select_action,
-        maxRepeatedRenders: 30,
-        expectedPatterns: [ZH_LOCALE.context_no_tools, ZH_LOCALE.menu_main_title],
-      },
-    },
-    {
-      name: 'tool selector keyboard navigation',
-      args: ['enter'],
-      steps: toolSelectorSteps,
-      analysis: {
-        repeatedRenderPattern: ZH_LOCALE.menu_select_action,
-        // 每次真实按键都会重绘；按场景操作数计预算，仍检测无输入的刷新循环。
-        maxRepeatedRenders: 8 + toolSelectorSteps.reduce((count, step) => count + (step.input?.match(/\u001b\[[AB]|\r/g)?.length ?? 0), 0),
-        expectedPatterns: [ZH_LOCALE.menu_configure_tools, ...toolNames],
-      },
-    },
-    ...tools.map((tool) => createToolMenuScenario(tool)),
+    {name:'main menu keyboard navigation',args:['enter'],steps:[
+      {waitFor:ZH_LOCALE.menu_setup_tools,input:'\u001b[B',expectSelected:ZH_LOCALE.menu_switch_model},
+      {input:'\u001b[A',expectSelected:ZH_LOCALE.menu_setup_tools},
+      {input:'\u001b',expectExit:true},
+    ],analysis:{repeatedRenderPattern:ZH_LOCALE.menu_select_action,maxRepeatedRenders:20,expectedPatterns:[ZH_LOCALE.menu_setup_tools,ZH_LOCALE.menu_my_tools,ZH_LOCALE.menu_account]}},
+    {name:'context menu without configured targets',args:['enter'],steps:[
+      {waitFor:ZH_LOCALE.menu_setup_tools,input:'\u001b[B'.repeat(5)+'\r',waitAfter:ZH_LOCALE.menu_context},
+      {input:'\r',waitAfter:ZH_LOCALE.context_no_tools},
+      {input:'\r',waitAfter:ZH_LOCALE.menu_context},
+      {input:'\u001b',waitAfter:ZH_LOCALE.menu_setup_tools},
+      {input:'\u001b',expectExit:true},
+    ],analysis:{repeatedRenderPattern:ZH_LOCALE.menu_select_action,maxRepeatedRenders:30,expectedPatterns:[ZH_LOCALE.context_no_tools,ZH_LOCALE.menu_more]}},
+    {name:'tool selector keyboard navigation',args:['enter'],steps,analysis:{repeatedRenderPattern:ZH_LOCALE.menu_select_action,maxRepeatedRenders:20+tools.length*3,expectedPatterns:tools.map(tool=>tool.displayName)}},
+    ...tools.map(tool=>createToolMenuScenario(tool)),
   ];
 }
 

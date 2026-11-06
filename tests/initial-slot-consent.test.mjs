@@ -65,6 +65,7 @@ for (const name of ['codex', 'claude-code', 'grok', 'hermes', 'droid']) {
     test(`${name} initial slot configuration: ${action} preserves the draft until consent`, { skip: process.platform === 'win32' }, async () => {
       // 从未保存模型的工具详情进入，实际编辑主模型与第一个槽位。
       const steps = [
+        ['Select action', '\r'],
         [/Next[^]*Esc back/, '\r'],
         [/Type search/, 'beta/two\r'],
         [/Next[^]*Esc back/, '\x1b[H\x1b[B\r'],

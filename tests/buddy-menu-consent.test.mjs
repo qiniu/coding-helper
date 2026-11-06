@@ -54,7 +54,8 @@ for (const tool of ['codebuddy', 'workbuddy']) {
   for (const initial of [false, true]) {
     for (const action of ['escape', 'interrupt-editor', 'decline', 'interrupt-confirm', 'accept']) {
       test(`${tool} ${initial ? 'initial setup' : 'model menu'}: ${action} respects write consent`, pty, async () => {
-        const steps = initial ? [] : [['Select action', '\r']];
+        // 迁移后的详情菜单统一先展示操作列表，首次未配置也由用户进入模型编辑。
+        const steps = [['Select action', '\r']];
         if (initial) steps.push([frame, 'alpha/one\r'], [/Selected 1:[^]*Type search/, '\x1b']);
         steps.push([frame, 'beta/two\r']);
         if (action === 'escape') {
