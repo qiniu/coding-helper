@@ -560,6 +560,8 @@
   "model_multi_current": "Currently configured: {{models}}",
   "model_multi_selected": "Selected {{count}}: ",
   "model_multi_next": "Next →  {{count}} models",
+  "model_multi_search_space": "type a space",
+  "model_multi_browse": "browse results",
   "model_multi_toggle": "add / remove",
   "model_multi_accept_hint": "Space to add or remove, Enter to confirm and continue; type to search",
   "model_multi_more": "+{{count}} more",

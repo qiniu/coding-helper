@@ -56,8 +56,8 @@ for (const tool of ['codebuddy', 'workbuddy']) {
       test(`${tool} ${initial ? 'initial setup' : 'model menu'}: ${action} respects write consent`, pty, async () => {
         // 迁移后的详情菜单统一先展示操作列表，首次未配置也由用户进入模型编辑。
         const steps = [['Select action', '\r']];
-        if (initial) steps.push([frame, 'alpha/one '], [/Selected 1:[^]*Type search/, '\x1b']);
-        steps.push([frame, 'beta/two ']);
+        if (initial) steps.push([frame, 'alpha/one\x1b[B '], [/Selected 1:[^]*Type search/, '\x1b']);
+        steps.push([frame, 'beta/two\x1b[B ']);
         if (action === 'escape') {
           steps.push([/Selected 2:[^]*Type search/, '\x1b'], [frame, '\x1b']);
         } else if (action === 'interrupt-editor') {

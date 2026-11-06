@@ -17,7 +17,7 @@ for(const tool of tools)test('empty HOME first-run model configuration: '+tool.n
  };
  const steps=[[/请选择语言[\s\S]*?Esc 返回/,'\x1b[B\r'],[/Select API endpoint[\s\S]*?Esc back/,'\x1b[B\x1b[B\r'],[/https:\/\/[\s\S]*?Esc back/,base+'\r'],[/Enter your API Key[\s\S]*?Esc back/,'fixture-key\r'],[/Select tools[\s\S]*?Esc back/,selectTool]];
  if(tool.name==='claude-code')steps.push([/Main model[\s\S]*?Esc back/,'\r']);
- if(['codebuddy','workbuddy'].includes(tool.name))steps.push([/Select models to configure[\s\S]*?Type search/,'z-ai/glm-5.2 '],[/Selected 1:[\s\S]*?Type search/,'\t']);
+ if(['codebuddy','workbuddy'].includes(tool.name))steps.push([/Select models to configure[\s\S]*?Type search/,'z-ai/glm-5.2\x1b[B '],[/Selected 1:[\s\S]*?Type search/,'\t']);
  else steps.push([/Type to search[\s\S]*?Type search/,'z-ai/glm-5.2\r']);
  if(tool.name==='claude-code')steps.push([/Next[\s\S]*?Esc back/,'\r']);
  if(tool.supportsPreview===true)steps.push([/\? Confirm[\s\S]*?Esc back/,'\r']);else steps.push([/Press Enter/,'\r']);steps.push([/Press Enter/,'\r']);

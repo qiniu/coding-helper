@@ -5,29 +5,29 @@ import {pty,head,frame} from './helpers/buddy-search-fixture.mjs';
 for(const tool of ['codebuddy','workbuddy']){
  test(`${tool} adds through search and removes an existing model without losing off-catalog configuration`,pty,async()=>{
   const source=head(tool,['alpha/one','legacy/missing'])+`const values=await select();assert.deepEqual(values,['legacy/missing','beta/two']);assert.equal(catalog.length,2);assert.equal(requests,1);assert.equal(fs.readFileSync(configManager.configFile,'utf8'),before);console.log('SEARCH_OK');`;
-  const out=await runPrompt(source,[[/Currently configured: one · missing[^]*Type search/,'beta/two '],[/Selected 3:[^]*Type search/,'\x1b'],[frame,'alpha/one '],[/Selected 2: missing · two[^]*Type search/,'\r']],120,{rows:42});
+  const out=await runPrompt(source,[[/Currently configured: one · missing[^]*Type search/,'beta/two\x1b[B '],[/Selected 3:[^]*Type search/,'\x1b'],[frame,'alpha/one\x1b[B '],[/Selected 2: missing · two[^]*Type search/,'\r']],120,{rows:42});
   assert.match(out,/SEARCH_OK/);assert.match(out,/☑.*legacy\/missing/);assert.doesNotMatch(out,/Reuse the previous/);
  });
  test(`${tool} can cancel a changed search draft without saving any settings`,pty,async()=>{
   const source=head(tool,['alpha/one'])+`assert.equal(await select(),null);assert.equal(fs.readFileSync(configManager.configFile,'utf8'),before);console.log('CANCEL_OK');`;
-  const out=await runPrompt(source,[[frame,'beta/two '],[/Selected 2:[^]*Type search/,'\x1b'],[frame,'no-match'],[/⌕ no-match[^]*Type search/,'\x1b'],[frame,'\x1b']],110,{rows:40});assert.match(out,/CANCEL_OK/);
+  const out=await runPrompt(source,[[frame,'beta/two\x1b[B '],[/Selected 2:[^]*Type search/,'\x1b'],[frame,'no-match'],[/⌕ no-match[^]*Type search/,'\x1b'],[frame,'\x1b']],110,{rows:40});assert.match(out,/CANCEL_OK/);
  });
 
 }
 
 test('multi-model selection survives vendor tabs and clearing the search',pty,async()=>{
  const source=head('workbuddy')+`const result=await select();assert.deepEqual(result,['alpha/one','beta/two']);assert.equal(requests,1);console.log('TABS_OK');`;
- const out=await runPrompt(source,[[frame,'alpha/one '],[/Selected 1:[^]*Type search/,'\x1b'],[frame,'\x1b[C'],[/Selected 1:[^]*☑.*alpha\/one[^]*Type search/,'\x1b[C'],[/Selected 1:[^]*☐.*beta\/two[^]*Type search/,'\x1b[B '],[/Selected 2:[^]*Type search/,'no-match'],[/⌕ no-match[^]*Type search/,'\x1b'],[/Selected 2:[^]*Type search/,'\r']],120,{rows:42});assert.match(out,/TABS_OK/);
+ const out=await runPrompt(source,[[frame,'alpha/one\x1b[B '],[/Selected 1:[^]*Type search/,'\x1b'],[frame,'\x1b[C'],[/Selected 1:[^]*☑.*alpha\/one[^]*Type search/,'\x1b[C'],[/Selected 1:[^]*☐.*beta\/two[^]*Type search/,'\x1b[B '],[/Selected 2:[^]*Type search/,'no-match'],[/⌕ no-match[^]*Type search/,'\x1b'],[/Selected 2:[^]*Type search/,'\r']],120,{rows:42});assert.match(out,/TABS_OK/);
 });
 
 test('custom model additions deduplicate and remain searchable for removal',pty,async()=>{
  const source=head('codebuddy')+`assert.deepEqual(await select(),['vendor/b','vendor/a']);assert.equal(fs.readFileSync(configManager.configFile,'utf8'),before);console.log('CUSTOM_OK');`;
- const out=await runPrompt(source,[[frame,'vendor/a,vendor/b,vendor/a '],[/Selected 2:[^]*Type search/,'\x1b'],[frame,'vendor/a '],[/Selected 1: b[^]*Type search/,' '],[/Selected 2: b · a[^]*Type search/,'\r']],120,{rows:42});assert.match(out,/CUSTOM_OK/);
+ const out=await runPrompt(source,[[frame,'vendor/a,vendor/b,vendor/a\x1b[B '],[/Selected 2:[^]*Type search/,'\x1b'],[frame,'vendor/a\x1b[B '],[/Selected 1: b[^]*Type search/,' '],[/Selected 2: b · a[^]*Type search/,'\r']],120,{rows:42});assert.match(out,/CUSTOM_OK/);
 });
 
 test('show-all retains custom additions and an empty selection cannot continue',pty,async()=>{
  const source=head('codebuddy')+`assert.deepEqual(await select(),['alpha/one']);console.log('ALL_OK');`;
- const out=await runPrompt(source,[[frame,'vendor/new '],[/Selected 1:[^]*Type search/,'\x1b'],[frame,'\x1b[F '],[/Selected 1:[^]*Only models with tool calls[^]*Type search/,'vendor/new '],[/Selected 0:[^]*Type search/,'\t\x1b'],[frame,'alpha/one '],[/Selected 1: one[^]*Type search/,'\r']],120,{rows:42});assert.match(out,/ALL_OK/);
+ const out=await runPrompt(source,[[frame,'vendor/new\x1b[B '],[/Selected 1:[^]*Type search/,'\x1b'],[frame,'\x1b[F '],[/Selected 1:[^]*Only models with tool calls[^]*Type search/,'vendor/new\x1b[B '],[/Selected 0:[^]*Type search/,'\t\x1b'],[frame,'alpha/one\x1b[B '],[/Selected 1: one[^]*Type search/,'\r']],120,{rows:42});assert.match(out,/ALL_OK/);
 });
 
 test('multi picker keeps the page tidy: no stale key hint in the title and no custom row for a plain word with matches',pty,async()=>{
@@ -61,7 +61,7 @@ test('selected summary stays on one line, uses short names and folds the rest',a
 
 test('the Selected tab lists only chosen models and removes them in place',pty,async()=>{
  const source=head('codebuddy',['alpha/one'])+`assert.deepEqual(await select(),['beta/two']);console.log('TAB_OK');`;
- const out=await runPrompt(source,[[frame,'beta/two '],[/Selected 2:[^]*Type search/,'\x1b'],[frame,'\x1b[D'],[/ Selected 2 [^]*Type search/,'\x1b[B '],[/Selected 1: two[^]*Type search/,'\r']],120,{rows:42});
+ const out=await runPrompt(source,[[frame,'beta/two\x1b[B '],[/Selected 2:[^]*Type search/,'\x1b'],[frame,'\x1b[D'],[/ Selected 2 [^]*Type search/,'\x1b[B '],[/Selected 1: two[^]*Type search/,'\r']],120,{rows:42});
  assert.match(out,/TAB_OK/);
  const tab=out.slice(out.lastIndexOf(' Selected 2 '));
  assert.match(tab.slice(0,tab.indexOf('Type search')),/☑ alpha\/one/);

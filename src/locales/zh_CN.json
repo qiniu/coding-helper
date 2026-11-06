@@ -560,6 +560,8 @@
   "model_multi_current": "当前已配置：{{models}}",
   "model_multi_selected": "已选 {{count}} 个：",
   "model_multi_next": "下一步 →  {{count}} 个模型",
+  "model_multi_search_space": "输入空格",
+  "model_multi_browse": "浏览结果",
   "model_multi_toggle": "添加 / 移除",
   "model_multi_accept_hint": "空格添加或移除，回车确认下一步；直接打字搜索",
   "model_multi_more": "+{{count}} 个",

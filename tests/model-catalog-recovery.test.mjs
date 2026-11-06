@@ -20,7 +20,7 @@ for (const name of ['codebuddy','workbuddy']) {
   });
   test(`${name} manual recovery preserves multiple models without premature writes`,pty,async()=>{
     const source=selection+`marketModelService.fetchModels=modelService.fetchModels=async()=>{throw Error('offline');};assert.deepEqual(await select({step}),['one/a','two/b']);assert.equal(fs.readFileSync(configManager.configFile,'utf8'),before);console.log('MANUAL_OK');`;
-    const out=await runPrompt(source,[[recovery,'\x1b[B\r'],[/Type search/,'one/a,two/b,one/a '],[/Selected 2:[^]*Type search/,'\t']],110,{rows:40});assert.match(out,/MANUAL_OK/);
+    const out=await runPrompt(source,[[recovery,'\x1b[B\r'],[/Type search/,'one/a,two/b,one/a\x1b[B '],[/Selected 2:[^]*Type search/,'\t']],110,{rows:40});assert.match(out,/MANUAL_OK/);
   });
 }
 
