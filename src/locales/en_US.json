@@ -1,4 +1,9 @@
 {
+  "doctor_account": "Account availability",
+  "account_usable": "A minimal model request succeeded.",
+  "account_unknown": "Account availability could not be determined; check connectivity and model availability.",
+  "account_unusable": "The account or API key cannot currently call models.",
+  "account_billing_suspended": "The account is suspended due to billing status.",
   "restore_title": "Restore client settings",
   "restore_nothing": "No automatic restore targets found. Use status to inspect client configuration.",
   "restore_empty_tools": "Provide at least one tool name.",

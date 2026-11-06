@@ -2,7 +2,7 @@ import chalk from 'chalk';
 import ora from 'ora';
 import { t, i18n } from '../lib/i18n.js';
 import { configManager } from '../lib/config.js';
-import { validateApiKey } from '../lib/api-validator.js';
+import { validateApiKey, checkAccountStatus, describeAccountStatus, type AccountStatus } from '../lib/api-validator.js';
 import { toolManager } from '../lib/tool-manager.js';
 import { uiRenderer } from '../lib/wizard/ui/ui-renderer.js';
 import { logger } from '../utils/logger.js';
@@ -42,6 +42,15 @@ export async function doctorCommand(): Promise<void> {
       status: result.valid ? 'pass' : 'fail',
       detail: result.valid ? uiRenderer.maskApiKey(apiKey) : (result.error || t('doctor_fail')),
     });
+
+    if (result.valid) {
+      const accountSpinner = ora(t('doctor_account')).start();
+      let account: AccountStatus;
+      try { account = await checkAccountStatus(apiKey, configManager.baseUrl); }
+      finally { accountSpinner.stop(); }
+      checks.push({ label: t('doctor_account'), status: account.usable === null ? 'warn' : account.usable ? 'pass' : 'fail',
+        detail: account.usable === true ? t('account_usable') : describeAccountStatus(account) });
+    }
 
     // 3. 网络连接检查
     checks.push({

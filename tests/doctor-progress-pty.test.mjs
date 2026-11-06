@@ -1,0 +1,21 @@
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+import {createRequire} from 'node:module';
+import test from 'node:test';
+import {preparePtyHelper} from '../dist/utils/launch-pty.js';
+test('doctor shows account progress before waiting for its model probe',{skip:process.platform==='win32',timeout:15000},async t=>{
+  const home=fs.mkdtempSync(path.join(os.tmpdir(),'doctor-progress-'));
+  fs.mkdirSync(path.join(home,'.coding-helper'));fs.writeFileSync(path.join(home,'.coding-helper/config.yaml'),'lang: en_US\napi_key: fake\n');
+  const preload=path.join(home,'mock.cjs');
+  fs.writeFileSync(preload,"globalThis.fetch=async url=>{if(String(url).endsWith('/v1/models')){process.stdout.write('PROBE_STARTED');await new Promise(resolve=>setTimeout(resolve,250));return new Response(JSON.stringify({data:[{id:'model'}]}));}return new Response('{}');};\n");
+  preparePtyHelper(path.dirname(createRequire(import.meta.url).resolve('node-pty/package.json')));const pty=await import('node-pty');
+  const child=pty.spawn(process.execPath,['--require',preload,path.resolve('dist/cli.js'),'doctor'],{cwd:process.cwd(),cols:100,rows:30,env:{HOME:home,USERPROFILE:home,XDG_CONFIG_HOME:path.join(home,'.config'),PATH:'/usr/bin:/bin',TERM:'xterm-256color'}});
+  let output='',ended=false;const done=new Promise(resolve=>child.onExit(event=>{ended=true;resolve(event);}));
+  child.onData(data=>{output+=data;});
+  t.after(async()=>{if(!ended){child.kill('SIGKILL');await done;}fs.rmSync(home,{recursive:true,force:true});});
+  let timer;const result=await Promise.race([done,new Promise((_,reject)=>{timer=setTimeout(()=>reject(Error(output)),10000);})]).finally(()=>clearTimeout(timer));
+  assert.equal(result.exitCode,0,output);assert.ok(output.includes('PROBE_STARTED'),output);
+  assert.ok(output.slice(0,output.indexOf('PROBE_STARTED')).includes('Account availability'),output);
+});
