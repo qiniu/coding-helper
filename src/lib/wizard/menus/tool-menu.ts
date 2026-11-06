@@ -226,7 +226,7 @@ export function getMissingLatestVersionDisplayKey(fetchCompleted: boolean): stri
 
 // 装载配置到工具
 async function loadConfig(tool: ITool): Promise<void> {
-  const apiKey = configManager.getApiKey();
+  const apiKey = configManager.getConnection(tool.name).apiKey;
   if (!apiKey) {
     uiRenderer.renderError(t('apikey_not_set'));
     await promptHelper.pressEnter();
@@ -244,7 +244,7 @@ async function loadConfig(tool: ITool): Promise<void> {
 }
 
 async function applyConfig(tool: ITool): Promise<void> {
-  const apiKey = configManager.getApiKey();
+  const apiKey = configManager.getConnection(tool.name).apiKey;
   if (!apiKey) {
     uiRenderer.renderError(t('apikey_not_set'));
     await promptHelper.pressEnter();
@@ -370,13 +370,13 @@ export async function updateTool(tool: ITool): Promise<void> {
 }
 
 // 查看当前配置
-async function viewConfig(tool: ITool): Promise<void> {
+export async function viewConfig(tool: ITool): Promise<void> {
   uiRenderer.renderHeader();
   uiRenderer.renderTitle(t('config_view_title'));
 
-  const apiKey = configManager.getApiKey();
+  const { apiKey, baseUrl } = configManager.getConnection(tool.name);
   const notSet = t('config_view_not_set');
-  uiRenderer.renderConfigItem(t('config_view_endpoint'), configManager.baseUrl);
+  uiRenderer.renderConfigItem(t('config_view_endpoint'), baseUrl);
   uiRenderer.renderConfigItem(
     t('config_view_apikey'),
     apiKey ? uiRenderer.maskApiKey(apiKey) : chalk.dim(notSet),

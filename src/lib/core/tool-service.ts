@@ -51,15 +51,18 @@ export function hasSavedToolModelConfig(tool: Pick<ITool, 'name'>, models: Model
 export async function applyTool(tool: ITool, connection?: { apiKey: string; baseUrl: string; models?: ModelConfig }): Promise<ToolResult> {
   if (tool.launchOnly) return { tool, status: 'skipped', reason: 'setup_reason_launch_only' };
   if (isPreview() && tool.supportsPreview !== true) return { tool, status: 'failed', reason: 'setup_preview_unsupported' };
+  let apiKey: string | undefined;
   try {
-    const apiKey = connection?.apiKey ?? configManager.getApiKey();
+    const resolved = connection ?? configManager.getConnection(tool.name);
+    apiKey = resolved.apiKey;
     if (!apiKey) return { tool, status: 'failed', reason: 'apikey_not_set' };
     const models = connection?.models ?? configManager.getModels();
     if (tool.requiresModelSelection && !hasSavedToolModelConfig(tool, models)) return { tool, status: 'skipped', reason: 'setup_reason_models_required' };
-    await tool.loadConfig(apiKey, connection?.baseUrl ?? configManager.baseUrl, models);
+    await tool.loadConfig(apiKey, resolved.baseUrl, models);
     return { tool, status: 'success' };
   } catch (error) {
-    return { tool, status: 'failed', reason: error instanceof Error ? error.message : String(error) };
+    const message = error instanceof Error ? error.message : String(error);
+    return { tool, status: 'failed', reason: apiKey ? message.split(apiKey).join('[REDACTED]') : message };
   }
 }
 

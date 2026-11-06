@@ -18,18 +18,19 @@ export async function runCommand(toolName: string, args: string[]): Promise<void
     uiRenderer.renderHint(t('run_supported_tools', { tools: toolManager.getAll().filter(item => item.getLaunchEnv).map(item => item.name).join(', ') }));
     process.exitCode = 1; return;
   }
-  const apiKey = configManager.getApiKey();
+  const connection = configManager.getConnection(tool.name);
+  const apiKey = connection.apiKey;
   if (!apiKey) { uiRenderer.renderError(t('apikey_not_set')); process.exitCode = 1; return; }
   let temporary: string | undefined;
   try {
-    const variables = tool.getLaunchEnv(apiKey, configManager.baseUrl, configManager.getModels());
+    const variables = tool.getLaunchEnv(apiKey, connection.baseUrl, configManager.getModels());
     if (tool.isInstalled() === false) throw new Error(t('tool_not_installed', { tool: tool.displayName, command: tool.installCommand }));
     let passArgs = args[0] === '--' ? args.slice(1) : args;
     if (tool.getLaunchSettings) {
       if (passArgs.some(arg => arg === '--settings' || arg.startsWith('--settings='))) throw new Error('The launcher manages session settings; do not pass --settings.');
       temporary = fs.mkdtempSync(path.join(os.tmpdir(), 'coding-helper-launch-'));
       const settings = path.join(temporary, 'settings.json');
-      fs.writeFileSync(settings, JSON.stringify(tool.getLaunchSettings(apiKey, configManager.baseUrl, configManager.getModels())), {mode:0o600});
+      fs.writeFileSync(settings, JSON.stringify(tool.getLaunchSettings(apiKey, connection.baseUrl, configManager.getModels())), {mode:0o600});
       passArgs = ['--settings', settings, ...passArgs];
     }
     const executable = findCommand(tool.command, tool.searchPaths) ?? tool.command;

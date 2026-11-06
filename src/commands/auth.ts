@@ -50,7 +50,7 @@ export async function authCommand(tokenOrAction?: string, options: { sync?: bool
       uiRenderer.renderHint(t('auth_reload_tools', { tools: availableTools }));
       return;
     }
-    const apiKey = configManager.getApiKey();
+    const apiKey = configManager.getConnection(tool.name).apiKey;
     if (tool.launchOnly) {
       uiRenderer.renderHint(t('setup_reason_launch_only'));
       return;

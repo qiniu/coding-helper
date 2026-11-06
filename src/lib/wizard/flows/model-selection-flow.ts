@@ -45,7 +45,7 @@ export async function runModelSelectionFlow(): Promise<boolean> {
   // 清屏后重新绘制，避免 confirm 行残留
   uiRenderer.renderHeader();
 
-  const apiKey = configManager.getApiKey();
+  const { apiKey, baseUrl } = configManager.getConnection('claude-code');
   if (!apiKey) {
     uiRenderer.renderError(t('apikey_not_set'));
     return false;
@@ -56,7 +56,7 @@ export async function runModelSelectionFlow(): Promise<boolean> {
 
   let models: ModelInfo[];
   try {
-    models = await modelService.fetchModels(configManager.baseUrl, apiKey);
+    models = await modelService.fetchModels(baseUrl, apiKey);
     spinner.succeed();
   } catch (error: unknown) {
     const msg = error instanceof Error ? error.message : t('error_unknown');

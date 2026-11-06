@@ -13,7 +13,7 @@ export const HERMES_MANUAL_MODEL_VALUE = '__manual_model__';
 
 // 让用户选择 Hermes Agent 的默认模型，返回选中的模型 ID
 export async function runHermesModelSelectionFlow(): Promise<string | null> {
-  const apiKey = configManager.getApiKey();
+  const { apiKey, baseUrl } = configManager.getConnection('hermes');
   if (!apiKey) {
     uiRenderer.renderError(t('apikey_not_set'));
     return null;
@@ -34,7 +34,7 @@ export async function runHermesModelSelectionFlow(): Promise<string | null> {
 
   let models: MarketModelInfo[];
   try {
-    models = await marketModelService.fetchModels(configManager.baseUrl, apiKey);
+    models = await marketModelService.fetchModels(baseUrl, apiKey);
     spinner.succeed();
   } catch (error: unknown) {
     const msg = error instanceof Error ? error.message : t('error_unknown');
