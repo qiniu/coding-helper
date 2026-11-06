@@ -1,3 +1,4 @@
+import { safeToolFailureReason } from '../lib/wizard/ui/tool-results.js';
 import { i18n, t } from '../lib/i18n.js';
 import { toolManager } from '../lib/tool-manager.js';
 import { exitCodeFor, getRestoreTargets, removeTool } from '../lib/core/tool-service.js';
@@ -5,13 +6,15 @@ import { promptHelper } from '../lib/wizard/ui/prompt-helper.js';
 import { uiRenderer } from '../lib/wizard/ui/ui-renderer.js';
 import type { ITool } from '../lib/tools/base-tool.js';
 
+class RestoreInputError extends Error {}
+
 // 别名去重；先验证完整列表，避免还原了一半才发现未知工具。
 function resolveTools(list: string): ITool[] {
   const names = list.split(',').map(name => name.trim()).filter(Boolean);
-  if (!names.length) throw new Error(t('restore_empty_tools'));
+  if (!names.length) throw new RestoreInputError(t('restore_empty_tools'));
   const tools = names.map(name => {
     const tool = toolManager.get(name);
-    if (!tool) throw new Error(t('auth_unknown_tool', { tool: name }));
+    if (!tool) throw new RestoreInputError(t('auth_unknown_tool', { tool: name }));
     return tool;
   });
   return [...new Set(tools)];
@@ -28,7 +31,7 @@ export async function restoreCommand(list: string | undefined, options: { yes?: 
       return;
     }
     if (!options.yes) {
-      if (!process.stdin.isTTY || !process.stdout.isTTY) throw new Error(t('restore_require_yes'));
+      if (!process.stdin.isTTY || !process.stdout.isTTY) throw new RestoreInputError(t('restore_require_yes'));
       const confirmed = await promptHelper.confirm(t('restore_confirm', { tools: targets.map(tool => tool.displayName).join(', ') }), false);
       if (!confirmed) { process.exitCode = 0; return; }
     }
@@ -41,12 +44,12 @@ export async function restoreCommand(list: string | undefined, options: { yes?: 
       else if (result.status === 'skipped') uiRenderer.renderHint(t(result.reason ?? 'setup_reason_launch_only'));
       else {
         uiRenderer.renderError(t('tool_config_unload_failed', { tool: tool.displayName }));
-        if (result.reason) uiRenderer.renderError(t(result.reason));
+        if (result.reason) uiRenderer.renderError(t(safeToolFailureReason(result.reason, 'restore_failed_safe')));
       }
     }
     process.exitCode = exitCodeFor(results);
   } catch (error) {
-    uiRenderer.renderError(error instanceof Error ? error.message : String(error));
+    uiRenderer.renderError(error instanceof RestoreInputError ? error.message : t(safeToolFailureReason(error instanceof Error ? error.message : undefined, 'restore_failed_safe')));
     process.exitCode = 1;
   }
 }
