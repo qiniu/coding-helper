@@ -3,6 +3,7 @@
 export interface QuickArgs {
   // 工具名（含别名，原样保留，由调用方解析）；'all' 表示本机已安装的全部
   tools: string[] | 'all';
+  profile?: string;
   apiKey?: string;
   model?: string;
 }
@@ -23,6 +24,10 @@ export function parseQuickArgs(target: string, rest: string[], options: { apiKey
     args.model = options.model.trim();
   }
   for (const token of rest) {
+    if (token.startsWith('@')) {
+      if (args.profile || !isValidProfileName(token.slice(1))) throw new Error('invalid_profile');
+      args.profile = token.slice(1); continue;
+    }
     if (/^sk-/.test(token) || (options.apiKey === undefined && options.model !== undefined && !args.apiKey)) {
       if (args.apiKey) throw new Error('duplicate_key');
       args.apiKey = token;
@@ -139,4 +144,8 @@ function editDistance(a: string, b: string): number {
     }
   }
   return row[b.length];
+}
+
+export function isValidProfileName(name: string): boolean {
+  return /^[A-Za-z0-9_-]{1,32}$/.test(name) && !['__proto__', 'constructor', 'prototype'].includes(name);
 }
