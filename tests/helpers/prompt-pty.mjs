@@ -20,7 +20,14 @@ export async function runPrompt(source, steps, columns = 80, options = {}) {
         // 按键也可由当前终端内容决定，避免测试依赖会随安装状态变化的固定行号。
         if (found !== -1) {
           cursor = found + (match ? match[0].length : expected.length); index++;
-          try { child.write(typeof keys === 'function' ? keys(text) : keys); }
+          try {
+            const action = typeof keys === 'function' ? keys(text) : keys;
+            if (typeof action === 'string') child.write(action);
+            else if (action) {
+              if (action.resize) child.resize(action.resize.columns, action.resize.rows);
+              if (action.keys) child.write(action.keys);
+            }
+          }
           catch (error) { clearTimeout(timer); reject(error); }
         }
       });

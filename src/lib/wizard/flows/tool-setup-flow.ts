@@ -7,7 +7,7 @@ import { t } from '../../i18n.js';
 import { applyTool } from '../../core/tool-service.js';
 import { toolManager } from '../../tool-manager.js';
 import { promptHelper } from '../ui/prompt-helper.js';
-import { uiRenderer } from '../ui/ui-renderer.js';
+import { uiRenderer, FLOW_STEP_KEYS, type StepInfo, checklistRows } from '../ui/ui-renderer.js';
 import type { ITool } from '../../tools/base-tool.js';
 
 // 切换前展示已接入工具的配置，不把读取失败或缺失记录猜成某个默认模型。
@@ -21,13 +21,13 @@ function currentModelDetail(tool: ITool): string {
 }
 
 // 首次配置与确认页调整共用计划：保留内置模型入口和 Buddy 多模型选择，确认前不保存配置。
-async function editSetupPlan(tool: ITool, from?: PlanItem): Promise<PlanItem | undefined> {
-  return editToolModels(tool, from);
+async function editSetupPlan(tool: ITool, from?: PlanItem, step?: StepInfo): Promise<PlanItem | undefined> {
+  return editToolModels(tool, from, { step });
 }
 
-export async function setupTool(tool: ITool): Promise<boolean> {
+export async function setupTool(tool: ITool, step?: StepInfo): Promise<boolean> {
   // 用户取消模型配置时跳过后续装载与就绪提示，避免误报"配置成功"
-  const completed = await tool.runModelConfigFlow();
+  const completed = await tool.runModelConfigFlow({ step });
   if (!completed) return false;
   if (tool.launchOnly) {
     uiRenderer.renderHeader();
@@ -63,18 +63,23 @@ export async function setupTool(tool: ITool): Promise<boolean> {
   return true;
 }
 
-// 初始化向导专用：选择工具 → 引导配置；取消或失败返回 false。
-export async function runToolSetupFlow(candidates?: ITool[], options: { showCurrentModels?: boolean } = {}): Promise<boolean> {
+// 选择工具 → 选模型 → 确认写入；取消或失败返回 false。
+// first：「选工具」在整个流程中的步序（首次向导为第 4 步，菜单里为第 1 步）
+export async function runToolSetupFlow(candidates?: ITool[], steps: { first: number; total: number; keys: string[] } = { first: 1, total: FLOW_STEP_KEYS.length, keys: FLOW_STEP_KEYS }, options: { showCurrentModels?: boolean } = {}): Promise<boolean> {
   const tools = candidates ?? toolManager.getAll();
+  const step = (offset: number): StepInfo => ({ current: steps.first + offset, total: steps.total, keys: steps.keys });
+  let targets: ITool[] | undefined;
   toolSelection: while (true) {
-    const targets = await selectTargets(t('setup_select_tools'), tools, { detail: options.showCurrentModels ? currentModelDetail : undefined });
+    // 进度 2 + 标题与说明 3 + 整个工具勾选列表
+    uiRenderer.renderPage(t('page_tools'), step(0), t('page_tools_hint'), undefined, { bodyRows: 5 + checklistRows(tools.length) });
+    targets = await selectTargets(t('setup_select_tools'), tools, { detail: options.showCurrentModels ? currentModelDetail : undefined });
     if (!targets?.length) return false;
     const previewable = targets.filter(tool => !tool.launchOnly && tool.supportsPreview === true);
     if (previewable.length) while (true) {
       const plans: PlanItem[] = [];
       const shared = previewable.filter(tool => !['claude-code', 'codebuddy', 'workbuddy'].includes(tool.name));
       for (const tool of previewable.filter(tool => !shared.includes(tool))) {
-        const plan = await editSetupPlan(tool);
+        const plan = await editSetupPlan(tool, undefined, step(1));
         if (!plan) continue toolSelection;
         plans.push(plan);
       }
@@ -83,18 +88,18 @@ export async function runToolSetupFlow(candidates?: ITool[], options: { showCurr
           try { return { tool: tool.displayName, model: currentMainModel(tool) }; }
           catch { return { tool: tool.displayName }; }
         }) : undefined;
-        const picked = await pickModel({ tools: shared, currentModels });
+        const picked = await pickModel({ tools: shared, step: step(1), currentModels });
         if (picked === 'back' || !('model' in picked)) continue toolSelection;
         plans.push(...shared.map(tool => planForTool(tool, picked.model)));
       }
       const ordered = previewable.map(tool => plans.find(plan => plan.tool === tool)!);
-      const results = await confirmAndWrite(t('page_confirm'), ordered, [], { edit: item => editSetupPlan(item.tool, item) });
+      const results = await confirmAndWrite(t('page_confirm'), ordered, [], { step: step(2), edit: item => editSetupPlan(item.tool, item, step(1)) });
       if (results !== 'back') { await promptHelper.pressEnter(); if (results.some(result => result.status === 'failed')) return false; break; }
     }
     // 启动器只配置模型；外部 writer 使用原有的单工具配置流程单独处理。
     for (const tool of targets.filter(tool => tool.launchOnly || tool.supportsPreview !== true)) {
       if (!tool.launchOnly) uiRenderer.renderHint(t('setup_preview_fallback', { tool: tool.displayName }));
-      if (!await setupTool(tool)) continue toolSelection;
+      if (!await setupTool(tool, step(1))) continue toolSelection;
     }
     return true;
   }
