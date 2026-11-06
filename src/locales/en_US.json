@@ -152,7 +152,6 @@
   "config_view_not_set": "Not set",
   "press_enter_to_continue": "Press Enter to continue",
   "company_announcement": "You are using Qiniu Cloud AI model inference service 🚀",
-
   "codebuddy_select_models": "Select models to configure (space to select, enter to confirm)",
   "codebuddy_no_models_selected": "No models selected, configuration cancelled",
   "codebuddy_config_success": "Configured {{count}} model(s) to CodeBuddy",
@@ -166,7 +165,6 @@
   "codebuddy_models_not_configured": "CodeBuddy models not configured. Please use \"Configure models\" to select models first.",
   "codebuddy_models_unavailable": "The following configured models are no longer available in the Qiniu model market (likely delisted) and will be skipped: {{models}}",
   "codebuddy_all_models_unavailable": "None of the configured models are available in the Qiniu model market (likely delisted): {{models}}. Please reconfigure the models and try again.",
-
   "workbuddy_select_models": "Select models to configure (space to select, enter to confirm)",
   "workbuddy_no_models_selected": "No models selected, configuration cancelled",
   "workbuddy_config_success": "Configured {{count}} model(s) to WorkBuddy",
@@ -177,7 +175,6 @@
   "workbuddy_models_not_configured": "WorkBuddy models not configured. Please use \"Configure models\" to select models first.",
   "workbuddy_models_unavailable": "The following configured models are no longer available in the Qiniu model market (likely delisted) and will be skipped: {{models}}",
   "workbuddy_all_models_unavailable": "None of the configured models are available in the Qiniu model market (likely delisted): {{models}}. Please reconfigure the models and try again.",
-
   "hermes_select_model": "Select the default model for Hermes Agent (type to search or enter a custom model ID): ",
   "hermes_no_model_selected": "No model selected, configuration cancelled",
   "generic_current_model": "{{tool}} currently uses: {{model}}",
@@ -191,18 +188,15 @@
   "hermes_fetch_models_failed": "Failed to fetch model list: {{error}}",
   "hermes_current_model": "Current configured model: {{model}}",
   "hermes_model_not_configured": "Hermes Agent model is not configured. Please use \"Configure models\" to select a model first.",
-
   "config_view_codebuddy_models": "CodeBuddy Models",
   "config_view_workbuddy_models": "WorkBuddy Models",
   "config_view_hermes_model": "Hermes Agent Model",
   "config_view_codex_model": "Model",
   "codex_fixed_model_hint": "Codex uses a fixed model \"{{model}}\" via Qiniu proxy. No selection needed.",
   "codex_backup_created": "Existing Codex configuration backed up to: {{path}}",
-
   "tool_desktop_launch_hint": "{{tool}} is a desktop application. Please launch it manually.",
   "tool_desktop_update_hint": "{{tool}} is a desktop application. Please visit the official website to download the latest version.",
   "tool_status_unknown": "Cannot detect (desktop app)",
-
   "auth_reload_usage": "Usage: coding-helper auth reload <tool>",
   "auth_reload_tools": "Available tools: {{tools}}",
   "auth_unknown_tool": "Unknown tool: {{tool}}",
@@ -211,5 +205,10 @@
   "run_unsupported": "{{tool}} does not support launcher mode",
   "run_supported_tools": "Supported tools: {{tools}}",
   "setup_reason_launch_only": "Copilot uses session environment variables. Run coding-helper run copilot instead of loading a configuration file.",
-  "droid_select_loaded_model": "Model registered. Start Droid, run /model, and select Qiniu: <your selected model> to activate it. The current session default has not changed."
+  "droid_select_loaded_model": "Model registered. Start Droid, run /model, and select Qiniu: <your selected model> to activate it. The current session default has not changed.",
+  "endpoint_custom": "Custom",
+  "endpoint_custom_option": "Custom URL",
+  "endpoint_custom_hint": "self-hosted or proxy gateway",
+  "endpoint_custom_prompt": "API base URL (e.g. https://llm.example.com, Qiniu-compatible)",
+  "endpoint_custom_invalid": "\"{{value}}\" is not a valid http(s) URL"
 }
