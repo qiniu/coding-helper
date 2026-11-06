@@ -108,6 +108,17 @@ class StateStore {
     return Object.hasOwn(tools, key) ? tools[key] : undefined;
   }
 
+  // 从已有日志提取工具名，不改写事务记录或另存一份装载状态。
+  getRecordedTools(): string[] {
+    return [...new Set(Object.keys(this.read().tools).map(key => {
+      try {
+        const identity: unknown = JSON.parse(key);
+        if (Array.isArray(identity) && identity.length === 2 && typeof identity[0] === 'string' && typeof identity[1] === 'string') return identity[0];
+      } catch { /* 兼容旧版按工具名保存的记录 */ }
+      return key;
+    }))];
+  }
+
   // 查找同一工具的文件记录，避免顺序和部分重叠绕过原值保护。
   getFileStates(tool: string): { file: string; state: ToolState }[] {
     return Object.entries(this.read().tools).flatMap(([key, state]) => {

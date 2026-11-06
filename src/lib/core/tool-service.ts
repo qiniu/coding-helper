@@ -1,5 +1,6 @@
 import { configManager, type ModelConfig } from '../config.js';
 import type { ITool } from '../tools/base-tool.js';
+import { stateStore } from './state-store.js';
 
 export interface ToolResult {
   tool: ITool;
@@ -67,6 +68,17 @@ export async function removeTool(tool: ITool): Promise<ToolResult> {
   } catch (error) {
     return { tool, status: 'failed', reason: error instanceof Error ? error.message : String(error) };
   }
+}
+
+// 即使用户改了线路或配置路径，也保留有记录的工具，让适配器给出准确恢复指引。
+export function getRestoreTargets(tools: ITool[]): ITool[] {
+  const recorded = new Set(stateStore.getRecordedTools());
+  return tools.filter(tool => {
+    if (tool.launchOnly) return false;
+    if (recorded.has(tool.name)) return true;
+    try { return tool.isConfigured?.() ?? false; }
+    catch { return false; }
+  });
 }
 
 // 全部失败为 1、部分失败为 2；没有失败（含跳过）为 0。
