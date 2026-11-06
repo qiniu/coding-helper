@@ -58,3 +58,10 @@ for (const [label, setup] of [
     checkCounts(out, 1);
   });
 }
+
+test('header tagline counts every registered tool, configurable plus launch-only', { skip: process.platform === 'win32' }, async () => {
+  const out = await runPrompt(head(), [[/Esc 退出/, '\x1b']], 120, { rows: 40 });
+  const { total, configurable, launchOnly } = counts(out);
+  assert.match(out, new RegExp(`${total} 款编程助手`));
+  assert.equal(total, configurable + launchOnly.length);
+});
