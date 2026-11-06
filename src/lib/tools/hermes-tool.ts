@@ -41,6 +41,11 @@ export class HermesTool implements ITool {
     }
   }
 
+  isConfigured(): boolean {
+    const config: unknown = parseYamlDocument(readHermesConfig()).toJS();
+    return isRecord(config) && isRecord(config.model) && isQiniuBaseUrl(config.model.base_url);
+  }
+
   async loadConfig(apiKey: string, baseUrl: string, models: ModelConfig): Promise<void> {
     if (!models.hermesModel) throw new Error(t('hermes_model_not_configured'));
     stateStore.withLock(() => {

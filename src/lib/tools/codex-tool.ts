@@ -1,13 +1,15 @@
 import { findCommand, commandVersion } from '../../utils/find-command.js';
+import { parse } from 'smol-toml';
+import { readTextFile } from '../core/safe-write.js';
 import { applyConfigEdits, restoreConfigEdits, parseConfigObject } from '../core/config-transaction.js';
 import { validateToml, upsertTopLevelTomlKey, removeTopLevelTomlKey, removeTomlTable as removeSharedTomlTable } from '../core/toml-edit.js';
-import { fetchModelLimits } from './openai-compat-tool.js';
+import { fetchModelLimits, isRecord } from './openai-compat-tool.js';
 import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
 import type { ITool } from './base-tool.js';
 import { configManager, type ModelConfig } from '../config.js';
-import { DEFAULT_ENDPOINT, getBaseUrl } from '../endpoints.js';
+import { DEFAULT_ENDPOINT, getBaseUrl, isQiniuBaseUrl } from '../endpoints.js';
 import { t } from '../i18n.js';
 import { uiRenderer } from '../wizard/ui/ui-renderer.js';
 import { promptHelper } from '../wizard/ui/prompt-helper.js';
@@ -59,12 +61,21 @@ export class CodexTool implements ITool {
   isInstalled(): boolean { return !!findCommand(this.command, this.searchPaths); }
 
   getConfig(): Record<string, unknown> {
-    const content = readCodexConfig();
     return {
       configPath: CODEX_CONFIG_FILE,
       authPath: CODEX_AUTH_FILE,
-      configured: hasManagedCodexConfig(content),
+      configured: this.isConfigured(),
     };
+  }
+
+  isConfigured(): boolean {
+    const config = parse(readTextFile(CODEX_CONFIG_FILE) ?? '');
+    const profile = typeof config.profile === 'string' && isRecord(config.profiles) ? config.profiles[config.profile] : undefined;
+    const provider = isRecord(profile)
+      ? profile.model_provider ?? config.model_provider : config.model_provider;
+    if (typeof provider !== 'string') return false;
+    const entry = isRecord(config.model_providers) ? config.model_providers[provider] : undefined;
+    return isRecord(entry) && isQiniuBaseUrl(entry.base_url);
   }
 
   clearModelConfig(): void {
@@ -215,17 +226,6 @@ export function buildCodexModelCatalog(models: CodexCatalogModel[]): string {
     experimental_supported_tools: [],
     base_instructions: 'You are Codex, a coding agent based on GPT-5.',
   })) }) + '\n';
-}
-
-function readCodexConfig(): string {
-  try {
-    if (fs.existsSync(CODEX_CONFIG_FILE)) {
-      return fs.readFileSync(CODEX_CONFIG_FILE, 'utf-8');
-    }
-  } catch {
-    // 文件不存在或读取失败时按空配置处理
-  }
-  return '';
 }
 
 function parseJsonObject(content: string): Record<string, unknown> {

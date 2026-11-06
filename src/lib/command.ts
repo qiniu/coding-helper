@@ -1,6 +1,6 @@
 import { runCommand } from '../commands/run.js';
 import { Command } from 'commander';
-import { authCommand, doctorCommand, langShowCommand, langSetCommand } from '../commands/index.js';
+import { authCommand, doctorCommand, langShowCommand, langSetCommand, statusCommand } from '../commands/index.js';
 import { Wizard } from './wizard/wizard.js';
 import { i18n } from './i18n.js';
 import { toolManager } from './tool-manager.js';
@@ -48,6 +48,12 @@ export function createProgram(): Command {
     .action(async (token?: string) => {
       await authCommand(token);
     });
+
+  // status - 只读查询安装与配置状态
+  program.command('status')
+    .description('Show coding tool installation and Qiniu configuration status')
+    .option('--json', 'print status as JSON')
+    .action((options: { json?: boolean }) => { statusCommand(options); });
 
   // doctor - 健康检查
   program

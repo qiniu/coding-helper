@@ -8,6 +8,29 @@ export interface ToolResult {
   reason?: string;
 }
 
+export interface ToolDetection {
+  tool: ITool;
+  installed: boolean | null;
+  version: string | null;
+  configured: boolean | null;
+  errors: string[];
+}
+
+// 检测失败与“未接入”分开；不把可能包含配置正文的解析错误直接写进 JSON。
+export function detectTool(tool: ITool): ToolDetection {
+  const result: ToolDetection = { tool, installed: null, version: null, configured: null, errors: [] };
+  try { result.installed = tool.isInstalled(); }
+  catch { result.errors.push('installation_detection_failed'); }
+  if (result.installed === true) {
+    try { result.version = tool.getVersion(); }
+    catch { result.errors.push('version_detection_failed'); }
+  }
+  if (!tool.isConfigured) result.errors.push('configuration_detection_unsupported');
+  else try { result.configured = tool.isConfigured(); }
+  catch { result.errors.push('configuration_detection_failed'); }
+  return result;
+}
+
 // 判断 helper 是否保存过模型；菜单不能仅根据客户端是否已接入决定首次引导。
 export function hasSavedToolModelConfig(tool: Pick<ITool, 'name'>, models: ModelConfig): boolean {
   switch (tool.name) {

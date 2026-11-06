@@ -46,6 +46,7 @@
 - **🧱 OpenCode Integration** — Add a Qiniu provider and make it the default model; unloading restores the previous values
 - **🛡️ OpenCode safe writes** — For OpenCode, back up the original file to `~/.coding-helper/backups/` and write atomically; a config that fails to parse is reported, never overwritten
 - **🔍 Health Check** — Built-in `doctor` command to verify config, API Key, network, tools, Git, and Node.js
+- **Tool status** — `coding-helper status` shows installation and Qiniu configuration state. Add `--json` for machine-readable output without API keys. Configuration state does not verify account or network health; detection errors return exit code 1.
 - **🌍 Internationalization** — Supports Chinese (zh_CN) and English (en_US)
 
 ## 📋 Prerequisites

@@ -37,6 +37,9 @@ export interface ITool {
   // 获取当前工具配置
   getConfig(): Record<string, unknown>;
 
+  // 只检查持久配置是否接入七牛，不探测网络或泄露 Key。
+  isConfigured?(): boolean;
+
   // 清除模型配置
   clearModelConfig(): void | Promise<void>;
 

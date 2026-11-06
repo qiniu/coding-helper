@@ -44,10 +44,21 @@ export function findCommand(command: string, extra: string[] = []): string | und
 }
 
 export function commandVersion(file: string): string | null {
+  let home: string | undefined;
   try {
-    const result = spawn.sync(file, ['--version'], { stdio: 'pipe', encoding: 'utf8', timeout: 10000 });
+    home = fs.mkdtempSync(path.join(os.tmpdir(), 'coding-helper-version-'));
+    // 部分客户端 --version 也会初始化缓存；不继承用户凭据或写入真实 HOME。
+    const env: NodeJS.ProcessEnv = {
+      PATH: process.env.PATH, SystemRoot: process.env.SystemRoot, ComSpec: process.env.ComSpec, PATHEXT: process.env.PATHEXT,
+      LANG: process.env.LANG, LC_ALL: process.env.LC_ALL, TMPDIR: process.env.TMPDIR, TEMP: process.env.TEMP, TMP: process.env.TMP,
+      HOME: home, USERPROFILE: home, APPDATA: path.join(home, 'AppData/Roaming'), LOCALAPPDATA: path.join(home, 'AppData/Local'),
+      XDG_CONFIG_HOME: path.join(home, '.config'), XDG_CACHE_HOME: path.join(home, '.cache'),
+      XDG_DATA_HOME: path.join(home, '.local/share'), XDG_STATE_HOME: path.join(home, '.local/state'), NO_COLOR: '1', CI: '1',
+    };
+    const result = spawn.sync(file, ['--version'], { stdio: 'pipe', encoding: 'utf8', timeout: 10000, env, cwd: home });
     if (result.error || result.status !== 0) return null;
     const output = result.stdout.trim();
     return (output.match(/(\d+\.\d+\.\d+)/)?.[1] ?? output) || null;
   } catch { return null; }
+  finally { if (home) fs.rmSync(home, { recursive: true, force: true }); }
 }

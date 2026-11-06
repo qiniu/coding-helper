@@ -2,6 +2,7 @@ import os from 'node:os';
 import path from 'node:path';
 import type { ModelConfig } from '../config.js';
 import { t } from '../i18n.js';
+import { isQiniuBaseUrl } from '../endpoints.js';
 import { readJsonObjectStrict, formatJsonLike } from '../core/safe-write.js';
 import { applyConfigEdits, parseConfigObject } from '../core/config-transaction.js';
 import { OpenAICompatTool, fetchModelLimits, isRecord, openAIBaseUrl, type ModelLimits } from './openai-compat-tool.js';
@@ -52,8 +53,8 @@ export class DroidTool extends OpenAICompatTool {
   }
 
   isConfigured(): boolean {
-    const models = this.getConfig().customModels;
-    return Array.isArray(models) && models.some(isQiniuModel);
+    const models = readJsonObjectStrict(droidSettingsFile()).customModels;
+    return Array.isArray(models) && models.some(model => isQiniuModel(model) && isRecord(model) && isQiniuBaseUrl(model.baseUrl));
   }
 
   async loadConfig(apiKey: string, baseUrl: string, models: ModelConfig): Promise<void> {
