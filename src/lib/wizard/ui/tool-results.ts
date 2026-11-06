@@ -5,7 +5,8 @@ import { uiRenderer } from './ui-renderer.js';
 const SAFE_REASON_KEYS = new Set(['apikey_not_set', 'setup_preview_unsupported', 'setup_reason_models_required', 'quick_save_failed', 'tool_config_load_failed',
   'plan_write_failed', 'plan_validation_failed', 'rebaseline_failed', 'rebaseline_recovery_failed', 'helper_settings_failed', 'context_invalid',
   'tool_failure_unrecorded', 'tool_failure_recovery', 'tool_failure_path', 'tool_failure_changed',
-  'tool_failure_retry', 'tool_failure_conflict', 'tool_failure_protected', 'tool_failure_permissions']);
+  'tool_failure_retry', 'tool_failure_conflict', 'tool_failure_protected', 'tool_failure_permissions',
+  'dsh_desktop_profile_unsupported', 'dsh_desktop_profile_missing']);
 
 // 保留可操作的恢复提示；未知解析异常可能包含旧凭据，不将原文带入终端。
 export function safeToolFailureReason(reason?: string, fallback = 'tool_config_load_failed'): string {
@@ -31,7 +32,10 @@ export function jsonToolResults(results: ToolResult[]): object[] {
 
 export function renderToolResults(results: ToolResult[], apiKey?: string, preview = false): void {
   for (const { tool, status, reason } of results) {
-    if (status === 'success') uiRenderer.renderSuccess(t(preview ? 'setup_preview_ready' : 'tool_config_loaded', { tool: tool.displayName }));
+    if (status === 'success') {
+      uiRenderer.renderSuccess(t(preview ? 'setup_preview_ready' : 'tool_config_loaded', { tool: tool.displayName }));
+      if (!preview) for (const note of tool.getLoadConfigNotes?.() ?? []) uiRenderer.renderHint(note);
+    }
     else if (status === 'skipped') uiRenderer.renderHint(`${tool.displayName}: ${t(reason ?? '')}`);
     else {
       const message = t(reason ?? 'tool_config_load_failed', { tool: tool.displayName });

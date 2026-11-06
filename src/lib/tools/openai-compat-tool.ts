@@ -88,7 +88,7 @@ export abstract class OpenAICompatTool implements ITool {
   updateCommand?: string;
   npmPackageName?: string;
 
-  isInstalled(): boolean { return !!findCommand(this.command, this.searchPaths); }
+  isInstalled(): boolean | null { return !!findCommand(this.command, this.searchPaths); }
 
   getVersion(): string | null { const file = findCommand(this.command, this.searchPaths); return file ? commandVersion(file) : null; }
 
