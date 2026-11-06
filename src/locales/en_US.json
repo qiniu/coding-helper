@@ -1,4 +1,8 @@
 {
+  "quick_save_failed": "Client settings were applied, but helper settings could not be saved. Fix helper permissions or use restore to undo client changes.",
+  "quick_start": "Start the tool",
+  "quick_failed": "Quick configuration failed. Check the tool name, key, model, account and existing configuration; use doctor for diagnostics.",
+  "quick_model_incompatible": "The model did not produce a compatible Responses stream.",
   "sync_select_tools": "Select Qiniu clients to update; select none to keep their settings",
   "sync_cli_hint": "Key/endpoint saved. Use auth <key> --sync to update connected Qiniu clients.",
   "setup_select_tools": "Select tools to configure",

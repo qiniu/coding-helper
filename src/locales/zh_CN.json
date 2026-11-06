@@ -1,4 +1,8 @@
 {
+  "quick_save_failed": "客户端已配置，但 helper 设置保存失败，请检查权限，或用 restore 撤销客户端改动。",
+  "quick_start": "启动工具",
+  "quick_failed": "快捷配置失败，请检查工具名、Key、模型、账户与已有配置，可用 doctor 诊断。",
+  "quick_model_incompatible": "模型未返回兼容的 Responses 流。",
   "sync_select_tools": "选择要同步的七牛客户端；不选择则保留客户端配置",
   "sync_cli_hint": "Key/线路已保存，可用 auth <key> --sync 更新仍接入七牛的客户端。",
   "setup_select_tools": "选择要配置的工具",
