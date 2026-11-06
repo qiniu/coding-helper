@@ -1,8 +1,7 @@
-import ora from 'ora';
+import type { ToolModelFlowContext } from '../../tools/base-tool.js';
 import { t } from '../../i18n.js';
 import { configManager } from '../../config.js';
 import {
-  marketModelService,
   getModelCapabilities,
   type MarketModelInfo,
 } from '../../market-model-service.js';
@@ -12,7 +11,7 @@ import { uiRenderer } from '../ui/ui-renderer.js';
 export const HERMES_MANUAL_MODEL_VALUE = MANUAL_MODEL_VALUE;
 
 // 让用户选择 Hermes Agent 的默认模型，返回选中的模型 ID
-export async function runHermesModelSelectionFlow(): Promise<string | null> {
+export async function runHermesModelSelectionFlow(context: ToolModelFlowContext = {}): Promise<string | null> {
   const { apiKey, baseUrl } = configManager.getConnection('hermes');
   if (!apiKey) {
     uiRenderer.renderError(t('apikey_not_set'));
@@ -21,54 +20,21 @@ export async function runHermesModelSelectionFlow(): Promise<string | null> {
 
   const previous = configManager.getModels().hermesModel;
   if (previous) {
-    uiRenderer.renderHeader();
+    uiRenderer.renderPage(t('hermes_select_model'), context.step);
     uiRenderer.renderHint(t('hermes_current_model', { model: previous }));
     const reuse = await promptHelper.confirm(t('hermes_reuse_previous_selection'), true);
     if (reuse) {
+      configManager.rememberModel(previous);
       return previous;
     }
   }
 
-  uiRenderer.renderHeader();
-  const spinner = ora(t('hermes_fetching_models')).start();
-
-  let models: MarketModelInfo[];
-  try {
-    models = await marketModelService.fetchModels(baseUrl, apiKey);
-    spinner.succeed();
-  } catch (error: unknown) {
-    const msg = error instanceof Error ? error.message : t('error_unknown');
-    spinner.fail(t('hermes_fetch_models_failed', { error: msg }));
-    return null;
-  }
-
-  if (models.length === 0) {
-    uiRenderer.renderWarning(t('model_no_models'));
-    return null;
-  }
-
-  uiRenderer.renderHeader();
-
-  const choices = buildHermesModelChoices(models);
-
-  const selected = await promptHelper.searchSelect(t('hermes_select_model'), choices);
-
-  if (!selected) {
-    uiRenderer.renderWarning(t('hermes_no_model_selected'));
-    return null;
-  }
-
-  if (selected === HERMES_MANUAL_MODEL_VALUE) {
-    const manual = await promptHelper.input(t('model_manual_prompt'));
-    const model = manual.trim();
-    if (!model) {
-      uiRenderer.renderWarning(t('hermes_no_model_selected'));
-      return null;
-    }
-    return model;
-  }
-
-  return selected;
+  const { toolManager } = await import('../../tool-manager.js');
+  const tool = toolManager.get('hermes');
+  const picked = await promptHelper.pickModel({ tools: tool ? [tool] : [], connection: configManager.getConnection('hermes'), step: context.step, title: t('hermes_select_model') });
+  if (picked === 'back' || !('model' in picked)) return null;
+  configManager.rememberModel(picked.model);
+  return picked.model;
 }
 
 export function buildHermesModelChoices(

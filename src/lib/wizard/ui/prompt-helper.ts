@@ -1,5 +1,6 @@
 import inquirer from 'inquirer';
-import { menuPrompt } from './prompts.js';
+import { pickModel, pickModels, type MultiPickOptions, type PickOptions, type PickResult } from '../flows/model-pick-flow.js';
+import { menuPrompt, checkPrompt } from './prompts.js';
 import { scoreModel, closestModels, resolveModelId, parseModelQuery, type SearchableModel } from '../../core/model-search.js';
 import { RECOMMENDED_MODELS } from '../../core/quick-args.js';
 import { t } from '../../i18n.js';
@@ -13,6 +14,8 @@ export const MANUAL_MODEL_VALUE = '__manual_model__';
 
 // inquirer 封装 - 统一交互式 prompt
 export const promptHelper = {
+  async pickModel(options: PickOptions): Promise<PickResult> { return pickModel(options); },
+  async pickModels(options: MultiPickOptions): Promise<string[] | undefined> { return pickModels(options); },
   // 单选列表
   async select<T extends string>(message: string, choices: { name: string; value: T }[]): Promise<T> {
     const { answer } = await inquirer.prompt([
@@ -86,18 +89,8 @@ export const promptHelper = {
     ]);
   },
 
-  // 多选列表
-  async checkbox<T extends string>(message: string, choices: { name: string; value: T }[]): Promise<T[]> {
-    const { answer } = await inquirer.prompt([
-      {
-        type: 'checkbox',
-        name: 'answer',
-        message,
-        choices,
-        pageSize: 15,
-      },
-    ]);
-    return answer as T[];
+  async checkbox<T extends string>(message: string, choices: { name: string; value: T }[], options: { allowEmpty?: boolean } = {}): Promise<T[]> {
+    return await checkPrompt({ message, allowEmpty: options.allowEmpty ?? true, items: choices.map(choice => ({ value: choice.value, label: choice.name })) }) ?? [];
   },
 
   // 搜索+自动补全选择（同时展示输入框和可滚动列表，支持自定义输入和跳过）

@@ -50,3 +50,28 @@ test('real PTY search box shows a blinking cursor before the placeholder, after 
  assert.ok(raw.slice(cleared).includes('\x1B[?25h'), 'cursor not restored');
  assert.match(raw, /RESULT.*"action":"escape"/);
 });
+// 长列表：打开时当前项居中并带 ▪ 标记，列表下方提示上下还有几项，PgUp / PgDn / Home / End 翻页
+const longMenu = head + `import {i18n} from './dist/lib/i18n.js';i18n.init('zh_CN');const items=Array.from({length:40},(_,i)=>({value:'m'+i,label:'model-'+String(i).padStart(2,'0'),current:i===20}));console.log('RESULT',JSON.stringify(await menuPrompt({message:'LONG_READY',escape:true,pageSize:10,default:'m20',items})));`;
+const lastMenuFrame = text => text.slice(text.lastIndexOf('? LONG_READY'));
+test('real PTY long menu centers the current item, marks it and shows how many rows are hidden', { skip: process.platform === 'win32' }, async () => {
+ const out = await runPrompt(longMenu, [[/下面还有[^]*返回/, '\r']], 60, { rows: 24 });
+ const frame = lastMenuFrame(out.slice(0, out.lastIndexOf('✔')));
+ assert.match(frame, /❯▪ model-20/);
+ // 当前项在 10 行窗口的中间：model-15 … model-24
+ assert.match(frame, /model-15[^]*model-24/);
+ assert.ok(!frame.includes('model-14') && !frame.includes('model-25'), frame);
+ assert.match(frame, /↑ 上面还有 15 个 +↓ 下面还有 15 个/);
+ assert.match(frame, /PgUp\/PgDn 翻页/);
+ assert.match(out, /RESULT \{"value":"m20"/);
+});
+for (const [name, keys, value] of [['PageDown', '\x1b[6~', 'm30'], ['PageUp', '\x1b[5~', 'm10'], ['Home', '\x1b[H', 'm0'], ['End', '\x1b[F', 'm39']]) {
+ test(`real PTY long menu ${name} jumps to ${value}`, { skip: process.platform === 'win32' }, async () => {
+  const out = await runPrompt(longMenu, [[/下面还有[^]*返回/, keys], [new RegExp(`❯ ? ?model-${value.slice(1).padStart(2, '0')}`), '\r']], 60, { rows: 24 });
+  assert.match(out, new RegExp(`RESULT \\{"value":"${value}"`));
+ });
+}
+// 不超出一页的短菜单：不显示「还有几个」，也不提示翻页键
+test('real PTY short menu shows no overflow hint or page keys', { skip: process.platform === 'win32' }, async () => {
+ const out = await runPrompt(head + `import {i18n} from './dist/lib/i18n.js';i18n.init('zh_CN');console.log('RESULT',JSON.stringify(await menuPrompt({message:'SHORT_READY',escape:true,items:[{value:'a',label:'Alpha'},{value:'b',label:'Beta'}]})));`, [[/返回/, '\r']], 60);
+ assert.ok(!/还有|PgUp/.test(out), out);
+});
