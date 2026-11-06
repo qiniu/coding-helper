@@ -1,4 +1,5 @@
 import { runCommand } from '../commands/run.js';
+import { setupCommand } from '../commands/setup.js';
 import { Command } from 'commander';
 import { authCommand, doctorCommand, langShowCommand, langSetCommand, statusCommand, restoreCommand } from '../commands/index.js';
 import { Wizard } from './wizard/wizard.js';
@@ -48,6 +49,15 @@ export function createProgram(): Command {
     .action(async (token?: string) => {
       await authCommand(token);
     });
+
+  // status - 只读查询安装与配置状态
+  program.command('setup')
+    .description('Configure selected or installed coding tools')
+    .option('--tools <names>', 'comma-separated tool names or aliases')
+    .option('-y, --yes', 'skip interactive tool and model selection')
+    .option('--json', 'print results as JSON')
+    .option('--key-stdin', 'read an API key from standard input')
+    .action(async (options: import('../commands/setup.js').SetupOptions) => { await setupCommand(options); });
 
   // status - 只读查询安装与配置状态
   program.command('status')

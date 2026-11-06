@@ -34,6 +34,8 @@
 
 ## ✨ 功能特性
 
+`coding-helper setup --tools claude,codex --yes` 批量装载已保存的模型配置；省略 `--tools` 时选择已安装工具。支持 `--json` 和 `--key-stdin`；stdin Key 仅在有工具成功装载后保存。缺少必选模型的工具会跳过。
+
 - **🎯 交互式向导** — 首次运行引导配置语言、线路、API Key 和模型，步步引导
 - **🌐 多线路支持** — 国内线路 (api.qnaigc.com) / 海外线路 (api.modelink.ai)
 - **🔐 API Key 管理** — 输入、验证、保存、删除，一条龙管理

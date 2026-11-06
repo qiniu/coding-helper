@@ -34,6 +34,8 @@
 
 ## ✨ Features
 
+`coding-helper setup --tools claude,codex --yes` configures selected tools using saved models; omit `--tools` to select installed tools. Supports `--json` and `--key-stdin`; a stdin key is saved only after a successful tool configuration. Tools requiring an unselected model are skipped.
+
 - **🎯 Interactive Wizard** — Guided step-by-step setup for language, endpoint, API Key, and model on first run
 - **🌐 Multi-Region Support** — Domestic (api.qnaigc.com) / International (api.modelink.ai) endpoints
 - **🔐 API Key Management** — Input, validate, save, and revoke API keys

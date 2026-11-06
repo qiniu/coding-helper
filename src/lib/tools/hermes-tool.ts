@@ -20,6 +20,7 @@ const MANAGED_MODEL_KEYS = ['provider', 'default', 'base_url', 'api_key'] as con
 
 // Hermes Agent 工具实现
 export class HermesTool implements ITool {
+  requiresModelSelection = true;
   name = 'hermes';
   displayName = 'Hermes Agent';
   command = 'hermes';

@@ -2,6 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
 import yaml from 'js-yaml';
+import { atomicWriteFile } from './core/safe-write.js';
 import { DEFAULT_ENDPOINT, getBaseUrl, normalizeEndpointId } from './endpoints.js';
 
 // 配置文件路径
@@ -61,10 +62,12 @@ class ConfigManager {
     try {
       if (fs.existsSync(CONFIG_FILE)) {
         const content = fs.readFileSync(CONFIG_FILE, 'utf-8');
-        this.config = (yaml.load(content) as Config) || {};
+        const parsed = yaml.load(content);
+        if (parsed !== undefined && parsed !== null && (typeof parsed !== 'object' || Array.isArray(parsed))) throw new Error('Invalid configuration');
+        this.config = (parsed ?? {}) as Config;
       }
     } catch {
-      this.config = {};
+      throw new Error('Cannot parse helper configuration. Repair config.yaml before retrying.');
     }
     this.loaded = true;
   }
@@ -73,7 +76,7 @@ class ConfigManager {
   private save(): void {
     this.ensureDir();
     const content = yaml.dump(this.config, { lineWidth: -1 });
-    fs.writeFileSync(CONFIG_FILE, content, { encoding: 'utf-8', mode: 0o600 });
+    atomicWriteFile(CONFIG_FILE, content);
   }
 
   // 强制重新加载

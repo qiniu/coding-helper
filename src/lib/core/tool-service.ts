@@ -47,12 +47,14 @@ export function hasSavedToolModelConfig(tool: Pick<ITool, 'name'>, models: Model
 }
 
 // 原值、写入快照和恢复日志仍由各适配器的事务维护，不另写一份按工具名的状态。
-export async function applyTool(tool: ITool): Promise<ToolResult> {
+export async function applyTool(tool: ITool, connection?: { apiKey: string; baseUrl: string; models?: ModelConfig }): Promise<ToolResult> {
   if (tool.launchOnly) return { tool, status: 'skipped', reason: 'setup_reason_launch_only' };
   try {
-    const apiKey = configManager.getApiKey();
+    const apiKey = connection?.apiKey ?? configManager.getApiKey();
     if (!apiKey) return { tool, status: 'failed', reason: 'apikey_not_set' };
-    await tool.loadConfig(apiKey, configManager.baseUrl, configManager.getModels());
+    const models = connection?.models ?? configManager.getModels();
+    if (tool.requiresModelSelection && !hasSavedToolModelConfig(tool, models)) return { tool, status: 'skipped', reason: 'setup_reason_models_required' };
+    await tool.loadConfig(apiKey, connection?.baseUrl ?? configManager.baseUrl, models);
     return { tool, status: 'success' };
   } catch (error) {
     return { tool, status: 'failed', reason: error instanceof Error ? error.message : String(error) };
