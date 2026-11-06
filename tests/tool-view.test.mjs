@@ -54,3 +54,8 @@ test('result summary keeps long model ids intact', t => {
   const out = capture(t, () => renderResultSummary([{ tool: { ...base, name: 'demo', displayName: 'Demo', defaultModel: model, isInstalled: () => true }, status: 'success' }]));
   assert.ok(out.replace(/\s/g, '').includes(model), out);
 });
+
+test('result summary launch hint includes default launch arguments', t => {
+  const out = capture(t, () => renderResultSummary([{ tool: { ...base, name: 'dsh', displayName: 'DeepSeek Harness', command: 'dsh', launchArgs: ['web'], isInstalled: () => true }, status: 'success' }]));
+  assert.match(out, /dsh web/);
+});

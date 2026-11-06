@@ -518,6 +518,7 @@
   "profile_operation_failed": "Profile operation failed. Check the name, key, endpoint and configuration, then try again",
   "plan_files_none": "No files need changes",
   "tool_detail_model_default": "Tool default model",
+  "dsh_config_note": "Configures dsh 0.2.1-rc.5 Web/Headless profiles. Run dsh web, dsh headless or coding-helper run dsh; reselect the model in existing sessions.",
   "model_catalog_failed": "Failed to fetch models",
   "model_catalog_access_denied": "Model catalog access was denied. Check the API key, permissions or account balance before continuing.",
   "model_catalog_recovery": "Choose how to continue",
