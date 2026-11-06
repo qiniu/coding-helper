@@ -5,6 +5,50 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.6.0] - 2026-11-06
+
+### 更新内容
+* feat(core): 统一工具配置服务 by @laitekin in https://github.com/qiniu/coding-helper/pull/92
+* feat(cli): 增加工具状态查询 by @laitekin in https://github.com/qiniu/coding-helper/pull/93
+* feat(cli): 增加客户端配置还原命令 by @laitekin in https://github.com/qiniu/coding-helper/pull/94
+* feat(doctor): 检查账户模型调用状态 by @laitekin in https://github.com/qiniu/coding-helper/pull/95
+* feat(cli): 支持批量配置编程工具 by @laitekin in https://github.com/qiniu/coding-helper/pull/96
+* feat(auth): 同步已接入工具的连接配置 by @laitekin in https://github.com/qiniu/coding-helper/pull/97
+* feat(core): 增加快捷配置参数与模型映射 by @laitekin in https://github.com/qiniu/coding-helper/pull/98
+* feat(cli): 增加单工具快捷配置 by @laitekin in https://github.com/qiniu/coding-helper/pull/99
+* feat(cli): 增加配置预演与安全变更摘要 by @laitekin in https://github.com/qiniu/coding-helper/pull/100
+* feat(cli): 支持多工具快捷配置与预演 by @laitekin in https://github.com/qiniu/coding-helper/pull/101
+* fix(workbuddy): 兼容数组配置并修正账户探测 by @laitekin in https://github.com/qiniu/coding-helper/pull/133
+* feat(config): 支持自定义 API 线路 by @laitekin in https://github.com/qiniu/coding-helper/pull/108
+* feat(config): 增加按工具上下文上限 by @laitekin in https://github.com/qiniu/coding-helper/pull/109
+* feat(cli): 支持上下文参数与配置流程 by @laitekin in https://github.com/qiniu/coding-helper/pull/110
+* feat(config): 增加配置档连接与工具绑定 by @laitekin in https://github.com/qiniu/coding-helper/pull/111
+* feat(cli): 增加配置档管理与快捷选择 by @laitekin in https://github.com/qiniu/coding-helper/pull/112
+* feat(config): 支持独立服务商配置档与事务还原 by @laitekin in https://github.com/qiniu/coding-helper/pull/113
+* feat(ui): 增加可搜索的终端菜单组件 by @laitekin in https://github.com/qiniu/coding-helper/pull/115
+* feat(ui): 增加勾选与可取消的安全输入组件 by @laitekin in https://github.com/qiniu/coding-helper/pull/116
+* feat(models): 增加模型搜索与匹配排序 by @laitekin in https://github.com/qiniu/coding-helper/pull/117
+* feat(models): 增加模型槽位与继承规则 by @laitekin in https://github.com/qiniu/coding-helper/pull/118
+* feat(ui): 增加模型搜索选择页面 by @laitekin in https://github.com/qiniu/coding-helper/pull/119
+* feat(tools): 接入模型槽位与编辑流程 by @laitekin in https://github.com/qiniu/coding-helper/pull/120
+* feat(ui): 增加写入确认与安全预演流程 by @laitekin in https://github.com/qiniu/coding-helper/pull/121
+* feat(ui): 迁移主菜单与工具配置入口 by @laitekin in https://github.com/qiniu/coding-helper/pull/122
+* feat(ui): 增加像素 Logo 与工具角色 by @laitekin in https://github.com/qiniu/coding-helper/pull/123
+* fix(config): 兼容旧还原记录并修正 Droid 模型预算 by @laitekin in https://github.com/qiniu/coding-helper/pull/127
+* feat(ui): 恢复确认页、进度条、结果表，优化工具列表、配置档与账号页 by @laitekin in https://github.com/qiniu/coding-helper/pull/131
+* feat(dsh): 接入七牛模型配置与安全还原 by @laitekin in https://github.com/qiniu/coding-helper/pull/128
+* fix(ci): 完整获取审阅比较所需的 Git 历史 by @laitekin in https://github.com/qiniu/coding-helper/pull/104
+* fix(grok): 标题和摘要沿用所选模型 by @laitekin in https://github.com/qiniu/coding-helper/pull/132
+* feat(config): 外部切换服务后直接写入七牛；未安装工具回车安装 by @laitekin in https://github.com/qiniu/coding-helper/pull/134
+* feat(dsh): 支持 Desktop 配置及完整还原 by @laitekin in https://github.com/qiniu/coding-helper/pull/136
+* fix(config): 按当前服务商重建官方登录恢复基线 by @laitekin in https://github.com/qiniu/coding-helper/pull/140
+* fix(ui): use Space to select models and Enter to confirm by @krisxia0506 in https://github.com/qiniu/coding-helper/pull/142
+* fix(ui): show all selected Buddy models in completion summaries by @krisxia0506 in https://github.com/qiniu/coding-helper/pull/143
+* fix(config): protect restore errors and reconnect OpenCode after provider switches by @krisxia0506 in https://github.com/qiniu/coding-helper/pull/144
+
+
+**Full Changelog**: https://github.com/qiniu/coding-helper/compare/v0.5.0...v0.6.0
+
 ## [0.5.0] - 2026-10-30
 
 ### 更新内容
