@@ -50,7 +50,7 @@ export class MinimaxCodeTool extends OpenAICompatTool {
     if (staged.hasIn(['custom_provider', 'qiniu'])) staged.deleteIn(['custom_provider', 'qiniu']);
     if (/^(?:custom_provider:)?qiniu\//.test(String(staged.get('defaultModel') ?? ''))) staged.delete('defaultModel');
     logger.info(t('minimax_fetching_limits'));
-    const limits = await fetchModelLimits(baseUrl, apiKey, model);
+    const limits = await fetchModelLimits(baseUrl, apiKey, model, this.name);
     // 官方命令只写临时数据目录，成功并校验后才替换用户文件
     const stage = fs.mkdtempSync(path.join(os.tmpdir(), 'coding-helper-mcode-'));
     try {

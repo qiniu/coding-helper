@@ -10,6 +10,8 @@ import {
   OpenAICompatTool,
   type ModelLimits,
   fetchModelLimits,
+  effectiveContextLimit,
+  effectiveOutputLimit,
   getPath,
   isRecord,
   openAIBaseUrl,
@@ -124,8 +126,8 @@ export function applyOpenCodeConfig(
         ...(limits?.reasoning !== undefined ? { reasoning: limits.reasoning } : {}),
         ...(limits?.modalities ? { modalities: limits.modalities } : {}),
         ...(limits ? { limit: { ...(isRecord(existingModel.limit) ? existingModel.limit : {}),
-          context: limits.verified === false && isRecord(existingModel.limit) && existingModel.limit.context !== undefined ? existingModel.limit.context : limits.contextWindow,
-          output: limits.verified === false && isRecord(existingModel.limit) && existingModel.limit.output !== undefined ? existingModel.limit.output : limits.maxOutputTokens } } : {}),
+          context: effectiveContextLimit(limits, isRecord(existingModel.limit) ? existingModel.limit.context : undefined),
+          output: effectiveOutputLimit(limits, isRecord(existingModel.limit) ? existingModel.limit.output : undefined, effectiveContextLimit(limits, isRecord(existingModel.limit) ? existingModel.limit.context : undefined)) } } : {}),
       },
     },
   };
@@ -234,7 +236,7 @@ export class OpenCodeTool extends OpenAICompatTool {
     const files = [path.join(path.dirname(file), 'config.json'), ...getOpenCodeConfigFiles()];
     const lowerFiles = files.slice(0, files.indexOf(file));
     const lower = lowerFiles.map((file) => ({ file, ...readJsonSnapshot(file) }));
-    const limits = await fetchModelLimits(baseUrl, apiKey, model);
+    const limits = await fetchModelLimits(baseUrl, apiKey, model, this.name);
     assertNotSymlink(file);
     const { value: config, content: current } = readJsonSnapshot(file);
     const unchanged = (): boolean => getOpenCodeConfigFile() === file && readTextFile(file) === before &&
@@ -281,7 +283,8 @@ export class OpenCodeTool extends OpenAICompatTool {
         const target = getPath(next, 'provider.qiniu');
         const targetModel = isRecord(target) && isRecord(target.models) ? target.models[model] : undefined;
         if (isRecord(effectiveLimit) && isRecord(targetModel) && isRecord(targetModel.limit)) {
-          for (const key of ['context','output']) if (effectiveLimit[key] !== undefined) targetModel.limit[key] = effectiveLimit[key];
+          targetModel.limit.context = effectiveContextLimit(limits, effectiveLimit.context);
+          targetModel.limit.output = effectiveOutputLimit(limits, effectiveLimit.output, targetModel.limit.context as number);
         }
       }
       const priors = previous?.priors ?? { snapshot: snapshot(config), fileExisted: before !== undefined, providerExisted: Object.hasOwn(config, 'provider') };
