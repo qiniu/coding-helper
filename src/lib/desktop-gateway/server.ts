@@ -1,16 +1,18 @@
 import http, { type IncomingMessage, type ServerResponse } from 'node:http';
 import https from 'node:https';
-import { timingSafeEqual } from 'node:crypto';
+import { timingSafeEqual, createHash } from 'node:crypto';
 
 // 桌面端只接受 Claude 角色名；真实模型由本地网关映射到七牛。
 export const DESKTOP_ROUTE = 'claude-sonnet-4-6';
+export const DESKTOP_ROUTES = { sonnet: DESKTOP_ROUTE, opus: 'claude-opus-4-6', haiku: 'claude-haiku-4-5' } as const;
 const MAX_BODY = 16 * 1024 * 1024;
 
 export interface DesktopGatewayOptions {
   upstream: string;
   apiKey: string;
   localToken: string;
-  model: string;
+  model?: string;
+  routes?: Record<string, string>;
 }
 
 function secretMatches(actual: string | undefined, expected: string): boolean {
@@ -34,15 +36,24 @@ function upstreamBase(value: string): URL {
 // 只转发明确允许的 Anthropic 端点；拒绝携带客户端凭据或跳转到其他地址。
 export function createDesktopGateway(options: DesktopGatewayOptions): http.Server {
   const base = upstreamBase(options.upstream);
-  if (!options.apiKey.trim() || !options.localToken.trim() || !options.model.trim()) throw new Error('Gateway credentials and model are required.');
+  const routes = options.routes ?? (options.model ? { [DESKTOP_ROUTE]: options.model } : {});
+  if (!options.apiKey.trim() || !options.localToken.trim() || !Object.keys(routes).length || Object.entries(routes).some(([route, model]) => !Object.values(DESKTOP_ROUTES).includes(route as typeof DESKTOP_ROUTES[keyof typeof DESKTOP_ROUTES]) || typeof model !== 'string' || !model.trim())) throw new Error('Gateway credentials and model routes are required.');
+  const fingerprint = createHash('sha256').update(JSON.stringify([base.toString(), options.apiKey, options.localToken, Object.entries(routes).sort()])).digest('hex');
   const server = http.createServer((req: IncomingMessage, res: ServerResponse) => {
     const authorization = req.headers.authorization;
     const bearer = authorization?.startsWith('Bearer ') ? authorization.slice(7) : undefined;
     const apiKey = typeof req.headers['x-api-key'] === 'string' ? req.headers['x-api-key'] : undefined;
     if (!secretMatches(bearer ?? apiKey, options.localToken)) { fail(res, 401, 'Unauthorized'); return; }
+    if (req.method === 'GET' && req.url === '/_coding_helper/health') {
+      res.writeHead(200, { 'content-type': 'application/json' }); res.end(JSON.stringify({ fingerprint })); return;
+    }
+    if (req.method === 'POST' && req.url === '/_coding_helper/stop') {
+      res.writeHead(200, { 'content-type': 'application/json' }); res.end('{}'); server.close(); server.closeIdleConnections?.(); return;
+    }
     if (req.method === 'GET' && req.url === '/v1/models') {
       res.writeHead(200, { 'content-type': 'application/json' });
-      res.end(JSON.stringify({ data: [{ id: DESKTOP_ROUTE, type: 'model', display_name: options.model, created_at: '2024-01-01T00:00:00Z' }], has_more: false, first_id: DESKTOP_ROUTE, last_id: DESKTOP_ROUTE }));
+      const data = Object.entries(routes).map(([id, model]) => ({ id, type: 'model', display_name: model, created_at: '2024-01-01T00:00:00Z' }));
+      res.end(JSON.stringify({ data, has_more: false, first_id: data[0].id, last_id: data[data.length - 1].id }));
       return;
     }
     if (req.method !== 'POST' || !['/v1/messages', '/v1/messages/count_tokens'].includes(req.url ?? '')) { fail(res, 404, 'Not found'); return; }
@@ -62,8 +73,8 @@ export function createDesktopGateway(options: DesktopGatewayOptions): http.Serve
         if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error();
         body = value as Record<string, unknown>;
       } catch { fail(res, 400, 'Invalid JSON object'); return; }
-      if (body.model !== DESKTOP_ROUTE) { fail(res, 400, 'Unknown model route'); return; }
-      body.model = options.model;
+      if (typeof body.model !== 'string' || !Object.hasOwn(routes, body.model)) { fail(res, 400, 'Unknown model route'); return; }
+      body.model = routes[body.model];
       const bytes = Buffer.from(JSON.stringify(body));
       const target = new URL(base.toString());
       target.pathname = `${target.pathname.replace(/\/+$/, '')}${req.url}`;

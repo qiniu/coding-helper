@@ -8,6 +8,7 @@ import { isQiniuBaseUrl } from '../endpoints.js';
 import { t } from '../i18n.js';
 import type { ModelConfig } from '../config.js';
 import { OpenAICompatTool } from './openai-compat-tool.js';
+import { desktopGatewayProfile, desktopModelRoutes } from '../desktop-gateway/mapping.js';
 
 // 独立标识避免覆盖其他工具或用户创建的 profile。
 const PROFILE_ID = 'e8cd7c67-52b5-4d78-810b-c0d1fef098ab';
@@ -78,6 +79,18 @@ export class ClaudeDesktopTool extends OpenAICompatTool {
       const saved = entry.state.priors?.files;
       if (!Array.isArray(saved) || saved.length !== expected.length || saved.some(item => !item || typeof item !== 'object' || !('file' in item) || typeof item.file !== 'string' || !expected.includes(item.file)) || new Set(saved.map(item => (item as { file: string }).file)).size !== expected.length) throw new Error('Claude Desktop configuration directory changed or restoration record is invalid.');
     }
+  }
+  // 网关及 Desktop profile 的联合启停仍由上层服务协调，尚未接入普通 CLI。
+  loadGatewayConfig(gatewayUrl: string, localToken: string, models: ModelConfig): void {
+    const routes = desktopModelRoutes(models);
+    const files = desktopPaths();
+    this.checkTargets(files);
+    if (!stateStore.getFileStates(this.name).length && readTextFile(files[2]) !== undefined) throw new Error('Claude Desktop managed profile already exists without a restoration record.');
+    applyConfigEdits(this.name, [
+      { file: files[0], build: mode }, { file: files[1], build: mode },
+      { file: files[2], build: content => serialize(desktopGatewayProfile(parseConfigObject(content), gatewayUrl, localToken, routes)) },
+      { file: files[3], build: meta },
+    ]);
   }
   async loadConfig(apiKey: string, baseUrl: string, models: ModelConfig): Promise<void> {
     const model = this.resolveModel(models);

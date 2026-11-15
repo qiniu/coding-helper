@@ -54,3 +54,13 @@ test('external edits block restore and preserve the restoration record', async (
   write(files[3], applied);
   tool.unloadConfig();
 });
+test('gateway profile wires three mapped roles and restores the prior desktop configuration', () => {
+  const prior=files.map(file=>fs.existsSync(file)?fs.readFileSync(file,'utf8'):undefined);
+  tool.loadGatewayConfig('http://127.0.0.1:12345','local-token',{toolModels:{'claude-desktop':'qwen'},slotModels:{'claude-desktop':{opus:'deepseek',haiku:'kimi'}}});
+  const profile=JSON.parse(fs.readFileSync(files[2],'utf8'));
+  assert.equal(profile.inferenceGatewayBaseUrl,'http://127.0.0.1:12345');
+  assert.equal(profile.inferenceGatewayApiKey,'local-token');
+  assert.deepEqual(profile.inferenceModels.map(item=>item.labelOverride),['qwen','deepseek','kimi']);
+  tool.unloadConfig();
+  prior.forEach((value,i)=>value===undefined?assert.equal(fs.existsSync(files[i]),false):assert.equal(fs.readFileSync(files[i],'utf8'),value));
+});
