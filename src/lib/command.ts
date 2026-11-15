@@ -1,5 +1,6 @@
 import { profileListCommand, profileAddCommand, profileUseCommand, profileRemoveCommand } from '../commands/profile.js';
 import { runCommand } from '../commands/run.js';
+import { desktopGatewayCommand } from '../commands/desktop-gateway.js';
 import { setupCommand } from '../commands/setup.js';
 import { quickCommand, type QuickOptions } from '../commands/quick.js';
 import { Command } from 'commander';
@@ -83,6 +84,12 @@ export function createProgram(): Command {
     .description('Restore previous client settings using saved restoration records')
     .option('-y, --yes', 'skip confirmation; required for non-interactive use')
     .action(async (tools: string | undefined, options: { yes?: boolean }) => { await restoreCommand(tools, options); });
+
+  // desktop-gateway - Claude Desktop 本地模型映射网关的启停与状态
+  program.command('desktop-gateway [action]')
+    .description('Start, stop or inspect the local Claude Desktop model gateway (start|stop|status)')
+    .option('--json', 'print gateway status as JSON')
+    .action(async (action: string | undefined, options: { json?: boolean }) => { await desktopGatewayCommand(action ?? 'status', options); });
 
   // doctor - 健康检查
   program

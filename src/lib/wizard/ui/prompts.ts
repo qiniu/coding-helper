@@ -728,7 +728,7 @@ const checkView = createPrompt(<T,>(config: LiveCheckConfig<T>, done: (values: T
   // 全选、继续与操作提示固定保留，只滚动中间的选项。
   const page = usePagination({ items, active: Math.max(0, Math.min(items.length - 1, active - 1)), loop: false,
     // 提示行、全选、继续、空行与操作提示固定保留；页头之下剩余的行数不够时缩短列表
-    pageSize: Math.max(1, Math.min(14, (process.stdout.rows || 28) - 7 - footer.split('\n').length - extraRows,
+    pageSize: Math.max(1, Math.min(16, (process.stdout.rows || 28) - 7 - footer.split('\n').length - extraRows,
       (remainingRows() ?? Infinity) - 5 - footer.split('\n').length - extraRows)),
     renderItem({ item, index }) {
       const box = checked[index] ? theme.brand('☑') : theme.subtle('☐');

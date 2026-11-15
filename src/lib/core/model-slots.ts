@@ -18,6 +18,7 @@ export const TOOL_SLOTS: Record<string, ModelSlot[]> = {
   droid: [slot('droid', 'spec')],
   grok: [slot('grok', 'summary')],
   hermes: [slot('hermes', 'vision')],
+  'claude-desktop': [slot('claude_desktop', 'opus'), slot('claude_desktop', 'haiku')],
 };
 
 export function toolSlots(toolName: string): ModelSlot[] {

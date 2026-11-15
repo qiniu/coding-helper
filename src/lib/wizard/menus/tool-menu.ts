@@ -28,7 +28,7 @@ async function select<T>(config: { message: string; items: MenuEntry<T>[]; defau
   const result = await menuPrompt({ message: config.message, statusText: config.statusText, statusUpdate: config.statusUpdate, escape: true, default: config.default, items: config.items }, context);
   return result.action === 'escape' ? 'back' as T : result.value;
 }
-const PLANNED_TOOLS = ['claude-code', 'codex', 'codebuddy', 'workbuddy', 'hermes', 'opencode', 'qwen-code', 'kimi-code', 'grok', 'droid', 'openclaw', 'dsh'];
+const PLANNED_TOOLS = ['claude-code', 'codex', 'codebuddy', 'workbuddy', 'hermes', 'opencode', 'qwen-code', 'kimi-code', 'grok', 'droid', 'openclaw', 'dsh', 'claude-desktop'];
 // 重载保留该工具完整的已保存模型集合，避免将 Buddy 的多模型缩减为首项。
 export function reloadPlanForTool(tool: ITool) {
   const saved = configManager.getModels();

@@ -78,6 +78,7 @@ coding-helper doctor               # 健康检查
 coding-helper status [--json]      # 查询工具安装与七牛接入状态
 coding-helper restore [tools] [-y] # 按记录还原客户端配置，非交互需 -y
 coding-helper enter [tool]         # 进入主菜单或工具配置菜单
+coding-helper desktop-gateway [start|stop|status] [--json]  # Claude Desktop 本地模型映射网关
 ```
 
 ## 命名约定
