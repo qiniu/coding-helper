@@ -451,6 +451,7 @@
   "tool_failure_protected": "The target is protected by a symlink or read-only setting. Check the path and protection settings before retrying; keep recovery records.",
   "tool_failure_permissions": "The target could not be accessed. Check helper and client file permissions before retrying; keep recovery records.",
   "tool_failure_retry": "Configuration changed during this attempt. Reload the latest settings and retry; keep existing files and recovery records.",
+  "claude_desktop_note": "Desktop is now in third-party inference mode. Quit Claude Desktop completely and restart it; this mode affects the entire application.",
   "dsh_config_note": "Web/Headless configured; reselect the model in existing sessions. Start Desktop once, then reload configuration to include it.",
   "dsh_desktop_config_note": "Web/Headless and Desktop configured. Restart Desktop, choose the desktop profile and start a new session to use the selected model.",
   "dsh_desktop_launch_note": "Open or restart Desktop from the application. Install the dsh CLI separately to run Web/Headless.",

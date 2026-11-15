@@ -1,0 +1,56 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+import { isolateHome } from './helpers/isolated-home.mjs';
+const home = fs.mkdtempSync(path.join(os.tmpdir(), 'claude-desktop-'));
+isolateHome(home);
+const { ClaudeDesktopTool, desktopPaths } = await import('../dist/lib/tools/claude-desktop-tool.js');
+const { previewWrites, publicPlannedChanges } = await import('../dist/lib/core/safe-write.js');
+const tool = new ClaudeDesktopTool();
+const files = desktopPaths();
+const url = 'https://api.qnaigc.com';
+const model = { toolModels: { 'claude-desktop': 'claude-sonnet-4-6' } };
+const write = (file, value) => { fs.mkdirSync(path.dirname(file), { recursive: true }); fs.writeFileSync(file, value); };
+test.after(() => fs.rmSync(home, { recursive: true, force: true }));
+test('platform paths follow the desktop config directories', () => {
+  assert.equal(desktopPaths('darwin', '/home/test', {})[0], '/home/test/Library/Application Support/Claude/claude_desktop_config.json');
+  assert.equal(desktopPaths('win32', '/home/test', { LOCALAPPDATA: '/local' })[1], '/local/Claude-3p/claude_desktop_config.json');
+  assert.equal(desktopPaths('linux', '/home/test', { XDG_CONFIG_HOME: '/xdg' })[3], '/xdg/Claude-3p/configLibrary/_meta.json');
+});
+test('preview and load preserve other settings and restore original bytes', async () => {
+  const original = ['{"other":true}\n', '{"custom":42}\n', undefined, '{"entries":[{"id":"other","name":"Other"}],"appliedId":"other"}\n'];
+  original.forEach((value, i) => { if (value !== undefined) write(files[i], value); });
+  const preview = await previewWrites(() => tool.loadConfig('secret-test-key', url, model));
+  assert.equal(preview.changes.length, 4);
+  assert.doesNotMatch(JSON.stringify(publicPlannedChanges(preview.changes)), /secret-test-key/);
+  assert.equal(fs.readFileSync(files[0], 'utf8'), original[0]);
+  await tool.loadConfig('secret-test-key', url, model);
+  assert.equal(tool.isConfigured(), true);
+  assert.equal(JSON.parse(fs.readFileSync(files[0])).other, true);
+  assert.equal(JSON.parse(fs.readFileSync(files[3])).entries[0].id, 'other');
+  assert.equal(fs.statSync(files[2]).mode & 0o777, 0o600);
+  assert.doesNotMatch(JSON.stringify(tool.getConfig()), /secret-test-key/);
+  await tool.loadConfig('new-secret', url, model);
+  tool.unloadConfig();
+  original.forEach((value, i) => value === undefined ? assert.equal(fs.existsSync(files[i]), false) : assert.equal(fs.readFileSync(files[i], 'utf8'), value));
+});
+test('unsupported models and malformed profiles never mutate files', async () => {
+  const before = fs.readFileSync(files[0], 'utf8');
+  await assert.rejects(tool.loadConfig('secret', url, { toolModels: { 'claude-desktop': 'deepseek-v4' } }), /requires a claude/);
+  write(files[3], '{broken');
+  await assert.rejects(tool.loadConfig('secret', url, model));
+  assert.equal(fs.readFileSync(files[0], 'utf8'), before);
+  assert.equal(fs.existsSync(files[2]), false);
+  write(files[3], '{"entries":[],"appliedId":"other"}\n');
+});
+test('external edits block restore and preserve the restoration record', async () => {
+  await tool.loadConfig('secret', url, model);
+  const applied = fs.readFileSync(files[3], 'utf8');
+  fs.appendFileSync(files[3], ' ');
+  assert.throws(() => tool.unloadConfig(), /changed/);
+  assert.equal(tool.isConfigured(), true);
+  write(files[3], applied);
+  tool.unloadConfig();
+});
