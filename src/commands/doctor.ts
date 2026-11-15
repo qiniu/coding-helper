@@ -8,6 +8,8 @@ import { savedModelFor } from '../lib/core/model-mapping.js';
 import { uiRenderer } from '../lib/wizard/ui/ui-renderer.js';
 import { logger } from '../utils/logger.js';
 import { execSync } from 'node:child_process';
+import { probeGateway, readGatewayConfig } from '../lib/desktop-gateway/background.js';
+import { gatewayOrigin } from '../lib/desktop-gateway/mapping.js';
 
 // 健康检查项
 interface CheckItem {
@@ -96,6 +98,21 @@ export async function doctorCommand(): Promise<void> {
       status: installed ? 'pass' : 'warn',
       detail: installed === null ? t('tool_status_unknown') : installed ? t('doctor_found') : t('doctor_not_found'),
     });
+  }
+
+  // Claude Desktop 依赖本地网关常驻；已接入时确认它正在以当前配置运行。
+  try {
+    const gateway = readGatewayConfig();
+    if (gateway) {
+      const state = await probeGateway(gateway);
+      checks.push({
+        label: t('desktop_gateway_title'),
+        status: state === 'current' ? 'pass' : 'fail',
+        detail: state === 'current' ? `${t('desktop_gateway_state_current')} (${gatewayOrigin(gateway.port)})` : `${t(`desktop_gateway_state_${state}`)} · ${t('desktop_gateway_fix')}`,
+      });
+    }
+  } catch {
+    checks.push({ label: t('desktop_gateway_title'), status: 'warn', detail: t('desktop_gateway_config_invalid') });
   }
 
   // 5. Node.js 检查

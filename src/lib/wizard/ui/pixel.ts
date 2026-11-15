@@ -33,6 +33,10 @@ export const SPRITES: Record<string, SpriteDef> = {
   'claude-code': { pal: { a: '#D97757', k: K }, rows: [
     '............', '............', '..aaaaaaaa..', '..akaaaaka..', 'aaaaaaaaaaaa',
     '..aaaaaaaa..', '..aaaaaaaa..', '..a.a..a.a..', '..a.a..a.a..', '............'] },
+  // Claude 角色坐在显示器里，表示桌面应用
+  'claude-desktop': { pal: { a: '#D97757', s: '#5B626E', k: K }, rows: [
+    'ssssssssssss', 's..........s', 's.aaaaaaaa.s', 's.akaaaaka.s', 's.aaaaaaaa.s',
+    's.a.a..a.a.s', 's..........s', 'ssssssssssss', '....ssss....', '..ssssssss..'] },
   codex: { pal: { a: '#E6E9EE', k: '#11161C' }, rows: [
     '............', '.aaaaaaaaaa.', 'aakkkkkkkkaa', 'aakakkkkkkaa', 'aakkakkkkkaa',
     'aakakkaaakaa', 'aakkkkkkkkaa', '.aaaaaaaaaa.', '.a.a....a.a.', '............'] },

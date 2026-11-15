@@ -32,6 +32,7 @@
 | Factory Droid | CLI | [配置说明 / Configuration](docs/tools/droid.md) |
 | OpenCode | CLI | `~/.config/opencode/opencode.json` |
 | DeepSeek Harness (dsh) | CLI | [配置说明 / Configuration](docs/tools/dsh.md) |
+| Claude Desktop | 桌面应用 | [配置说明 / Configuration](docs/tools/claude-desktop.md) |
 
 ## ✨ 功能特性
 
