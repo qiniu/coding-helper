@@ -38,7 +38,7 @@ test('preview and load preserve other settings and restore original bytes', asyn
 });
 test('unsupported models and malformed profiles never mutate files', async () => {
   const before = fs.readFileSync(files[0], 'utf8');
-  await assert.rejects(tool.loadConfig('secret', url, { toolModels: { 'claude-desktop': 'deepseek-v4' } }), /requires a claude/);
+  await assert.rejects(tool.loadConfig('secret', url, { toolModels: { 'claude-desktop': 'deepseek-v4' } }), /requires a Claude/);
   write(files[3], '{broken');
   await assert.rejects(tool.loadConfig('secret', url, model));
   assert.equal(fs.readFileSync(files[0], 'utf8'), before);

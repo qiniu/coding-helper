@@ -81,7 +81,7 @@ export class ClaudeDesktopTool extends OpenAICompatTool {
   }
   async loadConfig(apiKey: string, baseUrl: string, models: ModelConfig): Promise<void> {
     const model = this.resolveModel(models);
-    if (!/^(?:anthropic\/)?claude-/i.test(model)) throw new Error('Claude Desktop direct mode requires a claude-* or anthropic/claude-* model; other models require a model-mapping proxy.');
+    if (!/^(?:anthropic\/)?claude-(?:sonnet|opus|haiku)-[a-z0-9][a-z0-9.-]*$/i.test(model)) throw new Error('Claude Desktop direct mode requires a Claude Sonnet, Opus, or Haiku role model; other models require a model-mapping proxy.');
     if (!apiKey.trim()) throw new Error('Claude Desktop gateway API key is required.');
     const files = desktopPaths();
     this.checkTargets(files);
